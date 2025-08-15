@@ -23,6 +23,8 @@ export default function TabLayout() {
   }, []);
 
   const isPharmacyPartner = partnerType === 'pharmacy';
+  
+  console.log('Partner type:', partnerType, 'Is pharmacy:', isPharmacyPartner);
 
   return (
     <Tabs
@@ -64,10 +66,11 @@ export default function TabLayout() {
       <Tabs.Screen
         name="products"
         options={{
-          title: isPharmacyPartner ? 'Inventory' : 'Services',
+          title: 'Inventory',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name={isPharmacyPartner ? "cube-outline" : "medical-outline"} size={size} color={color} />
+            <Ionicons name="cube-outline" size={size} color={color} />
           ),
+          href: isPharmacyPartner ? '/(tabs)/products' : null,
         }}
       />
       <Tabs.Screen

@@ -9,6 +9,8 @@ import {
   RefreshControl,
   TextInput,
   ActivityIndicator,
+  Modal,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -23,19 +25,27 @@ interface HistoryItem {
   service: string;
   appointmentDate: string;
   appointmentTime: string;
-  status: 'completed' | 'cancelled';
+  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
   totalAmount: number;
   rating?: number;
   review?: string;
+  notes?: string;
+  petSpecies?: string;
+  petBreed?: string;
+  customerPhone?: string;
 }
 
 export default function HistoryScreen() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'completed' | 'cancelled'>('all');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'>('all');
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [partnerData, setPartnerData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<HistoryItem | null>(null);
+  const [treatmentSummary, setTreatmentSummary] = useState('');
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   useEffect(() => {
     loadPartnerData();
@@ -81,20 +91,26 @@ export default function HistoryScreen() {
       }
       
       if (response.success && response.data) {
-        const items = isPharmacyPartner ? response.data.orders || [] : response.data.appointments || [];
+        const items = isPharmacyPartner 
+          ? response.data.orders || response.data.data?.orders || []
+          : response.data.appointments || response.data.data?.appointments || [];
         
         // Transform API data to match our interface
         const transformedHistory = items.map((item: any) => ({
-          id: item.id,
+          id: String(item.id), // Ensure id is always a string
           customerName: item.customerName || item.customer?.name || 'Unknown Customer',
           petName: item.petName || item.pet?.name || 'Pet',
-          service: item.service || item.productName || item.serviceName || 'Service',
+          service: item.service || item.productName || item.serviceName || `${item.petType} ${partnerData?.serviceType || 'Service'}`,
           appointmentDate: item.appointmentDate || item.orderDate || item.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0],
           appointmentTime: item.appointmentTime || item.orderTime || '10:00 AM',
-          status: item.status === 'completed' ? 'completed' : 'cancelled',
-          totalAmount: item.totalAmount || item.amount || item.price || 0,
+          status: item.status || 'pending',
+          totalAmount: item.totalAmount || item.amount || item.price || 100, // Default amount for appointments
           rating: item.rating,
-          review: item.review
+          review: item.review,
+          notes: item.notes || '',
+          petSpecies: item.petSpecies || item.pet?.species,
+          petBreed: item.petBreed || item.pet?.breed,
+          customerPhone: item.customerPhone || item.customer?.phone
         }));
         
         setHistory(transformedHistory);
@@ -131,6 +147,75 @@ export default function HistoryScreen() {
     setExpandedItems(newExpanded);
   };
 
+  const openCompletionModal = (appointment: HistoryItem) => {
+    setSelectedAppointment(appointment);
+    setShowCompletionModal(true);
+    setTreatmentSummary('');
+  };
+
+  const markAsCompleted = async () => {
+    if (!selectedAppointment) return;
+    
+    try {
+      const response = await apiService.updateAppointmentStatus(
+        selectedAppointment.id, 
+        'completed',
+        { notes: treatmentSummary }
+      );
+      
+      if (response.success) {
+        // Update the local state
+        setHistory(prevHistory => 
+          prevHistory.map(item => 
+            item.id === selectedAppointment.id 
+              ? { ...item, status: 'completed' as const, notes: treatmentSummary }
+              : item
+          )
+        );
+        
+        setShowCompletionModal(false);
+        setSelectedAppointment(null);
+        setTreatmentSummary('');
+        
+        Alert.alert('Success', 'Appointment marked as completed successfully!');
+      } else {
+        Alert.alert('Error', 'Failed to update appointment status');
+      }
+    } catch (error) {
+      console.error('Error updating appointment status:', error);
+      Alert.alert('Error', 'An error occurred while updating appointment status');
+    }
+  };
+
+  const openDetailsModal = (appointment: HistoryItem) => {
+    setSelectedAppointment(appointment);
+    setShowDetailsModal(true);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return Colors.warning;
+      case 'confirmed': return Colors.info || '#2196F3';
+      case 'in_progress': return Colors.secondary || '#FF9800';
+      case 'completed': return Colors.success;
+      case 'cancelled': return Colors.error || '#F44336';
+      case 'no_show': return Colors.textTertiary;
+      default: return Colors.textSecondary;
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Pending';
+      case 'confirmed': return 'Confirmed';
+      case 'in_progress': return 'In Progress';
+      case 'completed': return 'Completed';
+      case 'cancelled': return 'Cancelled';
+      case 'no_show': return 'No Show';
+      default: return status;
+    }
+  };
+
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, index) => (
       <Ionicons
@@ -147,11 +232,11 @@ export default function HistoryScreen() {
     return (
       <TouchableOpacity
         style={styles.historyCard}
-        onPress={() => toggleExpanded(item.id)}
+        onPress={() => openDetailsModal(item)}
         activeOpacity={0.7}
       >
         <View style={styles.orderHeader}>
-          <Text style={styles.orderNumber}>Order#{item.id.padStart(3, '0')}</Text>
+          <Text style={styles.orderNumber}>Order#{String(item.id).padStart(3, '0')}</Text>
           <View style={styles.expandButton}>
             <Ionicons
               name={isExpanded ? "chevron-up" : "chevron-down"}
@@ -177,14 +262,24 @@ export default function HistoryScreen() {
         )}
         
         <View style={styles.orderFooter}>
-          <Text style={[styles.statusText, { color: item.status === 'completed' ? Colors.success : Colors.warning }]}>
-            Status: {item.status === 'completed' ? 'Completed' : 'Pending'}
+          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+            Status: {getStatusText(item.status)}
           </Text>
-          {item.status !== 'completed' && (
-            <TouchableOpacity style={styles.cancelButton}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          )}
+          <View style={styles.actionButtons}>
+            {item.status !== 'completed' && item.status !== 'cancelled' && (
+              <TouchableOpacity 
+                style={styles.completeButton}
+                onPress={() => openCompletionModal(item)}
+              >
+                <Text style={styles.completeButtonText}>Mark Complete</Text>
+              </TouchableOpacity>
+            )}
+            {item.status !== 'completed' && item.status !== 'cancelled' && (
+              <TouchableOpacity style={styles.cancelButton}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {isExpanded && (
@@ -209,8 +304,26 @@ export default function HistoryScreen() {
               </View>
               <View style={styles.detailRow}>
                 <Ionicons name="paw-outline" size={16} color={Colors.textSecondary} />
-                <Text style={styles.detailText}>Pet: {item.petName}</Text>
+                <Text style={styles.detailText}>Pet: {item.petName}{item.petSpecies ? ` (${item.petSpecies})` : ''}</Text>
               </View>
+              {item.petBreed && (
+                <View style={styles.detailRow}>
+                  <Ionicons name="information-circle-outline" size={16} color={Colors.textSecondary} />
+                  <Text style={styles.detailText}>Breed: {item.petBreed}</Text>
+                </View>
+              )}
+              {item.customerPhone && (
+                <View style={styles.detailRow}>
+                  <Ionicons name="call-outline" size={16} color={Colors.textSecondary} />
+                  <Text style={styles.detailText}>Phone: {item.customerPhone}</Text>
+                </View>
+              )}
+              {item.notes && (
+                <View style={styles.detailRow}>
+                  <Ionicons name="document-text-outline" size={16} color={Colors.textSecondary} />
+                  <Text style={styles.detailText}>Notes: {item.notes}</Text>
+                </View>
+              )}
             </View>
 
             {item.status === 'completed' && item.rating && (
@@ -279,16 +392,22 @@ export default function HistoryScreen() {
           <Text style={[styles.statusTabText, filter === 'all' && styles.activeStatusTabText]}>All</Text>
         </TouchableOpacity>
         <TouchableOpacity
+          style={[styles.statusTab, filter === 'pending' && styles.activeStatusTab]}
+          onPress={() => setFilter('pending')}
+        >
+          <Text style={[styles.statusTabText, filter === 'pending' && styles.activeStatusTabText]}>Pending</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.statusTab, filter === 'confirmed' && styles.activeStatusTab]}
+          onPress={() => setFilter('confirmed')}
+        >
+          <Text style={[styles.statusTabText, filter === 'confirmed' && styles.activeStatusTabText]}>Confirmed</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           style={[styles.statusTab, filter === 'completed' && styles.activeStatusTab]}
           onPress={() => setFilter('completed')}
         >
           <Text style={[styles.statusTabText, filter === 'completed' && styles.activeStatusTabText]}>Completed</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.statusTab, filter === 'cancelled' && styles.activeStatusTab]}
-          onPress={() => setFilter('cancelled')}
-        >
-          <Text style={[styles.statusTabText, filter === 'cancelled' && styles.activeStatusTabText]}>Cancelled</Text>
         </TouchableOpacity>
       </View>
 
@@ -326,6 +445,133 @@ export default function HistoryScreen() {
           />
         )}
       </View>
+
+      {/* Appointment Details Modal */}
+      <Modal
+        visible={showDetailsModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDetailsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Appointment Details</Text>
+              <TouchableOpacity 
+                onPress={() => setShowDetailsModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedAppointment && (
+              <View style={styles.modalBody}>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Order ID:</Text>
+                  <Text style={styles.detailValue}>#{String(selectedAppointment.id).padStart(3, '0')}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Customer:</Text>
+                  <Text style={styles.detailValue}>{selectedAppointment.customerName}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Pet:</Text>
+                  <Text style={styles.detailValue}>{selectedAppointment.petName}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Service:</Text>
+                  <Text style={styles.detailValue}>{selectedAppointment.service}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Date & Time:</Text>
+                  <Text style={styles.detailValue}>{selectedAppointment.appointmentDate} at {selectedAppointment.appointmentTime}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Status:</Text>
+                  <Text style={[styles.detailValue, { color: getStatusColor(selectedAppointment.status) }]}>
+                    {getStatusText(selectedAppointment.status)}
+                  </Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Phone:</Text>
+                  <Text style={styles.detailValue}>{selectedAppointment.customerPhone}</Text>
+                </View>
+                {selectedAppointment.notes && (
+                  <View style={styles.detailColumn}>
+                    <Text style={styles.detailLabel}>Notes:</Text>
+                    <Text style={styles.detailValue}>{selectedAppointment.notes}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={styles.modalCloseButton}
+                onPress={() => setShowDetailsModal(false)}
+              >
+                <Text style={styles.modalCloseButtonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Completion Modal */}
+      <Modal
+        visible={showCompletionModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCompletionModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Complete Appointment</Text>
+              <TouchableOpacity 
+                onPress={() => setShowCompletionModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.modalDescription}>
+                Please provide a summary of the treatment or service provided:
+              </Text>
+              <TextInput
+                style={styles.treatmentInput}
+                placeholder="Enter treatment summary, diagnosis, recommendations, etc."
+                value={treatmentSummary}
+                onChangeText={setTreatmentSummary}
+                multiline
+                numberOfLines={4}
+                maxLength={500}
+                textAlignVertical="top"
+              />
+              <Text style={styles.characterCount}>{treatmentSummary.length}/500</Text>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity 
+                style={styles.modalCancelButton}
+                onPress={() => setShowCompletionModal(false)}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modalCompleteButton, !treatmentSummary.trim() && styles.disabledButton]}
+                onPress={markAsCompleted}
+                disabled={!treatmentSummary.trim()}
+              >
+                <Text style={styles.modalCompleteButtonText}>Mark Complete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -490,6 +736,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  completeButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    backgroundColor: Colors.success,
+    borderRadius: BorderRadius.sm,
+  },
+  completeButtonText: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.white,
+    fontWeight: Typography.fontWeights.medium,
+  },
   cancelButton: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
@@ -572,5 +833,119 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     marginTop: Spacing.sm,
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  modalTitle: {
+    fontSize: Typography.fontSizes.lg,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.textPrimary,
+  },
+  closeButton: {
+    padding: Spacing.xs,
+  },
+  modalBody: {
+    padding: Spacing.lg,
+  },
+  modalDescription: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.md,
+    lineHeight: Typography.lineHeights.relaxed * Typography.fontSizes.base,
+  },
+  treatmentInput: {
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+    minHeight: 100,
+    marginBottom: Spacing.xs,
+  },
+  characterCount: {
+    fontSize: Typography.fontSizes.xs,
+    color: Colors.textTertiary,
+    textAlign: 'right',
+    marginBottom: Spacing.md,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    padding: Spacing.lg,
+    gap: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+  },
+  modalCancelButton: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.textSecondary,
+  },
+  modalCancelButtonText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textSecondary,
+    fontWeight: Typography.fontWeights.medium,
+  },
+  modalCompleteButton: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.success,
+  },
+  modalCompleteButtonText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.white,
+    fontWeight: Typography.fontWeights.medium,
+  },
+  modalCloseButton: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.primary,
+  },
+  modalCloseButtonText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.white,
+    fontWeight: Typography.fontWeights.medium,
+  },
+  detailLabel: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textSecondary,
+    fontWeight: Typography.fontWeights.medium,
+    minWidth: 80,
+  },
+  detailValue: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  detailColumn: {
+    marginTop: Spacing.sm,
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
 });

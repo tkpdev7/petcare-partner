@@ -315,6 +315,41 @@ class ApiService {
     console.warn('Orders API not implemented in backend');
     return { success: false, error: 'Orders API not implemented' };
   }
+
+  // Review APIs
+  async getPartnerReviews(params?: {
+    page?: number;
+    limit?: number;
+    rating?: number;
+    sortBy?: string;
+  }): Promise<ApiResponse> {
+    const config = params ? { params } : {};
+    return this.makeRequest('GET', '/reviews/partner/reviews', undefined, config);
+  }
+
+  async getPartnerReviewStats(): Promise<ApiResponse> {
+    return this.makeRequest('GET', '/reviews/partner/stats');
+  }
+
+  async createReviewReply(reviewId: string, replyText: string): Promise<ApiResponse> {
+    return this.makeRequest('POST', `/reviews/partner/reply/${reviewId}`, { comment: replyText });
+  }
+
+  async getPartnerReplies(params?: {
+    page?: number;
+    limit?: number;
+  }): Promise<ApiResponse> {
+    const config = params ? { params } : {};
+    return this.makeRequest('GET', '/reviews/partner/replies', undefined, config);
+  }
+
+  async updateReviewReply(replyId: string, replyText: string): Promise<ApiResponse> {
+    return this.makeRequest('PUT', `/reviews/partner/reply/${replyId}`, { comment: replyText });
+  }
+
+  async deleteReviewReply(replyId: string): Promise<ApiResponse> {
+    return this.makeRequest('DELETE', `/reviews/partner/reply/${replyId}`);
+  }
 }
 
 export default new ApiService();

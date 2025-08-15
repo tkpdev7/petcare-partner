@@ -16,7 +16,11 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to let you select images for products and profile photos."
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to let you select images for products and profile photos.",
+        "NSLocationWhenInUseUsageDescription": "This app needs access to your location to show nearby pet services and clinics."
+      },
+      "config": {
+        "googleMapsApiKey": "YOUR_GOOGLE_MAPS_API_KEY"
       }
     },
     "android": {
@@ -28,8 +32,15 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_IMAGES"
-      ]
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
+        }
+      }
     },
     "web": {
       "bundler": "metro",
@@ -38,11 +49,27 @@
     },
     "plugins": [
       "expo-router",
-      "expo-maps",
       "expo-image-picker"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "build": {
+      "production": {
+        "android": {
+          "buildType": "apk",
+          "enableProguardInReleaseBuilds": true,
+          "enableHermes": true,
+          "enableShrinkResourcesInReleaseBuilds": true
+        }
+      }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b4372cc5-9cba-4e88-b80e-45459889e16d"
+      }
+    },
+    "owner": "mr_lone_nerd"
   }
 }

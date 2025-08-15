@@ -6,6 +6,7 @@ import {
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -16,7 +17,8 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Color
 interface ServiceItem {
   id: string;
   title: string;
-  icon: string;
+  icon?: string;
+  image?: any;
   color: string;
   route: string;
 }
@@ -24,7 +26,8 @@ interface ServiceItem {
 interface StatsItem {
   id: string;
   title: string;
-  icon: string;
+  icon?: string;
+  image?: any;
   color: string;
   route?: string;
 }
@@ -60,7 +63,7 @@ export default function HomeScreen() {
       {
         id: '1',
         title: 'Helpdesk',
-        icon: 'headset-outline',
+        image: require('../../assets/helpdesk.png'),
         color: '#6366F1',
         route: '/helpdesk',
       },
@@ -72,14 +75,14 @@ export default function HomeScreen() {
         {
           id: '2',
           title: 'My Inventory',
-          icon: 'cube-outline',
+          image: require('../../assets/inventory.png'),
           color: '#EF4444',
           route: '/(tabs)/products',
         },
         {
           id: '3',
           title: 'My Orders',
-          icon: 'receipt-outline',
+          image: require('../../assets/myorders.png'),
           color: '#10B981',
           route: '/(tabs)/history',
         },
@@ -87,17 +90,17 @@ export default function HomeScreen() {
     } else {
       return [
         ...commonServices,
-        {
-          id: '2',
-          title: 'Services',
-          icon: 'medical-outline',
-          color: '#EF4444',
-          route: '/(tabs)/products',
-        },
+        // {
+        //   id: '2',
+        //   title: 'Services',
+        //   image: require('../../assets/inventory.png'),
+        //   color: '#EF4444',
+        //   route: '/(tabs)/products',
+        // },
         {
           id: '3',
           title: 'My Appointments',
-          icon: 'calendar-outline',
+          image: require('../../assets/myorders.png'),
           color: '#10B981',
           route: '/(tabs)/history',
         },
@@ -111,21 +114,21 @@ export default function HomeScreen() {
     {
       id: '1',
       title: 'Service Time',
-      icon: 'time-outline',
+      image: require('../../assets/serviceTime.png'),
       color: '#3B82F6',
       route: '/service-time',
     },
     {
       id: '2', 
       title: 'Revenue',
-      icon: 'trending-up-outline',
+      image: require('../../assets/revenue.png'),
       color: '#10B981',
       route: '/revenue',
     },
     {
       id: '3',
       title: 'Review',
-      icon: 'star-outline', 
+      image: require('../../assets/review.png'), 
       color: '#F59E0B',
       route: '/reviews',
     },
@@ -135,26 +138,34 @@ export default function HomeScreen() {
   const renderStatsCard = (item: StatsItem) => (
     <TouchableOpacity 
       key={item.id} 
-      style={styles.statsCard}
+      style={styles.individualCard}
       onPress={() => item.route && router.push(item.route as any)}
     >
-      <View style={[styles.statsIcon, { backgroundColor: item.color }]}>
-        <Ionicons name={item.icon as any} size={24} color={Colors.white} />
+      <View style={styles.cardIconContainer}>
+        {item.image ? (
+          <Image source={item.image} style={styles.cardImage} resizeMode="contain" />
+        ) : (
+          <Ionicons name={item.icon as any} size={24} color={item.color} />
+        )}
       </View>
-      <Text style={styles.statsTitle}>{item.title}</Text>
+      <Text style={styles.cardTitle}>{item.title}</Text>
     </TouchableOpacity>
   );
 
   const renderServiceCard = (item: ServiceItem) => (
     <TouchableOpacity 
       key={item.id} 
-      style={styles.serviceCard}
+      style={styles.individualCard}
       onPress={() => router.push(item.route as any)}
     >
-      <View style={[styles.serviceIcon, { backgroundColor: item.color }]}>
-        <Ionicons name={item.icon as any} size={24} color={Colors.white} />
+      <View style={styles.cardIconContainer}>
+        {item.image ? (
+          <Image source={item.image} style={styles.cardImage} resizeMode="contain" />
+        ) : (
+          <Ionicons name={item.icon as any} size={24} color={item.color} />
+        )}
       </View>
-      <Text style={styles.serviceTitle}>{item.title}</Text>
+      <Text style={styles.cardTitle}>{item.title}</Text>
     </TouchableOpacity>
   );
 
@@ -169,16 +180,10 @@ export default function HomeScreen() {
           <Text style={styles.greetingText}>Greetings, {greetingName}</Text>
         </View>
 
-        {/* Stats Section */}
-        <View style={styles.statsSection}>
-          <View style={styles.statsGrid}>
+        {/* Cards Grid */}
+        <View style={styles.cardsContainer}>
+          <View style={styles.cardsGrid}>
             {statsItems.map(renderStatsCard)}
-          </View>
-        </View>
-
-        {/* Services Section */}
-        <View style={styles.servicesSection}>
-          <View style={styles.servicesGrid}>
             {serviceItems.map(renderServiceCard)}
           </View>
         </View>
@@ -207,63 +212,56 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeights.medium,
     color: Colors.textPrimary,
   },
-  statsSection: {
-    backgroundColor: Colors.white,
+  cardsContainer: {
     paddingHorizontal: Spacing.lg,
+  },
+  cardsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: Spacing.md,
+  },
+  individualCard: {
+    backgroundColor: Colors.white,
+    width: '30%',
+    borderRadius: BorderRadius.md,
     paddingVertical: Spacing.lg,
+    alignItems: 'center',
     marginBottom: Spacing.md,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: Spacing.md,
-  },
-  statsCard: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: Spacing.md,
-  },
-  statsIcon: {
+  cardIconContainer: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.sm,
-  },
-  statsTitle: {
-    fontSize: Typography.fontSizes.sm,
-    fontWeight: Typography.fontWeights.medium,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  servicesSection: {
     backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.lg,
-  },
-  servicesGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: Spacing.md,
-  },
-  serviceCard: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: Spacing.md,
-  },
-  serviceIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  serviceTitle: {
+  cardTitle: {
     fontSize: Typography.fontSizes.sm,
     fontWeight: Typography.fontWeights.medium,
     color: Colors.textPrimary,
     textAlign: 'center',
+  },
+  cardImage: {
+    width: 32,
+    height: 32,
   },
 });
