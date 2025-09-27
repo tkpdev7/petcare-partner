@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   historyList: {
-    paddingBottom: Spacing.xl,
+    paddingBottom: 120, // Extra padding to clear tab navigation and mobile bottom buttons
   },
   historyCard: {
     backgroundColor: Colors.white,

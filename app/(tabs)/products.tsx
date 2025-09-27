@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
   },
   productsList: {
-    paddingBottom: Spacing.xl,
+    paddingBottom: 120, // Extra padding to clear tab navigation and mobile bottom buttons
   },
   productCard: {
     backgroundColor: Colors.white,

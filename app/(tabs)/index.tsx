@@ -214,6 +214,7 @@ const styles = StyleSheet.create({
   },
   cardsContainer: {
     paddingHorizontal: Spacing.lg,
+    paddingBottom: 120, // Extra padding to clear tab navigation and mobile bottom buttons
   },
   cardsGrid: {
     flexDirection: 'row',

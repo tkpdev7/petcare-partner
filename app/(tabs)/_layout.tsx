@@ -35,8 +35,8 @@ export default function TabLayout() {
           backgroundColor: Colors.white,
           borderTopWidth: 1,
           borderTopColor: Colors.borderLight,
-          height: 70,
-          paddingBottom: 12,
+          height: 85, // Increased height to avoid interference
+          paddingBottom: 25, // More padding to clear mobile bottom navigation
           paddingTop: 8,
           shadowColor: Colors.black,
           shadowOffset: {

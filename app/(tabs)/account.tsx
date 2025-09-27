@@ -333,6 +333,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    paddingBottom: 120, // Extra padding to clear tab navigation and mobile bottom buttons
   },
   profileSection: {
     backgroundColor: Colors.white,

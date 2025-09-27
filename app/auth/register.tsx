@@ -233,7 +233,7 @@ export default function RegisterScreen() {
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Business Name *"
+                  placeholder="Enter your business name (e.g., Happy Paws Veterinary Clinic)"
                   value={values.businessName}
                   onChangeText={handleChange('businessName')}
                   onBlur={handleBlur('businessName')}
@@ -249,7 +249,7 @@ export default function RegisterScreen() {
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Email *"
+                  placeholder="Enter your business email (e.g., info@happypaws.com)"
                   value={values.email}
                   onChangeText={handleChange('email')}
                   onBlur={handleBlur('email')}
@@ -267,7 +267,7 @@ export default function RegisterScreen() {
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Phone Number *"
+                  placeholder="Enter your contact number (e.g., +1 555-123-4567)"
                   value={values.phone}
                   onChangeText={handleChange('phone')}
                   onBlur={handleBlur('phone')}
@@ -323,7 +323,7 @@ export default function RegisterScreen() {
                 </View>
                 <TextInput
                   style={[styles.input, styles.textArea]}
-                  placeholder="Business Address *"
+                  placeholder="Enter building name and street address only (e.g., Happy Paws Building, 123 Main Street)"
                   value={values.address}
                   onChangeText={handleChange('address')}
                   onBlur={handleBlur('address')}
@@ -412,7 +412,7 @@ export default function RegisterScreen() {
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Password *"
+                  placeholder="Create a strong password (min. 8 characters with uppercase, lowercase & number)"
                   value={values.password}
                   onChangeText={handleChange('password')}
                   onBlur={handleBlur('password')}
@@ -439,7 +439,7 @@ export default function RegisterScreen() {
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Confirm Password *"
+                  placeholder="Re-enter your password to confirm"
                   value={values.confirmPassword}
                   onChangeText={handleChange('confirmPassword')}
                   onBlur={handleBlur('confirmPassword')}
