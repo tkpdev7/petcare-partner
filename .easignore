@@ -1,0 +1,59 @@
+# Documentation
+*.md
+README*
+CHANGELOG*
+LICENSE*
+CONTRIBUTING*
+
+# Development files
+.vscode/
+.idea/
+*.log
+*.map
+.DS_Store
+Thumbs.db
+
+# Test files
+**/__tests__/
+**/__mocks__/
+*.test.ts
+*.test.tsx
+*.test.js
+*.test.jsx
+*.spec.ts
+*.spec.tsx
+*.spec.js
+*.spec.jsx
+
+# Documentation folders
+docs/
+documentation/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Editor configs
+.editorconfig
+.prettierrc*
+.eslintrc*
+.eslintignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+circle.yml
+
+# Build artifacts from other platforms
+ios/
+android/.gradle/
+android/app/build/
+android/.cxx/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp

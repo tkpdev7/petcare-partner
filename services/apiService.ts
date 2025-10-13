@@ -59,7 +59,7 @@ class ApiService {
     );
   }
 
-  private async makeRequest<T>(
+  async makeRequest<T>(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     endpoint: string,
     data?: any,
@@ -119,6 +119,17 @@ class ApiService {
     registrationDocument?: string;
   }): Promise<ApiResponse> {
     return this.makeRequest('POST', '/partner-auth/register', partnerData);
+  }
+
+  async verifyOtp(verifyData: {
+    email: string;
+    otp: string;
+  }): Promise<ApiResponse> {
+    return this.makeRequest('POST', '/partner-auth/verify', verifyData);
+  }
+
+  async resendOtp(email: string): Promise<ApiResponse> {
+    return this.makeRequest('POST', '/partner-auth/resend-otp', { email });
   }
 
   async logout(): Promise<ApiResponse> {
@@ -223,10 +234,9 @@ class ApiService {
     return this.makeRequest('GET', '/partner-appointments/stats', undefined, config);
   }
 
-  // Service Time APIs - Note: Backend doesn't have dedicated service time routes
+  // Service Time APIs
   async getServiceTime(): Promise<ApiResponse> {
-    console.warn('Service Time API not implemented in backend');
-    return { success: false, error: 'Service Time API not implemented' };
+    return this.makeRequest('GET', '/partner/service-time');
   }
 
   async updateServiceTime(timeData: {
@@ -239,13 +249,13 @@ class ApiService {
     advanceBookingDays?: number;
     slotDuration?: number;
     bufferTime?: number;
+    workingDays?: string[];
   }): Promise<ApiResponse> {
-    console.warn('Service Time API not implemented in backend');
-    return { success: false, error: 'Service Time API not implemented' };
+    return this.makeRequest('PUT', '/partner/service-time', timeData);
   }
 
   async getAvailableSlots(date: string): Promise<ApiResponse> {
-    return this.makeRequest('GET', `/appointment/getAvailableSlots?date=${date}`);
+    return this.makeRequest('GET', `/partner/available-slots?date=${date}`);
   }
 
   // Products APIs (for pharmacy partners)
@@ -295,25 +305,48 @@ class ApiService {
     return this.makeRequest('GET', '/partner-products/stats');
   }
 
-  // Orders APIs (for pharmacy partners) - Note: Backend doesn't have order routes
+  // Orders APIs (for pharmacy & essentials partners)
   async getOrders(params?: {
     page?: number;
     limit?: number;
     status?: string;
     search?: string;
+    order_type?: 'all' | 'pharmacy' | 'product';
   }): Promise<ApiResponse> {
-    console.warn('Orders API not implemented in backend');
-    return { success: false, error: 'Orders API not implemented' };
+    try {
+      // Get partnerId from stored partnerData
+      const partnerDataStr = await AsyncStorage.getItem('partnerData');
+      if (!partnerDataStr) {
+        return { success: false, error: 'Partner data not found' };
+      }
+      const partnerData = JSON.parse(partnerDataStr);
+      const partnerId = partnerData.id;
+
+      const queryParams = {
+        limit: params?.limit || 50,
+        offset: params?.page ? (params.page - 1) * (params?.limit || 50) : 0,
+        status: params?.status,
+        order_type: params?.order_type || 'all'
+      };
+
+      return this.makeRequest('GET', `/partner-orders/partner/${partnerId}`, undefined, { params: queryParams });
+    } catch (error) {
+      console.error('Error in getOrders:', error);
+      return { success: false, error: 'Failed to fetch orders' };
+    }
   }
 
-  async getOrder(id: string): Promise<ApiResponse> {
-    console.warn('Orders API not implemented in backend');
-    return { success: false, error: 'Orders API not implemented' };
+  async getOrder(id: string, orderType: 'pharmacy' | 'product'): Promise<ApiResponse> {
+    return this.makeRequest('GET', `/partner-orders/${id}`, undefined, { params: { order_type: orderType } });
   }
 
-  async updateOrderStatus(id: string, status: string, notes?: string): Promise<ApiResponse> {
-    console.warn('Orders API not implemented in backend');
-    return { success: false, error: 'Orders API not implemented' };
+  async updateOrderStatus(id: string, orderType: 'pharmacy' | 'product', status: string, notes?: string, location?: string): Promise<ApiResponse> {
+    return this.makeRequest('PATCH', `/partner-orders/${id}/status`, {
+      order_type: orderType,
+      status,
+      notes,
+      location
+    });
   }
 
   // Review APIs
@@ -349,6 +382,71 @@ class ApiService {
 
   async deleteReviewReply(replyId: string): Promise<ApiResponse> {
     return this.makeRequest('DELETE', `/reviews/partner/reply/${replyId}`);
+  }
+
+  // Medicine Request APIs (for pharmacy partners)
+  async getMedicineRequests(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+  }): Promise<ApiResponse> {
+    const config = params ? { params } : {};
+    return this.makeRequest('GET', '/medicine-request/active', undefined, config);
+  }
+
+  async getMedicineRequest(id: string): Promise<ApiResponse> {
+    return this.makeRequest('GET', `/medicine-request/${id}`);
+  }
+
+  async getNearbyMedicineRequests(params: {
+    latitude: number;
+    longitude: number;
+    radius?: number;
+    limit?: number;
+  }): Promise<ApiResponse> {
+    return this.makeRequest('GET', '/medicine-request/nearby', undefined, { params });
+  }
+
+  // Quote APIs (for pharmacy partners)
+  async createQuote(quoteData: {
+    request_id: string;
+    quoted_medicines: Array<{
+      name: string;
+      price: number;
+      quantity: number;
+      available: boolean;
+      notes?: string;
+    }>;
+    total_amount: number;
+    estimated_delivery_time: string;
+    additional_notes?: string;
+    availability_status?: string;
+  }): Promise<ApiResponse> {
+    return this.makeRequest('POST', '/quote', quoteData);
+  }
+
+  async getPartnerQuotes(params?: {
+    page?: number;
+    limit?: number;
+  }): Promise<ApiResponse> {
+    const config = params ? { params } : {};
+    return this.makeRequest('GET', '/quote/partner/me', undefined, config);
+  }
+
+  async getQuote(id: string): Promise<ApiResponse> {
+    return this.makeRequest('GET', `/quote/${id}`);
+  }
+
+  async updateQuote(id: string, quoteData: any): Promise<ApiResponse> {
+    return this.makeRequest('PUT', `/quote/${id}`, quoteData);
+  }
+
+  async deleteQuote(id: string): Promise<ApiResponse> {
+    return this.makeRequest('DELETE', `/quote/${id}`);
+  }
+
+  async getPartnerQuoteStats(): Promise<ApiResponse> {
+    return this.makeRequest('GET', '/quote/partner/me/stats');
   }
 }
 

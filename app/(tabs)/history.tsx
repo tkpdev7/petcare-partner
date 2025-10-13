@@ -47,6 +47,9 @@ export default function HistoryScreen() {
   const [treatmentSummary, setTreatmentSummary] = useState('');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
+  // Determine if this partner type should show orders (pharmacy & essentials) or appointments (vet & grooming)
+  const showOrders = partnerData?.serviceType === 'pharmacy' || partnerData?.serviceType === 'essentials';
+
   useEffect(() => {
     loadPartnerData();
   }, []);
@@ -71,48 +74,81 @@ export default function HistoryScreen() {
   const loadHistory = async () => {
     try {
       if (!partnerData) return;
-      
+
       setLoading(true);
-      const isPharmacyPartner = partnerData?.serviceType === 'pharmacy';
-      
+      // Check if partner type should show orders (pharmacy & essentials) or appointments (vet & grooming)
+      const showOrders = partnerData?.serviceType === 'pharmacy' || partnerData?.serviceType === 'essentials';
+
       let response;
-      if (isPharmacyPartner) {
-        // Load orders for pharmacy partners
+      if (showOrders) {
+        // Load orders for pharmacy & essentials partners
         response = await apiService.getOrders({
           status: filter === 'all' ? undefined : filter,
           limit: 50
         });
       } else {
-        // Load appointments for service providers
+        // Load appointments for vet & grooming service providers
         response = await apiService.getAppointments({
           status: filter === 'all' ? undefined : filter,
           limit: 50
         });
       }
-      
+
       if (response.success && response.data) {
-        const items = isPharmacyPartner 
-          ? response.data.orders || response.data.data?.orders || []
+        const items = showOrders
+          ? response.data.data?.orders || response.data.orders || []
           : response.data.appointments || response.data.data?.appointments || [];
-        
+
+        // LOG: Debug API response
+        console.log('=== PARTNER HISTORY SCREEN DEBUG ===');
+        console.log('Show Orders:', showOrders);
+        console.log('API Response:', JSON.stringify(response, null, 2));
+        console.log('Items found:', items.length);
+        if (items.length > 0) {
+          console.log('Sample item:', JSON.stringify(items[0], null, 2));
+        }
+
         // Transform API data to match our interface
-        const transformedHistory = items.map((item: any) => ({
-          id: String(item.id), // Ensure id is always a string
-          customerName: item.customerName || item.customer?.name || 'Unknown Customer',
-          petName: item.petName || item.pet?.name || 'Pet',
-          service: item.service || item.productName || item.serviceName || `${item.petType} ${partnerData?.serviceType || 'Service'}`,
-          appointmentDate: item.appointmentDate || item.orderDate || item.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0],
-          appointmentTime: item.appointmentTime || item.orderTime || '10:00 AM',
-          status: item.status || 'pending',
-          totalAmount: item.totalAmount || item.amount || item.price || 100, // Default amount for appointments
-          rating: item.rating,
-          review: item.review,
-          notes: item.notes || '',
-          petSpecies: item.petSpecies || item.pet?.species,
-          petBreed: item.petBreed || item.pet?.breed,
-          customerPhone: item.customerPhone || item.customer?.phone
-        }));
-        
+        const transformedHistory = items.map((item: any) => {
+          // Parse order_items if it's a string (for product orders)
+          let orderItems = [];
+          let productNames = '';
+          if (item.order_items) {
+            try {
+              orderItems = typeof item.order_items === 'string'
+                ? JSON.parse(item.order_items)
+                : item.order_items;
+
+              // Get product names from order items
+              productNames = orderItems
+                .map((orderItem: any) => orderItem.product_name || orderItem.name)
+                .filter(Boolean)
+                .join(', ');
+            } catch (e) {
+              console.error('Error parsing order_items:', e);
+            }
+          }
+
+          return {
+            id: String(item.id), // Ensure id is always a string
+            customerName: item.customer_name || item.customerName || item.customer?.name || 'Unknown Customer',
+            petName: item.petName || item.pet?.name || item.pet_name || 'N/A',
+            service: productNames || item.service || item.productName || item.serviceName || `${partnerData?.serviceType || 'Service'}`,
+            appointmentDate: (item.order_date || item.appointmentDate || item.orderDate || item.created_at || item.createdAt || new Date().toISOString()).split('T')[0],
+            appointmentTime: item.appointmentTime || item.orderTime || new Date(item.order_date || item.created_at || new Date()).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+            status: item.order_status || item.status || 'pending',
+            totalAmount: parseFloat(item.total_amount || item.totalAmount || item.amount || item.price || 0),
+            rating: item.rating,
+            review: item.review,
+            notes: item.notes || '',
+            petSpecies: item.petSpecies || item.pet?.species,
+            petBreed: item.petBreed || item.pet?.breed,
+            customerPhone: item.customer_phone || item.customerPhone || item.customer?.phone
+          };
+        });
+
+        console.log('Transformed history:', JSON.stringify(transformedHistory, null, 2));
+
         setHistory(transformedHistory);
       } else {
         // Show empty state if no data
@@ -155,35 +191,47 @@ export default function HistoryScreen() {
 
   const markAsCompleted = async () => {
     if (!selectedAppointment) return;
-    
+
     try {
-      const response = await apiService.updateAppointmentStatus(
-        selectedAppointment.id, 
-        'completed',
-        { notes: treatmentSummary }
-      );
-      
+      let response;
+      if (showOrders) {
+        // Update order status (product or pharmacy)
+        response = await apiService.updateOrderStatus(
+          selectedAppointment.id,
+          'product', // Assuming product order for essentials partners
+          'delivered', // Mark as delivered for product orders
+          treatmentSummary
+        );
+      } else {
+        // Update appointment status
+        response = await apiService.updateAppointmentStatus(
+          selectedAppointment.id,
+          'completed',
+          treatmentSummary
+        );
+      }
+
       if (response.success) {
         // Update the local state
-        setHistory(prevHistory => 
-          prevHistory.map(item => 
-            item.id === selectedAppointment.id 
-              ? { ...item, status: 'completed' as const, notes: treatmentSummary }
+        setHistory(prevHistory =>
+          prevHistory.map(item =>
+            item.id === selectedAppointment.id
+              ? { ...item, status: showOrders ? 'delivered' as const : 'completed' as const, notes: treatmentSummary }
               : item
           )
         );
-        
+
         setShowCompletionModal(false);
         setSelectedAppointment(null);
         setTreatmentSummary('');
-        
-        Alert.alert('Success', 'Appointment marked as completed successfully!');
+
+        Alert.alert('Success', `${showOrders ? 'Order' : 'Appointment'} marked as ${showOrders ? 'delivered' : 'completed'} successfully!`);
       } else {
-        Alert.alert('Error', 'Failed to update appointment status');
+        Alert.alert('Error', `Failed to update ${showOrders ? 'order' : 'appointment'} status`);
       }
     } catch (error) {
-      console.error('Error updating appointment status:', error);
-      Alert.alert('Error', 'An error occurred while updating appointment status');
+      console.error(`Error updating ${showOrders ? 'order' : 'appointment'} status:`, error);
+      Alert.alert('Error', `An error occurred while updating ${showOrders ? 'order' : 'appointment'} status`);
     }
   };
 
@@ -194,11 +242,18 @@ export default function HistoryScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return Colors.warning;
+      case 'pending':
+      case 'placed': return Colors.warning;
       case 'confirmed': return Colors.info || '#2196F3';
-      case 'in_progress': return Colors.secondary || '#FF9800';
-      case 'completed': return Colors.success;
-      case 'cancelled': return Colors.error || '#F44336';
+      case 'in_progress':
+      case 'processing':
+      case 'packed': return Colors.secondary || '#FF9800';
+      case 'shipped':
+      case 'out_for_delivery': return '#2196F3';
+      case 'completed':
+      case 'delivered': return Colors.success;
+      case 'cancelled':
+      case 'returned': return Colors.error || '#F44336';
       case 'no_show': return Colors.textTertiary;
       default: return Colors.textSecondary;
     }
@@ -207,12 +262,19 @@ export default function HistoryScreen() {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'pending': return 'Pending';
+      case 'placed': return 'Order Placed';
       case 'confirmed': return 'Confirmed';
       case 'in_progress': return 'In Progress';
+      case 'processing': return 'Processing';
+      case 'packed': return 'Packed';
+      case 'shipped': return 'Shipped';
+      case 'out_for_delivery': return 'Out for Delivery';
       case 'completed': return 'Completed';
+      case 'delivered': return 'Delivered';
       case 'cancelled': return 'Cancelled';
+      case 'returned': return 'Returned';
       case 'no_show': return 'No Show';
-      default: return status;
+      default: return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
     }
   };
 
@@ -246,15 +308,18 @@ export default function HistoryScreen() {
           </View>
         </View>
         
-        <Text style={styles.productInfo}>{partnerData?.serviceType === 'pharmacy' ? 'Product' : 'Service'} : {item.service}</Text>
-        {partnerData?.serviceType === 'pharmacy' ? (
+        <Text style={styles.productInfo}>{showOrders ? 'Product' : 'Service'} : {item.service}</Text>
+        {showOrders ? (
           <>
+            <Text style={styles.appointmentInfo}>Customer: {item.customerName}</Text>
             <Text style={styles.totalInfo}>Total ₹{item.totalAmount}</Text>
           </>
         ) : (
           <>
             <Text style={styles.appointmentInfo}>Customer: {item.customerName}</Text>
-            <Text style={styles.appointmentInfo}>Pet: {item.petName}</Text>
+            {item.petName !== 'N/A' && (
+              <Text style={styles.appointmentInfo}>Pet: {item.petName}</Text>
+            )}
             <Text style={styles.appointmentInfo}>Date: {item.appointmentDate}</Text>
             <Text style={styles.appointmentInfo}>Time: {item.appointmentTime}</Text>
             <Text style={styles.totalInfo}>Amount: ₹{item.totalAmount}</Text>
@@ -349,7 +414,7 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppHeader title={partnerData?.serviceType === 'pharmacy' ? 'My Orders' : 'My Appointments'} showBackButton={false} />
+      <AppHeader title={showOrders ? 'My Orders' : 'My Appointments'} showBackButton={false} />
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -357,7 +422,7 @@ export default function HistoryScreen() {
           <Ionicons name="search-outline" size={20} color={Colors.textSecondary} />
           <TextInput
             style={styles.searchInput}
-            placeholder={partnerData?.serviceType === 'pharmacy' ? 'Search for Products' : 'Search for Appointments'}
+            placeholder={showOrders ? 'Search for Products' : 'Search for Appointments'}
             placeholderTextColor={Colors.textSecondary}
             maxLength={50}
             onChangeText={(text) => {
@@ -375,7 +440,7 @@ export default function HistoryScreen() {
       <View style={styles.statsContainer}>
         <View style={styles.statsCard}>
           <Text style={styles.statsNumber}>{filteredHistory.length}</Text>
-          <Text style={styles.statsLabel}>Total {partnerData?.serviceType === 'pharmacy' ? 'Orders' : 'Appointments'}</Text>
+          <Text style={styles.statsLabel}>Total {showOrders ? 'Orders' : 'Appointments'}</Text>
         </View>
         <View style={styles.statsCard}>
           <Text style={styles.statsNumber}>{filteredHistory.filter(item => item.status === 'completed').length}</Text>
@@ -413,7 +478,7 @@ export default function HistoryScreen() {
 
       {/* Orders Count */}
       <View style={styles.ordersInfo}>
-        <Text style={styles.ordersCount}>{filteredHistory.length} {partnerData?.serviceType === 'pharmacy' ? 'Orders' : 'Appointments'} Found</Text>
+        <Text style={styles.ordersCount}>{filteredHistory.length} {showOrders ? 'Orders' : 'Appointments'} Found</Text>
       </View>
 
       <View style={styles.content}>
@@ -425,11 +490,11 @@ export default function HistoryScreen() {
         ) : filteredHistory.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="time-outline" size={64} color={Colors.textTertiary} />
-            <Text style={styles.emptyStateText}>No {partnerData?.serviceType === 'pharmacy' ? 'orders' : 'appointments'} found</Text>
+            <Text style={styles.emptyStateText}>No {showOrders ? 'orders' : 'appointments'} found</Text>
             <Text style={styles.emptyStateSubtext}>
-              {filter === 'all' 
-                ? `No ${partnerData?.serviceType === 'pharmacy' ? 'orders' : 'appointments'} in history` 
-                : `No ${filter} ${partnerData?.serviceType === 'pharmacy' ? 'orders' : 'appointments'} found`}
+              {filter === 'all'
+                ? `No ${showOrders ? 'orders' : 'appointments'} in history`
+                : `No ${filter} ${showOrders ? 'orders' : 'appointments'} found`}
             </Text>
           </View>
         ) : (
@@ -456,8 +521,8 @@ export default function HistoryScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Appointment Details</Text>
-              <TouchableOpacity 
+              <Text style={styles.modalTitle}>{showOrders ? 'Order Details' : 'Appointment Details'}</Text>
+              <TouchableOpacity
                 onPress={() => setShowDetailsModal(false)}
                 style={styles.closeButton}
               >
@@ -468,19 +533,21 @@ export default function HistoryScreen() {
             {selectedAppointment && (
               <View style={styles.modalBody}>
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Order ID:</Text>
+                  <Text style={styles.detailLabel}>{showOrders ? 'Order ID:' : 'Appointment ID:'}</Text>
                   <Text style={styles.detailValue}>#{String(selectedAppointment.id).padStart(3, '0')}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Customer:</Text>
                   <Text style={styles.detailValue}>{selectedAppointment.customerName}</Text>
                 </View>
+                {!showOrders && selectedAppointment.petName !== 'N/A' && (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Pet:</Text>
+                    <Text style={styles.detailValue}>{selectedAppointment.petName}</Text>
+                  </View>
+                )}
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Pet:</Text>
-                  <Text style={styles.detailValue}>{selectedAppointment.petName}</Text>
-                </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Service:</Text>
+                  <Text style={styles.detailLabel}>{showOrders ? 'Product:' : 'Service:'}</Text>
                   <Text style={styles.detailValue}>{selectedAppointment.service}</Text>
                 </View>
                 <View style={styles.detailRow}>
@@ -492,6 +559,10 @@ export default function HistoryScreen() {
                   <Text style={[styles.detailValue, { color: getStatusColor(selectedAppointment.status) }]}>
                     {getStatusText(selectedAppointment.status)}
                   </Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>{showOrders ? 'Amount:' : 'Charge:'}</Text>
+                  <Text style={styles.detailValue}>₹{selectedAppointment.totalAmount}</Text>
                 </View>
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Phone:</Text>
@@ -528,8 +599,8 @@ export default function HistoryScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Complete Appointment</Text>
-              <TouchableOpacity 
+              <Text style={styles.modalTitle}>{showOrders ? 'Complete Order' : 'Complete Appointment'}</Text>
+              <TouchableOpacity
                 onPress={() => setShowCompletionModal(false)}
                 style={styles.closeButton}
               >
@@ -539,7 +610,9 @@ export default function HistoryScreen() {
 
             <View style={styles.modalBody}>
               <Text style={styles.modalDescription}>
-                Please provide a summary of the treatment or service provided:
+                {showOrders
+                  ? 'Please provide any notes about order completion (optional):'
+                  : 'Please provide a summary of the treatment or service provided:'}
               </Text>
               <TextInput
                 style={styles.treatmentInput}
@@ -561,10 +634,13 @@ export default function HistoryScreen() {
               >
                 <Text style={styles.modalCancelButtonText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalCompleteButton, !treatmentSummary.trim() && styles.disabledButton]}
+              <TouchableOpacity
+                style={[
+                  styles.modalCompleteButton,
+                  !showOrders && !treatmentSummary.trim() && styles.disabledButton
+                ]}
                 onPress={markAsCompleted}
-                disabled={!treatmentSummary.trim()}
+                disabled={!showOrders ? !treatmentSummary.trim() : false}
               >
                 <Text style={styles.modalCompleteButtonText}>Mark Complete</Text>
               </TouchableOpacity>

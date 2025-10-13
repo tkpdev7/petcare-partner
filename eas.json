@@ -21,7 +21,11 @@
         "withoutCredentials": true
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://petcare-api-0svs.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://petcare-api-0svs.onrender.com",
+        "NODE_ENV": "production"
+      },
+      "cache": {
+        "disabled": false
       }
     }
   },

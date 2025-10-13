@@ -8,10 +8,12 @@ import {
   Switch,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import AppHeader from '../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../constants/Colors';
 import apiService from '../services/apiService';
 
@@ -63,6 +65,13 @@ export default function ServiceTimeScreen() {
     });
   };
 
+  // Format time for API (24-hour HH:MM format)
+  const formatTimeForAPI = (date: Date) => {
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
   const onStartTimeChange = (event: any, selectedTime?: Date) => {
     setShowStartTimePicker(false);
     if (selectedTime) {
@@ -105,13 +114,13 @@ export default function ServiceTimeScreen() {
     if (!validateTimes()) {
       return;
     }
-    
+
     setLoading(true);
     try {
       const response = await apiService.updateServiceTime({
         isActiveOnline,
-        openingTime: formatTime(startTime),
-        closingTime: formatTime(endTime)
+        openingTime: formatTimeForAPI(startTime),
+        closingTime: formatTimeForAPI(endTime)
       });
       
       if (!response.success) {
@@ -132,6 +141,7 @@ export default function ServiceTimeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <AppHeader title="Service Time" />
       <View style={styles.content}>
         {/* Active Online Toggle */}
         <View style={styles.toggleContainer}>

@@ -26,11 +26,19 @@ export default function VerifyScreen() {
       return;
     }
 
+    if (!email) {
+      Alert.alert('Error', 'Email is required for verification');
+      return;
+    }
+
     setLoading(true);
     try {
-      // Temporarily accept any 6-digit code for development
-      // TODO: Replace with real OTP verification when ready
-      if (otp.length === 6 && /^\d{6}$/.test(otp)) {
+      const response = await apiService.verifyOtp({
+        email: email as string,
+        otp: otp
+      });
+
+      if (response.success) {
         Alert.alert(
           'Email Verified!',
           'Your account has been created successfully. You can now log in.',
@@ -42,9 +50,10 @@ export default function VerifyScreen() {
           ]
         );
       } else {
-        throw new Error('Invalid OTP format');
+        Alert.alert('Error', response.error || 'Verification failed. Please try again.');
       }
     } catch (error) {
+      console.error('Verification error:', error);
       Alert.alert('Error', 'Verification failed. Please try again.');
     } finally {
       setLoading(false);
@@ -52,12 +61,22 @@ export default function VerifyScreen() {
   };
 
   const handleResendOtp = async () => {
+    if (!email) {
+      Alert.alert('Error', 'Email is required to resend OTP');
+      return;
+    }
+
     setResending(true);
     try {
-      // TODO: Replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      Alert.alert('Success', 'OTP sent successfully');
+      const response = await apiService.resendOtp(email as string);
+
+      if (response.success) {
+        Alert.alert('Success', 'OTP sent successfully to ' + email);
+      } else {
+        Alert.alert('Error', response.error || 'Failed to resend OTP');
+      }
     } catch (error) {
+      console.error('Resend OTP error:', error);
       Alert.alert('Error', 'Failed to resend OTP');
     } finally {
       setResending(false);

@@ -64,7 +64,7 @@ export default function ProductsScreen() {
 
   useEffect(() => {
     if (partnerData) {
-      if (partnerData.serviceType === 'pharmacy') {
+      if (partnerData.serviceType === 'pharmacy' || partnerData.serviceType === 'essentials') {
         loadProducts();
       } else {
         loadServices();
@@ -76,7 +76,7 @@ export default function ProductsScreen() {
   useFocusEffect(
     React.useCallback(() => {
       if (partnerData) {
-        if (partnerData.serviceType === 'pharmacy') {
+        if (partnerData.serviceType === 'pharmacy' || partnerData.serviceType === 'essentials') {
           loadProducts();
         } else {
           loadServices();
@@ -186,11 +186,11 @@ export default function ProductsScreen() {
     </View>
   );
 
-  // Check if partner is pharmacy type
-  const isPharmacyPartner = partnerData?.serviceType === 'pharmacy';
+  // Check if partner is vet/grooming (services) or pharmacy/essentials (products)
+  const isVetOrGrooming = partnerData?.serviceType === 'veterinary' || partnerData?.serviceType === 'grooming';
 
-  if (!isPharmacyPartner) {
-    // Show services page for non-pharmacy partners
+  if (isVetOrGrooming) {
+    // Show services page for vet/grooming partners
     return (
       <SafeAreaView style={styles.container}>
         <AppHeader title="Services" showBackButton={false} />

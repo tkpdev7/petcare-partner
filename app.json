@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "petcare-partner",
+    "name": "Gogol Partner",
     "slug": "petcare-partner",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/images/gogol-icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "scheme": "petcare-partner",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/images/gogol-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -20,12 +20,12 @@
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to show nearby pet services and clinics."
       },
       "config": {
-        "googleMapsApiKey": "YOUR_GOOGLE_MAPS_API_KEY"
+        "googleMapsApiKey": "AIzaSyB1j8HGvtM8-0-F4Dw3qWRKcQMk8p6IkKE"
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/images/gogol-icon.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.petcare.partner",
@@ -38,14 +38,17 @@
       ],
       "config": {
         "googleMaps": {
-          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY"
+          "apiKey": "AIzaSyB1j8HGvtM8-0-F4Dw3qWRKcQMk8p6IkKE"
         }
-      }
+      },
+      "jsEngine": "hermes",
+      "enableProguardInReleaseBuilds": true,
+      "enableShrinkResources": true
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       "expo-router",

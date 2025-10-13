@@ -33,8 +33,7 @@ const registrationValidationSchema = Yup.object().shape({
     .email('Please enter a valid email address')
     .required('Email is required'),
   phone: Yup.string()
-    .matches(/^[+]?[\d\s-()]+$/, 'Please enter a valid phone number')
-    .min(10, 'Phone number must be at least 10 digits')
+    .matches(/^\d{10}$/, 'Phone number must be exactly 10 digits')
     .required('Phone number is required'),
   password: Yup.string()
     .min(8, 'Password must be at least 8 characters')
@@ -57,6 +56,8 @@ export default function RegisterScreen() {
   // Non-form data that doesn't need validation
   const [storeLocation, setStoreLocation] = useState({ latitude: 0, longitude: 0, address: '' });
   const [showMapModal, setShowMapModal] = useState(false);
+  const [mapLoading, setMapLoading] = useState(true);
+  const [mapError, setMapError] = useState(false);
   
   // Initialize with default business hours
   const defaultOpeningTime = new Date();
@@ -74,11 +75,22 @@ export default function RegisterScreen() {
   const [showOpeningTimePicker, setShowOpeningTimePicker] = useState(false);
   const [showClosingTimePicker, setShowClosingTimePicker] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [countryCode, setCountryCode] = useState('+91');
+  const [showCountryCodeDropdown, setShowCountryCodeDropdown] = useState(false);
 
   const partnerTypes = [
     { label: 'Veterinary Clinic', value: 'veterinary', icon: 'medical' },
     { label: 'Grooming & Spa', value: 'grooming', icon: 'cut' },
-    { label: 'Pharmacy & Pet Essentials', value: 'pharmacy', icon: 'storefront' },
+    { label: 'Pharmacy', value: 'pharmacy', icon: 'medkit' },
+    { label: 'Pet Essentials Store', value: 'essentials', icon: 'storefront' },
+  ];
+
+  const countryCodes = [
+    { code: '+91', country: 'India', flag: '🇮🇳' },
+    { code: '+1', country: 'USA', flag: '🇺🇸' },
+    { code: '+44', country: 'UK', flag: '🇬🇧' },
+    { code: '+61', country: 'Australia', flag: '🇦🇺' },
+    { code: '+971', country: 'UAE', flag: '🇦🇪' },
   ];
 
   const validateAdditionalFields = () => {
@@ -146,6 +158,13 @@ export default function RegisterScreen() {
     });
   };
 
+  // Format time for API (24-hour HH:MM format)
+  const formatTimeForAPI = (date: Date) => {
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
   const handleRegister = async (values: any, { setSubmitting }: any) => {
     if (!validateAdditionalFields()) {
       setSubmitting(false);
@@ -156,34 +175,49 @@ export default function RegisterScreen() {
       const registrationData = {
         businessName: values.businessName,
         email: values.email,
-        phone: values.phone,
+        phone: `${countryCode}${values.phone}`, // Combine country code with phone number
         password: values.password,
         partnerType: values.partnerType,
         address: values.address,
         storeLocation: storeLocation,
-        openingTime: formatTime(openingTime),
-        closingTime: formatTime(closingTime),
+        openingTime: formatTimeForAPI(openingTime),
+        closingTime: formatTimeForAPI(closingTime),
         registrationDocument: registrationDocument?.uri || null
       };
 
       const response = await apiService.register(registrationData);
-      
+
       if (!response.success) {
         Alert.alert('Registration Failed', response.error || 'Please try again');
         return;
       }
 
-      // Registration successful, redirect to verification
-      Alert.alert(
-        'Registration Successful',
-        'Your account has been created successfully! Please check your email for the verification code.',
-        [
-          {
-            text: 'Verify Email',
-            onPress: () => router.push(`/auth/verify?email=${encodeURIComponent(values.email)}`)
-          }
-        ]
-      );
+      // Registration successful
+      if (response.bypass) {
+        // Email verification bypassed - account is auto-verified
+        Alert.alert(
+          'Registration Successful',
+          'Your account has been created and verified! You can now sign in.',
+          [
+            {
+              text: 'Sign In',
+              onPress: () => router.push('/auth/login')
+            }
+          ]
+        );
+      } else {
+        // Normal flow - redirect to verification
+        Alert.alert(
+          'Registration Successful',
+          'Your account has been created successfully! Please check your email for the verification code.',
+          [
+            {
+              text: 'Verify Email',
+              onPress: () => router.push(`/auth/verify?email=${encodeURIComponent(values.email)}`)
+            }
+          ]
+        );
+      }
     } catch (error) {
       console.error('Registration error:', error);
       Alert.alert('Error', 'Registration failed. Please try again.');
@@ -233,7 +267,7 @@ export default function RegisterScreen() {
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your business name (e.g., Happy Paws Veterinary Clinic)"
+                  placeholder="Enter your business name"
                   value={values.businessName}
                   onChangeText={handleChange('businessName')}
                   onBlur={handleBlur('businessName')}
@@ -249,7 +283,7 @@ export default function RegisterScreen() {
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Enter your business email (e.g., info@happypaws.com)"
+                  placeholder="Enter your business email"
                   value={values.email}
                   onChangeText={handleChange('email')}
                   onBlur={handleBlur('email')}
@@ -265,17 +299,52 @@ export default function RegisterScreen() {
                 <View style={styles.iconContainer}>
                   <Ionicons name="call-outline" size={20} color="#666" />
                 </View>
+                <TouchableOpacity
+                  style={styles.countryCodeButton}
+                  onPress={() => setShowCountryCodeDropdown(!showCountryCodeDropdown)}
+                >
+                  <Text style={styles.countryCodeText}>
+                    {countryCodes.find(c => c.code === countryCode)?.flag} {countryCode}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color="#666" />
+                </TouchableOpacity>
+                <View style={styles.phoneDivider} />
                 <TextInput
-                  style={styles.input}
-                  placeholder="Enter your contact number (e.g., +1 555-123-4567)"
+                  style={styles.phoneInput}
+                  placeholder="10-digit number"
                   value={values.phone}
-                  onChangeText={handleChange('phone')}
+                  onChangeText={(text) => {
+                    // Only allow digits and limit to 10 characters
+                    const digitsOnly = text.replace(/\D/g, '');
+                    if (digitsOnly.length <= 10) {
+                      setFieldValue('phone', digitsOnly);
+                    }
+                  }}
                   onBlur={handleBlur('phone')}
                   keyboardType="phone-pad"
+                  maxLength={10}
                 />
               </View>
               {touched.phone && errors.phone && (
                 <Text style={styles.errorText}>{errors.phone}</Text>
+              )}
+
+              {showCountryCodeDropdown && (
+                <View style={styles.dropdownList}>
+                  {countryCodes.map((country) => (
+                    <TouchableOpacity
+                      key={country.code}
+                      style={styles.dropdownItem}
+                      onPress={() => {
+                        setCountryCode(country.code);
+                        setShowCountryCodeDropdown(false);
+                      }}
+                    >
+                      <Text style={styles.countryFlag}>{country.flag}</Text>
+                      <Text style={styles.dropdownItemText}>{country.country} ({country.code})</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               )}
 
               <View style={styles.inputContainer}>
@@ -317,13 +386,13 @@ export default function RegisterScreen() {
                 </View>
               )}
 
-              <View style={styles.inputContainer}>
-                <View style={styles.iconContainer}>
+              <View style={[styles.inputContainer, styles.textAreaContainer]}>
+                <View style={[styles.iconContainer, styles.iconContainerTop]}>
                   <Ionicons name="location-outline" size={20} color="#666" />
                 </View>
                 <TextInput
                   style={[styles.input, styles.textArea]}
-                  placeholder="Enter building name and street address only (e.g., Happy Paws Building, 123 Main Street)"
+                  placeholder="Enter building name and street address"
                   value={values.address}
                   onChangeText={handleChange('address')}
                   onBlur={handleBlur('address')}
@@ -353,6 +422,8 @@ export default function RegisterScreen() {
                 } catch (error) {
                   console.log('Location permission denied or error:', error);
                 }
+                setMapLoading(true);
+                setMapError(false);
                 setShowMapModal(true);
               }}>
                 <Ionicons name="map-outline" size={20} color={Colors.primary} />
@@ -412,7 +483,7 @@ export default function RegisterScreen() {
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Create a strong password (min. 8 characters with uppercase, lowercase & number)"
+                  placeholder="Password"
                   value={values.password}
                   onChangeText={handleChange('password')}
                   onBlur={handleBlur('password')}
@@ -439,7 +510,7 @@ export default function RegisterScreen() {
                 </View>
                 <TextInput
                   style={styles.input}
-                  placeholder="Re-enter your password to confirm"
+                  placeholder="Confirm Password"
                   value={values.confirmPassword}
                   onChangeText={handleChange('confirmPassword')}
                   onBlur={handleBlur('confirmPassword')}
@@ -526,8 +597,30 @@ export default function RegisterScreen() {
               </TouchableOpacity>
             </View>
             
+            {mapLoading && (
+              <View style={styles.mapLoadingContainer}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={styles.mapLoadingText}>Loading Map...</Text>
+              </View>
+            )}
+
+            {mapError && (
+              <View style={styles.mapErrorContainer}>
+                <Text style={styles.mapErrorText}>Failed to load map</Text>
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={() => {
+                    setMapError(false);
+                    setMapLoading(true);
+                  }}
+                >
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <MapView
-              style={styles.map}
+              style={[styles.map, (mapLoading || mapError) && styles.mapHidden]}
               initialRegion={{
                 latitude: storeLocation.latitude || 37.78825,
                 longitude: storeLocation.longitude || -122.4324,
@@ -542,6 +635,15 @@ export default function RegisterScreen() {
                   address: storeLocation.address, // Keep existing address until confirmed
                 });
               }}
+              onMapReady={() => {
+                setMapLoading(false);
+                setMapError(false);
+              }}
+              onError={() => {
+                setMapLoading(false);
+                setMapError(true);
+              }}
+              loadingEnabled={true}
               showsUserLocation={true}
               showsMyLocationButton={true}
             >
@@ -674,6 +776,12 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 80,
   },
+  textAreaContainer: {
+    alignItems: 'flex-start',
+  },
+  iconContainerTop: {
+    paddingTop: Spacing.md,
+  },
   dropdownButton: {
     flex: 1,
     flexDirection: 'row',
@@ -683,6 +791,7 @@ const styles = StyleSheet.create({
   dropdownText: {
     fontSize: Typography.fontSizes.base,
     color: Colors.textPrimary,
+    flexShrink: 1,
   },
   placeholderText: {
     color: Colors.textSecondary,
@@ -703,6 +812,33 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   dropdownItemText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  countryCodeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingRight: Spacing.sm,
+  },
+  countryCodeText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+    fontWeight: Typography.fontWeights.medium,
+  },
+  countryFlag: {
+    fontSize: 20,
+    marginRight: Spacing.sm,
+  },
+  phoneDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: Colors.border,
+    marginHorizontal: Spacing.sm,
+  },
+  phoneInput: {
+    flex: 1,
     fontSize: Typography.fontSizes.base,
     color: Colors.textPrimary,
   },
@@ -851,7 +987,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   modalDoneButton: {
-    width: 40, // Empty space for symmetry
+    paddingHorizontal: Spacing.sm,
   },
   modalDoneText: {
     color: Colors.primary,
@@ -860,6 +996,54 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  mapHidden: {
+    opacity: 0,
+  },
+  mapLoadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    zIndex: 1,
+  },
+  mapLoadingText: {
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textSecondary,
+  },
+  mapErrorContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    zIndex: 1,
+    padding: Spacing.lg,
+  },
+  mapErrorText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.error,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  retryButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  retryButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.bold,
   },
   mapInstructions: {
     position: 'absolute',

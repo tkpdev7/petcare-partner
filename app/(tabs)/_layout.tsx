@@ -22,9 +22,12 @@ export default function TabLayout() {
     loadPartnerData();
   }, []);
 
-  const isPharmacyPartner = partnerType === 'pharmacy';
-  
-  console.log('Partner type:', partnerType, 'Is pharmacy:', isPharmacyPartner);
+  // Partner type checks
+  const isVetOrGrooming = partnerType === 'veterinary' || partnerType === 'grooming';
+  const isPharmacy = partnerType === 'pharmacy';
+  const isEssentials = partnerType === 'essentials';
+
+  console.log('Partner type:', partnerType, { isVetOrGrooming, isPharmacy, isEssentials });
 
   return (
     <Tabs
@@ -70,15 +73,21 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="cube-outline" size={size} color={color} />
           ),
-          href: isPharmacyPartner ? '/(tabs)/products' : null,
+          // Show Inventory tab only for Essentials partners
+          href: isEssentials ? '/(tabs)/products' : null,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: isPharmacyPartner ? 'Orders' : 'Appointments',
+          // Tab title based on partner type
+          title: isVetOrGrooming ? 'Appointments' : 'Orders',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name={isPharmacyPartner ? "receipt-outline" : "calendar-outline"} size={size} color={color} />
+            <Ionicons
+              name={isVetOrGrooming ? "calendar-outline" : "receipt-outline"}
+              size={size}
+              color={color}
+            />
           ),
         }}
       />

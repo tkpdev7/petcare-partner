@@ -54,11 +54,10 @@ export default function HomeScreen() {
     }
   };
 
-  // Stats items that match your design
   // Service items that vary based on partner type
   const getServiceItems = (): ServiceItem[] => {
     const partnerType = partnerData?.serviceType || 'veterinary';
-    
+
     const commonServices = [
       {
         id: '1',
@@ -69,34 +68,17 @@ export default function HomeScreen() {
       },
     ];
 
-    if (partnerType === 'pharmacy') {
+    // Veterinary & Grooming partners
+    if (partnerType === 'veterinary' || partnerType === 'grooming') {
       return [
         ...commonServices,
         {
           id: '2',
-          title: 'My Inventory',
+          title: 'My Services',
           image: require('../../assets/inventory.png'),
           color: '#EF4444',
-          route: '/(tabs)/products',
+          route: '/services', // Route to services management page
         },
-        {
-          id: '3',
-          title: 'My Orders',
-          image: require('../../assets/myorders.png'),
-          color: '#10B981',
-          route: '/(tabs)/history',
-        },
-      ];
-    } else {
-      return [
-        ...commonServices,
-        // {
-        //   id: '2',
-        //   title: 'Services',
-        //   image: require('../../assets/inventory.png'),
-        //   color: '#EF4444',
-        //   route: '/(tabs)/products',
-        // },
         {
           id: '3',
           title: 'My Appointments',
@@ -106,33 +88,94 @@ export default function HomeScreen() {
         },
       ];
     }
+
+    // Pharmacy partners
+    if (partnerType === 'pharmacy') {
+      return [
+        ...commonServices,
+        {
+          id: '2',
+          title: 'My Requests',
+          image: require('../../assets/inventory.png'),
+          color: '#EF4444',
+          route: '/pharmacy-requests', // Incoming medicine requests from users
+        },
+        {
+          id: '3',
+          title: 'My Orders',
+          image: require('../../assets/myorders.png'),
+          color: '#10B981',
+          route: '/(tabs)/history', // Accepted quotes/orders
+        },
+      ];
+    }
+
+    // Essentials partners
+    if (partnerType === 'essentials') {
+      return [
+        ...commonServices,
+        {
+          id: '2',
+          title: 'My Inventory',
+          image: require('../../assets/inventory.png'),
+          color: '#EF4444',
+          route: '/(tabs)/products', // Product inventory management
+        },
+        {
+          id: '3',
+          title: 'My Orders',
+          image: require('../../assets/myorders.png'),
+          color: '#10B981',
+          route: '/(tabs)/history', // Product orders
+        },
+      ];
+    }
+
+    // Default fallback (should not happen)
+    return commonServices;
   };
 
   const serviceItems = getServiceItems();
 
-  const statsItems: StatsItem[] = [
-    {
-      id: '1',
-      title: 'Service Time',
-      image: require('../../assets/serviceTime.png'),
-      color: '#3B82F6',
-      route: '/service-time',
-    },
-    {
-      id: '2', 
-      title: 'Revenue',
-      image: require('../../assets/revenue.png'),
-      color: '#10B981',
-      route: '/revenue',
-    },
-    {
-      id: '3',
-      title: 'Review',
-      image: require('../../assets/review.png'), 
-      color: '#F59E0B',
-      route: '/reviews',
-    },
-  ];
+  const getStatsItems = (): StatsItem[] => {
+    const partnerType = partnerData?.serviceType || 'veterinary';
+
+    const commonStats = [
+      {
+        id: '2',
+        title: 'Revenue',
+        image: require('../../assets/revenue.png'),
+        color: '#10B981',
+        route: '/revenue',
+      },
+      {
+        id: '3',
+        title: 'Review',
+        image: require('../../assets/review.png'),
+        color: '#F59E0B',
+        route: '/reviews',
+      },
+    ];
+
+    // Service Time only for Veterinary & Grooming partners
+    if (partnerType === 'veterinary' || partnerType === 'grooming') {
+      return [
+        {
+          id: '1',
+          title: 'Service Time',
+          image: require('../../assets/serviceTime.png'),
+          color: '#3B82F6',
+          route: '/service-time',
+        },
+        ...commonStats,
+      ];
+    }
+
+    // All other partner types (pharmacy, essentials) - no Service Time
+    return commonStats;
+  };
+
+  const statsItems = getStatsItems();
 
 
   const renderStatsCard = (item: StatsItem) => (
