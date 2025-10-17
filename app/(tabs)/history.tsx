@@ -38,7 +38,7 @@ interface HistoryItem {
 export default function HistoryScreen() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'>('all');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'>('pending');
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [partnerData, setPartnerData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -451,28 +451,22 @@ export default function HistoryScreen() {
       {/* Status Filter Tabs */}
       <View style={styles.statusTabsContainer}>
         <TouchableOpacity
-          style={[styles.statusTab, filter === 'all' && styles.activeStatusTab]}
-          onPress={() => setFilter('all')}
-        >
-          <Text style={[styles.statusTabText, filter === 'all' && styles.activeStatusTabText]}>All</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={[styles.statusTab, filter === 'pending' && styles.activeStatusTab]}
           onPress={() => setFilter('pending')}
         >
-          <Text style={[styles.statusTabText, filter === 'pending' && styles.activeStatusTabText]}>Pending</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.statusTab, filter === 'confirmed' && styles.activeStatusTab]}
-          onPress={() => setFilter('confirmed')}
-        >
-          <Text style={[styles.statusTabText, filter === 'confirmed' && styles.activeStatusTabText]}>Confirmed</Text>
+          <Text style={[styles.statusTabText, filter === 'pending' && styles.activeStatusTabText]}>Upcoming</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.statusTab, filter === 'completed' && styles.activeStatusTab]}
           onPress={() => setFilter('completed')}
         >
           <Text style={[styles.statusTabText, filter === 'completed' && styles.activeStatusTabText]}>Completed</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.statusTab, filter === 'cancelled' && styles.activeStatusTab]}
+          onPress={() => setFilter('cancelled')}
+        >
+          <Text style={[styles.statusTabText, filter === 'cancelled' && styles.activeStatusTabText]}>Cancelled</Text>
         </TouchableOpacity>
       </View>
 
@@ -492,9 +486,10 @@ export default function HistoryScreen() {
             <Ionicons name="time-outline" size={64} color={Colors.textTertiary} />
             <Text style={styles.emptyStateText}>No {showOrders ? 'orders' : 'appointments'} found</Text>
             <Text style={styles.emptyStateSubtext}>
-              {filter === 'all'
-                ? `No ${showOrders ? 'orders' : 'appointments'} in history`
-                : `No ${filter} ${showOrders ? 'orders' : 'appointments'} found`}
+              {filter === 'pending' && `No upcoming ${showOrders ? 'orders' : 'appointments'} found`}
+              {filter === 'completed' && `No completed ${showOrders ? 'orders' : 'appointments'} found`}
+              {filter === 'cancelled' && `No cancelled ${showOrders ? 'orders' : 'appointments'} found`}
+              {!['pending', 'completed', 'cancelled'].includes(filter) && `No ${filter} ${showOrders ? 'orders' : 'appointments'} found`}
             </Text>
           </View>
         ) : (

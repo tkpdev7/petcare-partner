@@ -374,8 +374,19 @@ export default function ReviewsScreen() {
 
         {/* Reviews List */}
         <View style={styles.reviewsContainer}>
-          {reviews.map((review) => (
-            <View key={review.id} style={styles.reviewCard}>
+          {reviews.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="chatbubble-outline" size={64} color={Colors.textTertiary} />
+              <Text style={styles.emptyStateTitle}>No reviews found</Text>
+              <Text style={styles.emptyStateText}>
+                {selectedFilter === 'All'
+                  ? 'No reviews have been submitted yet.'
+                  : `No reviews match the selected filter (${selectedFilter}).`}
+              </Text>
+            </View>
+          ) : (
+            reviews.map((review) => (
+              <View key={review.id} style={styles.reviewCard}>
               <TouchableOpacity
                 style={styles.reviewHeader}
                 onPress={() => toggleReviewDetails(review.id)}
@@ -499,7 +510,8 @@ export default function ReviewsScreen() {
                 </View>
               )}
             </View>
-          ))}
+          ))
+          )}
         </View>
       </ScrollView>
 
@@ -974,5 +986,26 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSizes.base,
     color: Colors.white,
     fontWeight: Typography.fontWeights.bold,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.xl * 2,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+  },
+  emptyStateTitle: {
+    fontSize: Typography.fontSizes.lg,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.textPrimary,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  emptyStateText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });
