@@ -38,9 +38,9 @@ interface HistoryItem {
 export default function HistoryScreen() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [partnerData, setPartnerData] = useState<any>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'>('pending');
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  const [partnerData, setPartnerData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<HistoryItem | null>(null);
@@ -53,6 +53,14 @@ export default function HistoryScreen() {
   useEffect(() => {
     loadPartnerData();
   }, []);
+
+  // Update filter default based on partner type
+  useEffect(() => {
+    if (partnerData) {
+      // Set default to 'pending' for both orders and appointments
+      setFilter('pending');
+    }
+  }, [partnerData]);
 
   useEffect(() => {
     if (partnerData) {
@@ -170,6 +178,20 @@ export default function HistoryScreen() {
 
   const filteredHistory = history.filter(item => {
     if (filter === 'all') return true;
+
+    // Map filter to actual statuses (same logic as backend)
+    if (filter === 'pending') {
+      // "New/Upcoming" - includes placed, confirmed, processing, packed, shipped, out_for_delivery
+      return ['pending', 'placed', 'confirmed', 'processing', 'packed', 'shipped', 'out_for_delivery', 'in_progress'].includes(item.status);
+    } else if (filter === 'completed') {
+      // "Completed" - includes delivered and completed
+      return ['completed', 'delivered'].includes(item.status);
+    } else if (filter === 'cancelled') {
+      // "Cancelled" - includes cancelled and returned
+      return ['cancelled', 'returned', 'no_show'].includes(item.status);
+    }
+
+    // Exact match for other statuses
     return item.status === filter;
   });
 
@@ -260,6 +282,23 @@ export default function HistoryScreen() {
   };
 
   const getStatusText = (status: string) => {
+    // For product orders, show simplified status for partners
+    if (showOrders) {
+      // Map all "new/in-progress" statuses to "Pending" for partners
+      if (['pending', 'placed', 'confirmed', 'processing', 'packed', 'shipped', 'out_for_delivery'].includes(status)) {
+        return 'Pending';
+      }
+      // Map delivered/completed to "Delivered" for partners
+      if (['completed', 'delivered'].includes(status)) {
+        return 'Delivered';
+      }
+      // Keep cancelled/returned as is
+      if (['cancelled', 'returned'].includes(status)) {
+        return 'Cancelled';
+      }
+    }
+
+    // For appointments, show detailed status
     switch (status) {
       case 'pending': return 'Pending';
       case 'placed': return 'Order Placed';
@@ -331,18 +370,19 @@ export default function HistoryScreen() {
             Status: {getStatusText(item.status)}
           </Text>
           <View style={styles.actionButtons}>
-            {item.status !== 'completed' && item.status !== 'cancelled' && (
-              <TouchableOpacity 
-                style={styles.completeButton}
-                onPress={() => openCompletionModal(item)}
-              >
-                <Text style={styles.completeButtonText}>Mark Complete</Text>
-              </TouchableOpacity>
-            )}
-            {item.status !== 'completed' && item.status !== 'cancelled' && (
-              <TouchableOpacity style={styles.cancelButton}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
+            {/* Hide action buttons for completed/cancelled orders */}
+            {!['completed', 'delivered', 'cancelled', 'returned', 'no_show'].includes(item.status) && (
+              <>
+                <TouchableOpacity
+                  style={styles.completeButton}
+                  onPress={() => openCompletionModal(item)}
+                >
+                  <Text style={styles.completeButtonText}>Mark Complete</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelButton}>
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
         </View>
@@ -454,7 +494,9 @@ export default function HistoryScreen() {
           style={[styles.statusTab, filter === 'pending' && styles.activeStatusTab]}
           onPress={() => setFilter('pending')}
         >
-          <Text style={[styles.statusTabText, filter === 'pending' && styles.activeStatusTabText]}>Upcoming</Text>
+          <Text style={[styles.statusTabText, filter === 'pending' && styles.activeStatusTabText]}>
+            {showOrders ? 'New' : 'Upcoming'}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.statusTab, filter === 'completed' && styles.activeStatusTab]}

@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/gogol-icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "scheme": "petcare-partner",
     "splash": {
       "image": "./assets/images/gogol-icon.png",
@@ -29,6 +29,8 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.petcare.partner",
+      "versionCode": 1,
+      "minSdkVersion": 24,
       "edgeToEdgeEnabled": true,
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -43,7 +45,8 @@
       },
       "jsEngine": "hermes",
       "enableProguardInReleaseBuilds": true,
-      "enableShrinkResources": true
+      "enableShrinkResources": true,
+      "enableDangerousExperimentalLeanBuilds": true
     },
     "web": {
       "bundler": "metro",
@@ -52,7 +55,19 @@
     },
     "plugins": [
       "expo-router",
-      "expo-image-picker"
+      "expo-image-picker",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0",
+            "ndkVersion": "25.1.8937393"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
