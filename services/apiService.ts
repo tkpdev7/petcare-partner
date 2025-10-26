@@ -502,6 +502,64 @@ class ApiService {
   async getPartnerQuoteStats(): Promise<ApiResponse> {
     return this.makeRequest('GET', '/quote/partner/me/stats');
   }
+
+  // Image Upload APIs
+  async uploadImage(imageUri: string, bucketName: string = 'partners', folderPath: string = 'profiles'): Promise<ApiResponse> {
+    try {
+      const formData = new FormData();
+
+      // Convert image URI to blob for upload
+      const filename = imageUri.split('/').pop() || 'photo.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+      formData.append('image', {
+        uri: imageUri,
+        name: filename,
+        type: type,
+      } as any);
+
+      formData.append('bucketName', bucketName);
+      formData.append('folderPath', folderPath);
+
+      const response = await this.api.post('/upload/single', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message,
+      };
+    } catch (error) {
+      console.error('Upload image error:', error);
+      if (error instanceof AxiosError) {
+        return {
+          success: false,
+          error: error.response?.data?.error || 'Failed to upload image',
+        };
+      }
+      return {
+        success: false,
+        error: 'Failed to upload image',
+      };
+    }
+  }
+
+  async updatePartnerPhoto(photoUrl: string): Promise<ApiResponse> {
+    return this.makeRequest('PUT', '/partner-auth/profile/photo', { photoUrl });
+  }
+
+  async updatePartnerProfile(profileData: {
+    name?: string;
+    phone?: string;
+    address?: string;
+    description?: string;
+  }): Promise<ApiResponse> {
+    return this.makeRequest('PUT', '/partner-auth/profile', profileData);
+  }
 }
 
 export default new ApiService();

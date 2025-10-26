@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import AppHeader from '../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../constants/Colors';
+import apiService from '../services/apiService';
 
 interface PartnerData {
   id: string;
@@ -36,6 +37,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [partnerData, setPartnerData] = useState<PartnerData>({
     id: '',
     name: '',
@@ -55,31 +57,76 @@ export default function ProfileScreen() {
 
   const loadPartnerData = async () => {
     try {
-      const data = await AsyncStorage.getItem('partnerData');
-      if (data) {
-        const parsed = JSON.parse(data);
-        setPartnerData({
-          ...parsed,
-          description: parsed.description || '',
-          rating: parsed.rating || 4.5,
-          reviewCount: parsed.reviewCount || 23,
-        });
+      // Try to get fresh data from API first
+      const response = await apiService.getProfile();
+      if (response.success && response.data?.data) {
+        const apiData = response.data.data;
+        const newData = {
+          id: apiData.id,
+          name: apiData.name || apiData.business_name,
+          email: apiData.email,
+          phone: apiData.phone,
+          address: apiData.address || '',
+          serviceType: apiData.serviceType,
+          verified: apiData.verified,
+          profilePhoto: apiData.profilePhoto,
+          description: apiData.description || '',
+          rating: apiData.rating || 4.5,
+          reviewCount: apiData.reviewCount || 0,
+        };
+        setPartnerData(newData);
+        // Update local storage
+        await AsyncStorage.setItem('partnerData', JSON.stringify(newData));
+      } else {
+        // Fallback to local storage
+        const data = await AsyncStorage.getItem('partnerData');
+        if (data) {
+          const parsed = JSON.parse(data);
+          setPartnerData({
+            ...parsed,
+            description: parsed.description || '',
+            rating: parsed.rating || 4.5,
+            reviewCount: parsed.reviewCount || 0,
+          });
+        }
       }
     } catch (error) {
       console.error('Error loading partner data:', error);
+      // Fallback to local storage on error
+      try {
+        const data = await AsyncStorage.getItem('partnerData');
+        if (data) {
+          const parsed = JSON.parse(data);
+          setPartnerData(parsed);
+        }
+      } catch (storageError) {
+        console.error('Error loading from storage:', storageError);
+      }
     }
   };
 
   const handleSave = async () => {
     setLoading(true);
     try {
-      // TODO: Replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      await AsyncStorage.setItem('partnerData', JSON.stringify(partnerData));
-      Alert.alert('Success', 'Profile updated successfully');
-      setIsEditing(false);
+      // Call API to update profile
+      const response = await apiService.updatePartnerProfile({
+        name: partnerData.name,
+        address: partnerData.address,
+        description: partnerData.description,
+      });
+
+      if (response.success) {
+        // Update local storage
+        await AsyncStorage.setItem('partnerData', JSON.stringify(partnerData));
+        Alert.alert('Success', 'Profile updated successfully');
+        setIsEditing(false);
+        // Reload fresh data
+        await loadPartnerData();
+      } else {
+        Alert.alert('Error', response.error || 'Failed to update profile');
+      }
     } catch (error) {
+      console.error('Update profile error:', error);
       Alert.alert('Error', 'Failed to update profile');
     } finally {
       setLoading(false);
@@ -90,7 +137,7 @@ export default function ProfileScreen() {
     try {
       // Request permissions first
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'Please grant access to your photo library to select images.');
         return;
@@ -100,18 +147,53 @@ export default function ProfileScreen() {
         mediaTypes: 'Images',
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 1,
+        quality: 0.8, // Slightly compress to reduce upload size
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setPartnerData(prev => ({
-          ...prev,
-          profilePhoto: result.assets[0].uri
-        }));
+        const imageUri = result.assets[0].uri;
+
+        // Show uploading indicator
+        setUploadingImage(true);
+
+        try {
+          // Upload image to backend
+          const uploadResponse = await apiService.uploadImage(imageUri, 'partners', 'profiles');
+
+          if (uploadResponse.success && uploadResponse.data?.url) {
+            const photoUrl = uploadResponse.data.url;
+
+            // Update partner profile photo in database
+            const updateResponse = await apiService.updatePartnerPhoto(photoUrl);
+
+            if (updateResponse.success) {
+              // Update local state
+              setPartnerData(prev => ({
+                ...prev,
+                profilePhoto: photoUrl
+              }));
+
+              // Update AsyncStorage
+              const updatedData = { ...partnerData, profilePhoto: photoUrl };
+              await AsyncStorage.setItem('partnerData', JSON.stringify(updatedData));
+
+              Alert.alert('Success', 'Profile photo updated successfully!');
+            } else {
+              Alert.alert('Error', updateResponse.error || 'Failed to update profile photo');
+            }
+          } else {
+            Alert.alert('Error', uploadResponse.error || 'Failed to upload image');
+          }
+        } catch (uploadError) {
+          console.error('Upload error:', uploadError);
+          Alert.alert('Error', 'Failed to upload image');
+        } finally {
+          setUploadingImage(false);
+        }
       }
     } catch (error) {
       console.error('Image picker error:', error);
-      Alert.alert('Error', `Failed to pick image: ${error.message || 'Unknown error'}`);
+      Alert.alert('Error', `Failed to pick image: ${(error as any).message || 'Unknown error'}`);
     }
   };
 
@@ -170,17 +252,21 @@ export default function ProfileScreen() {
         <View style={styles.profileSection}>
           <TouchableOpacity
             style={styles.profileImageContainer}
-            onPress={isEditing ? handleImagePicker : undefined}
-            disabled={!isEditing}
+            onPress={handleImagePicker}
+            disabled={uploadingImage}
           >
-            {partnerData.profilePhoto ? (
+            {uploadingImage ? (
+              <View style={styles.placeholderImage}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+              </View>
+            ) : partnerData.profilePhoto ? (
               <Image source={{ uri: partnerData.profilePhoto }} style={styles.profileImage} />
             ) : (
               <View style={styles.placeholderImage}>
                 <Ionicons name="person" size={48} color="#ccc" />
               </View>
             )}
-            {isEditing && (
+            {!uploadingImage && (
               <View style={styles.editImageOverlay}>
                 <Ionicons name="camera" size={20} color="#fff" />
               </View>
