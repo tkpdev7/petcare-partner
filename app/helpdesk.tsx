@@ -1,10 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
-  ScrollView,
   TouchableOpacity,
   Linking,
 } from 'react-native';
@@ -12,129 +11,75 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AppHeader from '../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../constants/Colors';
-
-interface HelpItem {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
-  color: string;
-  action: () => void;
-}
+import apiService from '../services/apiService';
 
 export default function HelpdeskScreen() {
   const router = useRouter();
+  const [partnerName, setPartnerName] = useState('Partner');
 
-  const helpItems: HelpItem[] = [
-    {
-      id: '1',
-      title: 'Call Support',
-      description: 'Speak directly with our support team',
-      icon: 'call-outline',
-      color: '#10B981',
-      action: () => Linking.openURL('tel:+1234567890'),
-    },
-    {
-      id: '2',
-      title: 'Email Support',
-      description: 'Send us an email with your query',
-      icon: 'mail-outline',
-      color: '#3B82F6',
-      action: () => Linking.openURL('mailto:support@petcare.com'),
-    },
-    {
-      id: '3',
-      title: 'Live Chat',
-      description: 'Chat with our support representatives',
-      icon: 'chatbubble-outline',
-      color: Colors.primary,
-      action: () => {
-        // TODO: Open chat interface
-        console.log('Open chat');
-      },
-    },
-    {
-      id: '4',
-      title: 'FAQ',
-      description: 'Browse frequently asked questions',
-      icon: 'help-circle-outline',
-      color: '#8B5CF6',
-      action: () => {
-        // TODO: Navigate to FAQ screen
-        console.log('Open FAQ');
-      },
-    },
-    {
-      id: '5',
-      title: 'Report Issue',
-      description: 'Report technical issues or bugs',
-      icon: 'bug-outline',
-      color: '#EF4444',
-      action: () => {
-        // TODO: Navigate to bug report form
-        console.log('Report issue');
-      },
-    },
-    {
-      id: '6',
-      title: 'Feature Request',
-      description: 'Suggest new features or improvements',
-      icon: 'bulb-outline',
-      color: '#F59E0B',
-      action: () => {
-        // TODO: Navigate to feature request form
-        console.log('Feature request');
-      },
-    },
-  ];
+  useEffect(() => {
+    loadPartnerInfo();
+  }, []);
 
-  const renderHelpCard = (item: HelpItem) => (
-    <TouchableOpacity 
-      key={item.id} 
-      style={styles.helpCard}
-      onPress={item.action}
-    >
-      <View style={[styles.helpIcon, { backgroundColor: item.color }]}>
-        <Ionicons name={item.icon as any} size={24} color={Colors.white} />
-      </View>
-      <View style={styles.helpContent}>
-        <Text style={styles.helpTitle}>{item.title}</Text>
-        <Text style={styles.helpDescription}>{item.description}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
-    </TouchableOpacity>
-  );
+  const loadPartnerInfo = async () => {
+    try {
+      const response = await apiService.getProfile();
+      if (response.success && response.data) {
+        setPartnerName(response.data.business_name || response.data.name || 'Partner');
+      }
+    } catch (error) {
+      console.error('Load partner info error:', error);
+    }
+  };
+
+  const handleCallSupport = () => {
+    Linking.openURL('tel:+1234567890');
+  };
+
+  const handleChat = () => {
+    // TODO: Implement chat functionality
+    console.log('Open chat');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppHeader title="Help & Support" showBackButton={true} />
-      
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>How can we help you?</Text>
-          <Text style={styles.sectionSubtitle}>
-            Choose from the options below to get the assistance you need
+      <AppHeader title="Helpdesk" showBackButton={true} />
+
+      <View style={styles.content}>
+        {/* Illustration Circle */}
+        <View style={styles.illustrationContainer}>
+          <View style={styles.illustrationCircle}>
+            <Ionicons name="headset" size={80} color={Colors.primary} />
+          </View>
+        </View>
+
+        {/* Welcome Text */}
+        <View style={styles.welcomeSection}>
+          <Text style={styles.welcomeText}>
+            Welcome, <Text style={styles.partnerName}>{partnerName}</Text> !
+          </Text>
+          <Text style={styles.descriptionText}>
+            Amet minim mollit non deserunt ullamco est sit aliqua dolor do amet sint. Velit officia consequat duis enim velit mollit. Exercitation veniam consequat sunt nostrud amet.
           </Text>
         </View>
 
-        <View style={styles.helpContainer}>
-          {helpItems.map(renderHelpCard)}
-        </View>
-
-        <View style={styles.contactSection}>
-          <Text style={styles.contactTitle}>Emergency Contact</Text>
-          <Text style={styles.contactSubtitle}>
-            For urgent matters, call our 24/7 support line
-          </Text>
-          <TouchableOpacity 
-            style={styles.emergencyButton}
-            onPress={() => Linking.openURL('tel:+1234567890')}
+        {/* Action Buttons */}
+        <View style={styles.actionButtonsContainer}>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={handleCallSupport}
           >
-            <Ionicons name="call" size={20} color={Colors.white} />
-            <Text style={styles.emergencyButtonText}>+1 (234) 567-890</Text>
+            <Text style={styles.primaryButtonText}>Call our helpline person</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={handleChat}
+          >
+            <Text style={styles.secondaryButtonText}>Chat</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -142,91 +87,78 @@ export default function HelpdeskScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundSecondary,
+    backgroundColor: Colors.backgroundSecondary || '#F5F5F5',
   },
   content: {
     flex: 1,
-  },
-  section: {
-    backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  sectionTitle: {
-    fontSize: Typography.fontSizes.xl,
-    fontWeight: Typography.fontWeights.bold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
-  },
-  sectionSubtitle: {
-    fontSize: Typography.fontSizes.sm,
-    color: Colors.textSecondary,
-  },
-  helpContainer: {
-    backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  helpCard: {
-    flexDirection: 'row',
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl * 2,
     alignItems: 'center',
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-    gap: Spacing.md,
   },
-  helpIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
+  illustrationContainer: {
+    marginBottom: Spacing.xl * 2,
+  },
+  illustrationCircle: {
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: '#FFD4C4',
     justifyContent: 'center',
-  },
-  helpContent: {
-    flex: 1,
-  },
-  helpTitle: {
-    fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.bold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
-  },
-  helpDescription: {
-    fontSize: Typography.fontSizes.sm,
-    color: Colors.textSecondary,
-  },
-  contactSection: {
-    backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.lg,
     alignItems: 'center',
   },
-  contactTitle: {
-    fontSize: Typography.fontSizes.lg,
+  welcomeSection: {
+    alignItems: 'center',
+    marginBottom: Spacing.xl * 2,
+    paddingHorizontal: Spacing.lg,
+  },
+  welcomeText: {
+    fontSize: Typography.fontSizes.xl,
+    fontWeight: Typography.fontWeights.semibold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.lg,
+    textAlign: 'center',
+  },
+  partnerName: {
     fontWeight: Typography.fontWeights.bold,
     color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
   },
-  contactSubtitle: {
+  descriptionText: {
     fontSize: Typography.fontSizes.sm,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: Spacing.lg,
+    lineHeight: 22,
   },
-  emergencyButton: {
-    flexDirection: 'row',
+  actionButtonsContainer: {
+    width: '100%',
+    gap: Spacing.md,
+  },
+  primaryButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
-    backgroundColor: Colors.error,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.full,
-    gap: Spacing.sm,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  emergencyButtonText: {
+  primaryButtonText: {
     fontSize: Typography.fontSizes.base,
     fontWeight: Typography.fontWeights.bold,
     color: Colors.white,
+  },
+  secondaryButton: {
+    backgroundColor: Colors.white,
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  secondaryButtonText: {
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.textPrimary,
   },
 });

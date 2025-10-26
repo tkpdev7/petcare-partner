@@ -76,7 +76,7 @@ class ApiService {
       return {
         success: true,
         data: response.data,
-        message: 'Request successful',
+        message: (response.data as any)?.message || 'Request successful',
       };
     } catch (error) {
       console.error(`API Error (${method} ${endpoint}):`, error);
@@ -272,6 +272,16 @@ class ApiService {
     slot_duration: number;
   }): Promise<ApiResponse> {
     return this.makeRequest('POST', '/partner-slots/slots', slotData);
+  }
+
+  async generateBulkSlots(slotData: {
+    start_date: string;
+    end_date: string;
+    start_time: string;
+    end_time: string;
+    slot_duration: number;
+  }): Promise<ApiResponse> {
+    return this.makeRequest('POST', '/partner-slots/generate-bulk', slotData);
   }
 
   async getPartnerSlots(params?: {

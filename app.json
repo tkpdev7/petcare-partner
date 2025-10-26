@@ -20,7 +20,7 @@
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to show nearby pet services and clinics."
       },
       "config": {
-        "googleMapsApiKey": "AIzaSyB1j8HGvtM8-0-F4Dw3qWRKcQMk8p6IkKE"
+        "googleMapsApiKey": "AIzaSyDmLE_PV6oEYOeN3u4PZmEFdsFAXRpxYVo"
       }
     },
     "android": {
@@ -40,7 +40,7 @@
       ],
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyB1j8HGvtM8-0-F4Dw3qWRKcQMk8p6IkKE"
+          "apiKey": "AIzaSyDmLE_PV6oEYOeN3u4PZmEFdsFAXRpxYVo"
         }
       },
       "jsEngine": "hermes",

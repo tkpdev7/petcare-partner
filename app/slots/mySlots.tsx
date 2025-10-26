@@ -33,13 +33,26 @@ export default function MySlotsScreen() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'upcoming' | 'booked'>('upcoming');
+  const [expandedSlot, setExpandedSlot] = useState<number | null>(null);
+  const [partnerName, setPartnerName] = useState('Partner');
 
   useFocusEffect(
     useCallback(() => {
       loadSlots();
+      loadPartnerInfo();
     }, [])
   );
+
+  const loadPartnerInfo = async () => {
+    try {
+      const response = await apiService.getProfile();
+      if (response.success && response.data) {
+        setPartnerName(response.data.business_name || response.data.name || 'Partner');
+      }
+    } catch (error) {
+      console.error('Load partner info error:', error);
+    }
+  };
 
   const loadSlots = async () => {
     try {
@@ -47,20 +60,29 @@ export default function MySlotsScreen() {
       const today = new Date();
       const formattedToday = formatDateForAPI(today);
 
-      // Get slots from today onwards
+      // Get upcoming available slots only (not booked)
       const response = await apiService.getPartnerSlots({
         from_date: formattedToday,
         limit: 100,
       });
 
       if (response.success) {
-        setSlots(response.data || []);
+        // Handle both direct array and nested data structure
+        const slotsData = Array.isArray(response.data)
+          ? response.data
+          : (response.data?.data || []);
+
+        // Filter out booked slots - only show available upcoming slots
+        const availableSlots = slotsData.filter((slot: Slot) => !slot.is_booked);
+        setSlots(availableSlots);
       } else {
         console.error('Failed to load slots:', response.error);
+        setSlots([]);
       }
     } catch (error) {
       console.error('Load slots error:', error);
       Alert.alert('Error', 'Failed to load slots');
+      setSlots([]);
     } finally {
       setLoading(false);
     }
@@ -81,9 +103,9 @@ export default function MySlotsScreen() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-GB', {
+    return date.toLocaleDateString('en-US', {
       day: '2-digit',
-      month: 'short',
+      month: '2-digit',
       year: 'numeric',
     });
   };
@@ -96,10 +118,10 @@ export default function MySlotsScreen() {
     return `${formattedHour}:${minutes} ${ampm}`;
   };
 
-  const handleDeleteSlot = async (slotId: number) => {
+  const handleDeleteSlot = async (date: string, dateSlots: Slot[]) => {
     Alert.alert(
-      'Delete Slot',
-      'Are you sure you want to delete this slot?',
+      'Delete Slots',
+      `Are you sure you want to delete all ${dateSlots.length} slot(s) for ${formatDate(date)}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -107,16 +129,45 @@ export default function MySlotsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await apiService.deletePartnerSlot(slotId);
-              if (response.success) {
-                Alert.alert('Success', 'Slot deleted successfully');
-                loadSlots();
-              } else {
-                Alert.alert('Error', response.error || 'Failed to delete slot');
+              let deletedCount = 0;
+              let notFoundCount = 0;
+              let failedCount = 0;
+
+              console.log(`Attempting to delete ${dateSlots.length} slots for date ${date}`);
+
+              // Delete all slots for this date
+              for (const slot of dateSlots) {
+                console.log(`Deleting slot ID: ${slot.id}`);
+                const response = await apiService.deletePartnerSlot(slot.id);
+
+                if (response.success) {
+                  deletedCount++;
+                  console.log(`Slot ${slot.id} deleted successfully`);
+                } else if (response.error?.includes('not found') || response.error?.includes('404')) {
+                  notFoundCount++;
+                  console.log(`Slot ${slot.id} not found (already deleted)`);
+                } else {
+                  failedCount++;
+                  console.error(`Failed to delete slot ${slot.id}:`, response.error);
+                }
               }
+
+              console.log(`Delete summary - Deleted: ${deletedCount}, Not Found: ${notFoundCount}, Failed: ${failedCount}`);
+
+              if (failedCount === 0) {
+                if (notFoundCount > 0) {
+                  Alert.alert('Success', `${deletedCount} slot(s) deleted. ${notFoundCount} were already removed.`);
+                } else {
+                  Alert.alert('Success', `All ${deletedCount} slot(s) deleted successfully`);
+                }
+              } else {
+                Alert.alert('Partial Success', `${deletedCount} deleted, ${notFoundCount} already removed, ${failedCount} failed`);
+              }
+
+              loadSlots();
             } catch (error) {
-              console.error('Delete slot error:', error);
-              Alert.alert('Error', 'Failed to delete slot');
+              console.error('Delete slots error:', error);
+              Alert.alert('Error', 'Failed to delete slots');
             }
           },
         },
@@ -124,42 +175,16 @@ export default function MySlotsScreen() {
     );
   };
 
-  const getFilteredSlots = () => {
-    const now = new Date();
-    const currentTime = now.getHours() * 60 + now.getMinutes();
-
-    switch (filter) {
-      case 'upcoming':
-        return slots.filter(slot => {
-          const slotDate = new Date(slot.slot_date);
-          slotDate.setHours(0, 0, 0, 0);
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-
-          // If slot is today, check if time has passed
-          if (slotDate.getTime() === today.getTime()) {
-            const [hours, minutes] = slot.start_time.split(':').map(Number);
-            const slotTime = hours * 60 + minutes;
-            return slotTime > currentTime && !slot.is_booked;
-          }
-
-          // Future dates that are not booked
-          return slotDate > today && !slot.is_booked;
-        });
-
-      case 'booked':
-        return slots.filter(slot => slot.is_booked);
-
-      case 'all':
-      default:
-        return slots;
+  const groupSlotsByDate = () => {
+    // Ensure slots is always an array
+    if (!Array.isArray(slots)) {
+      console.error('Slots is not an array:', slots);
+      return [];
     }
-  };
 
-  const groupSlotsByDate = (filteredSlots: Slot[]) => {
     const grouped: { [key: string]: Slot[] } = {};
 
-    filteredSlots.forEach(slot => {
+    slots.forEach(slot => {
       if (!grouped[slot.slot_date]) {
         grouped[slot.slot_date] = [];
       }
@@ -175,115 +200,97 @@ export default function MySlotsScreen() {
     return Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0]));
   };
 
-  const getStatusColor = (slot: Slot) => {
-    if (slot.is_booked) return Colors.primary;
-    if (!slot.is_available) return Colors.gray300;
-    return Colors.success || '#4CAF50';
+  const toggleExpand = (slotId: number) => {
+    setExpandedSlot(expandedSlot === slotId ? null : slotId);
   };
-
-  const getStatusText = (slot: Slot) => {
-    if (slot.is_booked) return 'Booked';
-    if (!slot.is_available) return 'Unavailable';
-    return 'Available';
-  };
-
-  const renderSlotCard = ({ item }: { item: Slot }) => (
-    <View style={styles.slotCard}>
-      <View style={styles.slotCardHeader}>
-        <View style={styles.timeContainer}>
-          <Ionicons name="time-outline" size={20} color={Colors.textSecondary} />
-          <Text style={styles.slotTime}>
-            {formatTime(item.start_time)} - {formatTime(item.end_time)}
-          </Text>
-        </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item) }]}>
-          <Text style={styles.statusText}>{getStatusText(item)}</Text>
-        </View>
-      </View>
-
-      <View style={styles.slotDetails}>
-        <View style={styles.detailRow}>
-          <Ionicons name="hourglass-outline" size={16} color={Colors.textSecondary} />
-          <Text style={styles.detailText}>{item.slot_duration} minutes</Text>
-        </View>
-      </View>
-
-      {!item.is_booked && (
-        <View style={styles.slotActions}>
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => handleDeleteSlot(item.id)}
-          >
-            <Ionicons name="trash-outline" size={18} color={Colors.error || '#F44336'} />
-            <Text style={styles.deleteButtonText}>Delete</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {item.is_booked && (
-        <View style={styles.bookedNote}>
-          <Ionicons name="information-circle" size={16} color={Colors.primary} />
-          <Text style={styles.bookedNoteText}>This slot has an active booking</Text>
-        </View>
-      )}
-    </View>
-  );
 
   const renderDateSection = ({ item }: { item: [string, Slot[]] }) => {
     const [date, dateSlots] = item;
+    const firstSlot = dateSlots[0];
+    const lastSlot = dateSlots[dateSlots.length - 1];
+    const isExpanded = expandedSlot === parseInt(date.replace(/-/g, '')); // Use date as unique ID
+
     return (
-      <View style={styles.dateSection}>
-        <View style={styles.dateSectionHeader}>
-          <Ionicons name="calendar" size={20} color={Colors.primary} />
-          <Text style={styles.dateSectionTitle}>{formatDate(date)}</Text>
-          <View style={styles.slotCountBadge}>
-            <Text style={styles.slotCountText}>{dateSlots.length} slots</Text>
+      <View style={styles.slotCard}>
+        <TouchableOpacity
+          style={styles.slotCardHeader}
+          onPress={() => toggleExpand(parseInt(date.replace(/-/g, '')))}
+          activeOpacity={0.7}
+        >
+          <View style={styles.slotHeaderLeft}>
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarText}>
+                {partnerName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.slotHeaderInfo}>
+              <Text style={styles.partnerName}>{partnerName}</Text>
+              <Text style={styles.slotDate}>
+                Slots - {formatDate(date)}
+              </Text>
+            </View>
           </View>
-        </View>
-        <FlatList
-          data={dateSlots}
-          renderItem={renderSlotCard}
-          keyExtractor={(slot) => slot.id.toString()}
-          scrollEnabled={false}
-        />
+          <Ionicons
+            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+            size={24}
+            color={Colors.textSecondary}
+          />
+        </TouchableOpacity>
+
+        {isExpanded && (
+          <View style={styles.slotDetails}>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>From date:</Text>
+              <Text style={styles.detailValue}>{formatDate(date)}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>To date:</Text>
+              <Text style={styles.detailValue}>{formatDate(date)}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Start time:</Text>
+              <Text style={styles.detailValue}>{formatTime(firstSlot.start_time)}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>End time:</Text>
+              <Text style={styles.detailValue}>{formatTime(lastSlot.end_time)}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Slots Create on:</Text>
+              <Text style={styles.detailValue}>
+                {formatTime(firstSlot.start_time)} & {formatDate(date)}
+              </Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Total slots:</Text>
+              <Text style={styles.detailValue}>{dateSlots.length} slot(s)</Text>
+            </View>
+
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => router.push('/service-time')}
+              >
+                <Text style={styles.editButtonText}>Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeleteSlot(date, dateSlots)}
+              >
+                <Text style={styles.deleteButtonText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     );
   };
 
-  const filteredSlots = getFilteredSlots();
-  const groupedSlots = groupSlotsByDate(filteredSlots);
+  const groupedSlots = groupSlotsByDate();
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppHeader title="My Slots" />
-
-      {/* Filter Tabs */}
-      <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === 'upcoming' && styles.activeFilterTab]}
-          onPress={() => setFilter('upcoming')}
-        >
-          <Text style={[styles.filterTabText, filter === 'upcoming' && styles.activeFilterTabText]}>
-            Upcoming
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === 'booked' && styles.activeFilterTab]}
-          onPress={() => setFilter('booked')}
-        >
-          <Text style={[styles.filterTabText, filter === 'booked' && styles.activeFilterTabText]}>
-            Booked
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === 'all' && styles.activeFilterTab]}
-          onPress={() => setFilter('all')}
-        >
-          <Text style={[styles.filterTabText, filter === 'all' && styles.activeFilterTabText]}>
-            All
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <AppHeader title="My Slots" showBackButton={true} />
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -295,30 +302,37 @@ export default function MySlotsScreen() {
           <Ionicons name="calendar-outline" size={80} color={Colors.gray300} />
           <Text style={styles.emptyTitle}>No slots found</Text>
           <Text style={styles.emptySubtitle}>
-            {filter === 'upcoming'
-              ? 'You have no upcoming available slots'
-              : filter === 'booked'
-              ? 'You have no booked slots'
-              : 'Create your first slots to get started'}
+            Create your first slots to get started
           </Text>
           <TouchableOpacity
             style={styles.createButton}
-            onPress={() => router.push('/slots/manageSlots')}
+            onPress={() => router.push('/service-time')}
           >
             <Ionicons name="add-circle-outline" size={20} color={Colors.white} />
             <Text style={styles.createButtonText}>Create Slots</Text>
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
-          data={groupedSlots}
-          renderItem={renderDateSection}
-          keyExtractor={(item) => item[0]}
-          contentContainerStyle={styles.listContainer}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        />
+        <>
+          <FlatList
+            data={groupedSlots}
+            renderItem={renderDateSection}
+            keyExtractor={(item) => item[0]}
+            contentContainerStyle={styles.listContainer}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+          />
+
+          {/* Add Slot Button */}
+          <TouchableOpacity
+            style={styles.addSlotButton}
+            onPress={() => router.push('/service-time')}
+          >
+            <Ionicons name="add-circle" size={20} color={Colors.primary} />
+            <Text style={styles.addSlotText}>Add Slot</Text>
+          </TouchableOpacity>
+        </>
       )}
     </SafeAreaView>
   );
@@ -328,33 +342,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.backgroundSecondary,
-  },
-  filterContainer: {
-    flexDirection: 'row',
-    backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  filterTab: {
-    flex: 1,
-    paddingVertical: Spacing.sm,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  activeFilterTab: {
-    borderBottomColor: Colors.primary,
-  },
-  filterTabText: {
-    fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.medium,
-    color: Colors.textSecondary,
-  },
-  activeFilterTabText: {
-    color: Colors.primary,
-    fontWeight: Typography.fontWeights.bold,
   },
   loadingContainer: {
     flex: 1,
@@ -401,121 +388,125 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: Spacing.lg,
-  },
-  dateSection: {
-    marginBottom: Spacing.lg,
-  },
-  dateSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
-    gap: Spacing.sm,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  dateSectionTitle: {
-    flex: 1,
-    fontSize: Typography.fontSizes.lg,
-    fontWeight: Typography.fontWeights.bold,
-    color: Colors.textPrimary,
-  },
-  slotCountBadge: {
-    backgroundColor: Colors.backgroundSecondary,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.sm,
-  },
-  slotCountText: {
-    fontSize: Typography.fontSizes.xs,
-    fontWeight: Typography.fontWeights.medium,
-    color: Colors.textSecondary,
+    paddingBottom: 80,
   },
   slotCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
     shadowColor: Colors.black,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
+    overflow: 'hidden',
   },
   slotCardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    justifyContent: 'space-between',
+    padding: Spacing.md,
   },
-  timeContainer: {
+  slotHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
     flex: 1,
   },
-  slotTime: {
-    fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.bold,
-    color: Colors.textPrimary,
+  avatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
   },
-  statusBadge: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.sm,
-  },
-  statusText: {
-    fontSize: Typography.fontSizes.xs,
+  avatarText: {
+    fontSize: Typography.fontSizes.lg,
     fontWeight: Typography.fontWeights.bold,
     color: Colors.white,
   },
-  slotDetails: {
-    marginBottom: Spacing.sm,
+  slotHeaderInfo: {
+    flex: 1,
   },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
+  partnerName: {
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.textPrimary,
+    marginBottom: 2,
   },
-  detailText: {
+  slotDate: {
     fontSize: Typography.fontSizes.sm,
     color: Colors.textSecondary,
   },
-  slotActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingTop: Spacing.sm,
+  slotDetails: {
+    padding: Spacing.md,
+    paddingTop: 0,
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight,
   },
-  deleteButton: {
+  detailRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.sm,
+  },
+  detailLabel: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textSecondary,
+  },
+  detailValue: {
+    fontSize: Typography.fontSizes.sm,
+    fontWeight: Typography.fontWeights.medium,
+    color: Colors.textPrimary,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Spacing.md,
+    marginTop: Spacing.md,
+  },
+  editButton: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+  },
+  editButtonText: {
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.medium,
+    color: Colors.primary,
+  },
+  deleteButton: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
   },
   deleteButtonText: {
-    fontSize: Typography.fontSizes.sm,
+    fontSize: Typography.fontSizes.base,
     fontWeight: Typography.fontWeights.medium,
     color: Colors.error || '#F44336',
   },
-  bookedNote: {
+  addSlotButton: {
+    position: 'absolute',
+    bottom: Spacing.xl,
+    left: 0,
+    right: 0,
+    marginHorizontal: Spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  bookedNoteText: {
-    fontSize: Typography.fontSizes.sm,
+  addSlotText: {
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.bold,
     color: Colors.primary,
-    fontStyle: 'italic',
   },
 });

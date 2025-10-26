@@ -268,6 +268,7 @@ export default function RegisterScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your business name"
+                  placeholderTextColor="#999"
                   value={values.businessName}
                   onChangeText={handleChange('businessName')}
                   onBlur={handleBlur('businessName')}
@@ -284,6 +285,7 @@ export default function RegisterScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your business email"
+                  placeholderTextColor="#999"
                   value={values.email}
                   onChangeText={handleChange('email')}
                   onBlur={handleBlur('email')}
@@ -312,6 +314,7 @@ export default function RegisterScreen() {
                 <TextInput
                   style={styles.phoneInput}
                   placeholder="10-digit number"
+                  placeholderTextColor="#999"
                   value={values.phone}
                   onChangeText={(text) => {
                     // Only allow digits and limit to 10 characters
@@ -393,6 +396,7 @@ export default function RegisterScreen() {
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   placeholder="Enter building name and street address"
+                  placeholderTextColor="#999"
                   value={values.address}
                   onChangeText={handleChange('address')}
                   onBlur={handleBlur('address')}
@@ -484,6 +488,7 @@ export default function RegisterScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="Password"
+                  placeholderTextColor="#999"
                   value={values.password}
                   onChangeText={handleChange('password')}
                   onBlur={handleBlur('password')}
@@ -511,6 +516,7 @@ export default function RegisterScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="Confirm Password"
+                  placeholderTextColor="#999"
                   value={values.confirmPassword}
                   onChangeText={handleChange('confirmPassword')}
                   onBlur={handleBlur('confirmPassword')}

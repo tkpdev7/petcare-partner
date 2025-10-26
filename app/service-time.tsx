@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import RNPickerSelect from 'react-native-picker-select';
 import AppHeader from '../components/AppHeader';
+import SuccessModal from '../components/SuccessModal';
 import { Colors, Typography, Spacing, BorderRadius } from '../constants/Colors';
 import apiService from '../services/apiService';
 
@@ -24,20 +25,41 @@ export default function ServiceTimeScreen() {
   const [isActiveOnline, setIsActiveOnline] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(true);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
-  // Date, Time and Slot Duration
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [selectedTime, setSelectedTime] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
+  // Date Range
+  const [startDate, setStartDate] = useState(new Date());
+  const [endDate, setEndDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 7); // Default to 7 days from today
+    return date;
+  });
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+
+  // Time Range
+  const [startTime, setStartTime] = useState(() => {
+    const time = new Date();
+    time.setHours(9, 0, 0, 0); // 9:00 AM
+    return time;
+  });
+  const [endTime, setEndTime] = useState(() => {
+    const time = new Date();
+    time.setHours(18, 0, 0, 0); // 6:00 PM
+    return time;
+  });
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+
+  // Slot Duration
   const [slotDuration, setSlotDuration] = useState(30);
 
   const slotDurationOptions = [
-    { label: '10 minutes', value: 10 },
+    { label: '15 minutes', value: 15 },
     { label: '20 minutes', value: 20 },
     { label: '30 minutes', value: 30 },
-    { label: '40 minutes', value: 40 },
-    { label: '50 minutes', value: 50 },
+    { label: '45 minutes', value: 45 },
     { label: '60 minutes', value: 60 },
     { label: '90 minutes', value: 90 },
     { label: '120 minutes', value: 120 },
@@ -45,10 +67,6 @@ export default function ServiceTimeScreen() {
 
   useEffect(() => {
     loadServiceTime();
-    // Initialize time to 9 AM by default
-    const defaultTime = new Date();
-    defaultTime.setHours(9, 0, 0, 0);
-    setSelectedTime(defaultTime);
   }, []);
 
   const loadServiceTime = async () => {
@@ -57,6 +75,24 @@ export default function ServiceTimeScreen() {
 
       if (response.success && response.data) {
         setIsActiveOnline(response.data.isActiveOnline || false);
+      }
+
+      // Check if partner has any slots - if yes, auto-enable Active Online
+      const slotsResponse = await apiService.getPartnerSlots({ limit: 1 });
+      if (slotsResponse.success) {
+        const slotsData = Array.isArray(slotsResponse.data)
+          ? slotsResponse.data
+          : (slotsResponse.data?.data || []);
+
+        // If partner has slots but Active Online is off, turn it on automatically
+        if (slotsData.length > 0 && !response.data?.isActiveOnline) {
+          console.log('Partner has slots but Active Online is off. Enabling it automatically...');
+          const toggleResponse = await apiService.toggleActiveOnline(true);
+          if (toggleResponse.success) {
+            setIsActiveOnline(true);
+            console.log('Active Online enabled automatically');
+          }
+        }
       }
     } catch (error) {
       console.error('Load service time error:', error);
@@ -67,18 +103,16 @@ export default function ServiceTimeScreen() {
 
   const toggleActiveOnline = async (value: boolean) => {
     try {
-      const response = await apiService.updateServiceTime({
-        isActiveOnline: value
-      });
+      const response = await apiService.toggleActiveOnline(value);
 
       if (response.success) {
         setIsActiveOnline(value);
-        Alert.alert(
-          'Status Updated',
+        setSuccessMessage(
           value
             ? 'You are now online. Customers can see and book your slots.'
             : 'You are now offline. Customers cannot see your slots.'
         );
+        setShowSuccessModal(true);
       } else {
         Alert.alert('Error', response.error || 'Failed to update status');
       }
@@ -117,89 +151,189 @@ export default function ServiceTimeScreen() {
     return `${year}-${month}-${day}`;
   };
 
-  const onDateChange = (event: any, selected?: Date) => {
-    setShowDatePicker(false);
+  const onStartDateChange = (event: any, selected?: Date) => {
+    setShowStartDatePicker(false);
     if (selected) {
-      setSelectedDate(selected);
+      setStartDate(selected);
+      // If end date is before start date, update end date
+      if (selected > endDate) {
+        const newEndDate = new Date(selected);
+        newEndDate.setDate(newEndDate.getDate() + 7);
+        setEndDate(newEndDate);
+      }
     }
   };
 
-  const onTimeChange = (event: any, selected?: Date) => {
-    setShowTimePicker(false);
+  const onEndDateChange = (event: any, selected?: Date) => {
+    setShowEndDatePicker(false);
     if (selected) {
-      setSelectedTime(selected);
+      setEndDate(selected);
     }
+  };
+
+  const onStartTimeChange = (event: any, selected?: Date) => {
+    setShowStartTimePicker(false);
+    if (selected) {
+      setStartTime(selected);
+    }
+  };
+
+  const onEndTimeChange = (event: any, selected?: Date) => {
+    setShowEndTimePicker(false);
+    if (selected) {
+      setEndTime(selected);
+    }
+  };
+
+  const calculateTotalSlots = () => {
+    // Calculate days between start and end date
+    const timeDiff = endDate.getTime() - startDate.getTime();
+    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 to include both start and end dates
+
+    // Calculate slots per day
+    const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
+    const endMinutes = endTime.getHours() * 60 + endTime.getMinutes();
+    const totalMinutes = endMinutes - startMinutes;
+    const slotsPerDay = Math.floor(totalMinutes / slotDuration);
+
+    return {
+      days: daysDiff,
+      slotsPerDay: slotsPerDay > 0 ? slotsPerDay : 0,
+      totalSlots: daysDiff * (slotsPerDay > 0 ? slotsPerDay : 0),
+    };
   };
 
   const validateInputs = () => {
     // Check if partner is active online
     if (!isActiveOnline) {
-      Alert.alert('Offline', 'Please set yourself as "Active Online" to create slots');
+      Alert.alert('Offline', 'Please set yourself as "Active Online" to generate slots');
       return false;
     }
 
-    // Check if selected date is not in the past
+    // Check if start date is not in the past
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const selected = new Date(selectedDate);
-    selected.setHours(0, 0, 0, 0);
+    const selectedStart = new Date(startDate);
+    selectedStart.setHours(0, 0, 0, 0);
 
-    if (selected < today) {
-      Alert.alert('Invalid Date', 'Cannot create slots for past dates');
+    if (selectedStart < today) {
+      Alert.alert('Invalid Date', 'Start date cannot be in the past');
+      return false;
+    }
+
+    // Check if end date is after start date
+    if (endDate <= startDate) {
+      Alert.alert('Invalid Date Range', 'End date must be after start date');
+      return false;
+    }
+
+    // Check if end time is after start time
+    const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
+    const endMinutes = endTime.getHours() * 60 + endTime.getMinutes();
+
+    if (endMinutes <= startMinutes) {
+      Alert.alert('Invalid Time Range', 'End time must be after start time');
+      return false;
+    }
+
+    // Check if time range is sufficient for at least one slot
+    const totalMinutes = endMinutes - startMinutes;
+    if (totalMinutes < slotDuration) {
+      Alert.alert(
+        'Invalid Time Range',
+        `Time range must be at least ${slotDuration} minutes to create a slot`
+      );
       return false;
     }
 
     return true;
   };
 
-  const handleCreateSlot = async () => {
+  const handleGenerateSlots = async () => {
     if (!validateInputs()) {
       return;
     }
 
-    setLoading(true);
-    try {
-      // Calculate end time based on slot duration
-      const startTime = new Date(selectedTime);
-      const endTime = new Date(startTime.getTime() + slotDuration * 60000);
+    const { days, slotsPerDay, totalSlots } = calculateTotalSlots();
 
-      const payload = {
-        slot_date: formatDateForAPI(selectedDate),
-        start_time: formatTimeForAPI(startTime),
-        end_time: formatTimeForAPI(endTime),
-        slot_duration: slotDuration,
-      };
+    // Confirm before generating
+    Alert.alert(
+      'Generate Slots',
+      `This will create ${totalSlots} slots:\n\n` +
+      `• ${days} days (${formatDate(startDate)} to ${formatDate(endDate)})\n` +
+      `• ${slotsPerDay} slots per day\n` +
+      `• Time: ${formatTime(startTime)} to ${formatTime(endTime)}\n` +
+      `• Duration: ${slotDuration} minutes each\n\n` +
+      'Do you want to continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Generate',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              const payload = {
+                start_date: formatDateForAPI(startDate),
+                end_date: formatDateForAPI(endDate),
+                start_time: formatTimeForAPI(startTime),
+                end_time: formatTimeForAPI(endTime),
+                slot_duration: slotDuration,
+              };
 
-      const response = await apiService.createPartnerSlots(payload);
+              const response = await apiService.generateBulkSlots(payload);
 
-      if (response.success) {
-        Alert.alert(
-          'Success',
-          'Slot created successfully',
-          [
-            {
-              text: 'Create Another',
-              onPress: () => {
-                // Keep the form, just reset to next time slot
-                const nextTime = new Date(endTime.getTime());
-                setSelectedTime(nextTime);
-              },
-            },
-            {
-              text: 'View My Slots',
-              onPress: () => router.push('/slots/mySlots'),
-            },
-          ]
-        );
-      } else {
-        Alert.alert('Error', response.error || 'Failed to create slot');
-      }
-    } catch (error: any) {
-      console.error('Create slot error:', error);
-      Alert.alert('Error', error.message || 'Failed to create slot');
-    } finally {
-      setLoading(false);
-    }
+              console.log('Generate slots response:', JSON.stringify(response, null, 2));
+
+              if (response.success) {
+                // Backend returns: { success, message, data: { totalSlots, skippedSlots, ... } }
+                // ApiService wraps it as: { success, data: <backend response>, message }
+                const backendData = response.data;
+                console.log('Backend data:', backendData);
+
+                const actualCreated = backendData?.data?.totalSlots || backendData?.totalSlots || 0;
+                const skipped = backendData?.data?.skippedSlots || backendData?.skippedSlots || 0;
+                const backendMessage = backendData?.message || response.message;
+
+                console.log('actualCreated:', actualCreated, 'skipped:', skipped);
+                console.log('Backend message:', backendMessage);
+
+                // Auto-enable Active Online if slots were created and it's currently off
+                if ((actualCreated > 0 || skipped > 0) && !isActiveOnline) {
+                  console.log('Auto-enabling Active Online after slot generation');
+                  const toggleResponse = await apiService.toggleActiveOnline(true);
+                  if (toggleResponse.success) {
+                    setIsActiveOnline(true);
+                  }
+                }
+
+                // Use backend message if available, otherwise construct our own
+                let message = backendMessage || `You have successfully updated your service time.`;
+
+                if (!backendMessage) {
+                  if (actualCreated === 0 && skipped === 0) {
+                    message += `\n\nNo slots were created. Please check your settings.`;
+                  } else if (skipped > 0) {
+                    message += `\n\n${actualCreated} new slot(s) created. ${skipped} duplicate slot(s) were skipped.`;
+                  } else {
+                    message += `\n\n${actualCreated} slot(s) created successfully.`;
+                  }
+                }
+
+                setSuccessMessage(message);
+                setShowSuccessModal(true);
+              } else {
+                Alert.alert('Error', response.error || 'Failed to generate slots');
+              }
+            } catch (error: any) {
+              console.error('Generate slots error:', error);
+              Alert.alert('Error', error.message || 'Failed to generate slots');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const navigateToMySlots = () => {
@@ -209,7 +343,7 @@ export default function ServiceTimeScreen() {
   if (loadingStatus) {
     return (
       <SafeAreaView style={styles.container}>
-        <AppHeader title="Service Time" />
+        <AppHeader title="Service Time & Slots" showBackButton={true} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
@@ -217,9 +351,11 @@ export default function ServiceTimeScreen() {
     );
   }
 
+  const slotStats = calculateTotalSlots();
+
   return (
     <SafeAreaView style={styles.container}>
-      <AppHeader title="Service Time" />
+      <AppHeader title="Service Time & Slots" showBackButton={true} />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Active Online Toggle */}
@@ -241,30 +377,62 @@ export default function ServiceTimeScreen() {
           </View>
         </View>
 
-        {/* Date Selection */}
+        {/* Date Range Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Date</Text>
-          <TouchableOpacity
-            style={styles.dropdown}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Ionicons name="calendar-outline" size={20} color={Colors.textSecondary} />
-            <Text style={styles.dropdownText}>{formatDate(selectedDate)}</Text>
-            <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />
-          </TouchableOpacity>
+          <Text style={styles.sectionTitle}>Date Range</Text>
+
+          <View style={styles.row}>
+            <View style={styles.halfWidth}>
+              <Text style={styles.label}>Start Date</Text>
+              <TouchableOpacity
+                style={styles.dropdown}
+                onPress={() => setShowStartDatePicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={18} color={Colors.textSecondary} />
+                <Text style={styles.dropdownTextSmall}>{formatDate(startDate)}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.halfWidth}>
+              <Text style={styles.label}>End Date</Text>
+              <TouchableOpacity
+                style={styles.dropdown}
+                onPress={() => setShowEndDatePicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={18} color={Colors.textSecondary} />
+                <Text style={styles.dropdownTextSmall}>{formatDate(endDate)}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
-        {/* Time Selection */}
+        {/* Time Range Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Time</Text>
-          <TouchableOpacity
-            style={styles.dropdown}
-            onPress={() => setShowTimePicker(true)}
-          >
-            <Ionicons name="time-outline" size={20} color={Colors.textSecondary} />
-            <Text style={styles.dropdownText}>{formatTime(selectedTime)}</Text>
-            <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />
-          </TouchableOpacity>
+          <Text style={styles.sectionTitle}>Time Range (Daily)</Text>
+
+          <View style={styles.row}>
+            <View style={styles.halfWidth}>
+              <Text style={styles.label}>Start Time</Text>
+              <TouchableOpacity
+                style={styles.dropdown}
+                onPress={() => setShowStartTimePicker(true)}
+              >
+                <Ionicons name="time-outline" size={18} color={Colors.textSecondary} />
+                <Text style={styles.dropdownTextSmall}>{formatTime(startTime)}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.halfWidth}>
+              <Text style={styles.label}>End Time</Text>
+              <TouchableOpacity
+                style={styles.dropdown}
+                onPress={() => setShowEndTimePicker(true)}
+              >
+                <Ionicons name="time-outline" size={18} color={Colors.textSecondary} />
+                <Text style={styles.dropdownTextSmall}>{formatTime(endTime)}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         {/* Slot Duration */}
@@ -277,31 +445,22 @@ export default function ServiceTimeScreen() {
               items={slotDurationOptions}
               style={pickerSelectStyles}
               placeholder={{}}
-              Icon={() => <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />}
             />
           </View>
         </View>
 
-        {/* Info Section */}
-        <View style={styles.infoSection}>
-          <Ionicons name="information-circle-outline" size={24} color={Colors.primary} />
-          <Text style={styles.infoText}>
-            A slot will be created on {formatDate(selectedDate)} at {formatTime(selectedTime)} for {slotDuration} minutes duration.
-          </Text>
-        </View>
-
-        {/* Create Slot Button */}
+        {/* Generate Slots Button */}
         <TouchableOpacity
-          style={[styles.createButton, !isActiveOnline && styles.disabledButton]}
-          onPress={handleCreateSlot}
-          disabled={loading || !isActiveOnline}
+          style={[styles.createButton, (!isActiveOnline || slotStats.totalSlots === 0) && styles.disabledButton]}
+          onPress={handleGenerateSlots}
+          disabled={loading || !isActiveOnline || slotStats.totalSlots === 0}
         >
           {loading ? (
             <ActivityIndicator color={Colors.white} size="small" />
           ) : (
             <>
-              <Ionicons name="add-circle-outline" size={20} color={Colors.white} />
-              <Text style={styles.buttonText}>Create Slot</Text>
+              <Ionicons name="flashlight-outline" size={20} color={Colors.white} />
+              <Text style={styles.buttonText}>Generate {slotStats.totalSlots} Slots</Text>
             </>
           )}
         </TouchableOpacity>
@@ -312,31 +471,57 @@ export default function ServiceTimeScreen() {
           onPress={navigateToMySlots}
         >
           <Ionicons name="list-outline" size={20} color={Colors.primary} />
-          <Text style={styles.mySlotsButtonText}>My Slots</Text>
+          <Text style={styles.mySlotsButtonText}>View My Slots</Text>
           <Ionicons name="arrow-forward" size={20} color={Colors.primary} />
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Date Picker */}
-      {showDatePicker && (
+      {/* Date Pickers */}
+      {showStartDatePicker && (
         <DateTimePicker
-          value={selectedDate}
+          value={startDate}
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onDateChange}
+          onChange={onStartDateChange}
           minimumDate={new Date()}
         />
       )}
 
-      {/* Time Picker */}
-      {showTimePicker && (
+      {showEndDatePicker && (
         <DateTimePicker
-          value={selectedTime}
-          mode="time"
+          value={endDate}
+          mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onTimeChange}
+          onChange={onEndDateChange}
+          minimumDate={startDate}
         />
       )}
+
+      {/* Time Pickers */}
+      {showStartTimePicker && (
+        <DateTimePicker
+          value={startTime}
+          mode="time"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={onStartTimeChange}
+        />
+      )}
+
+      {showEndTimePicker && (
+        <DateTimePicker
+          value={endTime}
+          mode="time"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={onEndTimeChange}
+        />
+      )}
+
+      {/* Success Modal */}
+      <SuccessModal
+        visible={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        message={successMessage}
+      />
     </SafeAreaView>
   );
 }
@@ -391,21 +576,33 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 4,
   },
+  row: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  halfWidth: {
+    flex: 1,
+  },
+  label: {
+    fontSize: Typography.fontSizes.sm,
+    fontWeight: Typography.fontWeights.semibold,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
   dropdown: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: Colors.backgroundSecondary,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.md,
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
-  dropdownText: {
+  dropdownTextSmall: {
     flex: 1,
-    fontSize: Typography.fontSizes.base,
+    fontSize: Typography.fontSizes.sm,
     color: Colors.textPrimary,
     fontWeight: Typography.fontWeights.medium,
   },
