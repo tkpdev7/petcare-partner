@@ -13,6 +13,7 @@ export default function RootLayout() {
         <Stack.Screen name="auth/verify" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="service-time" options={{ headerShown: false }} />
+        <Stack.Screen name="services/index" options={{ headerShown: false }} />
         <Stack.Screen name="services/add" options={{ headerShown: false }} />
         <Stack.Screen name="products/add" options={{ headerShown: false }} />
         <Stack.Screen name="products/categories" options={{ headerShown: false }} />
