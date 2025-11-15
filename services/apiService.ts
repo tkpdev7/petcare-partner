@@ -560,6 +560,30 @@ class ApiService {
   }): Promise<ApiResponse> {
     return this.makeRequest('PUT', '/partner-auth/profile', profileData);
   }
+
+  // Service Category Management APIs
+  async getCategoriesForService(): Promise<ApiResponse> {
+    return this.makeRequest('GET', '/service-categories');
+  }
+
+  async createCategory(categoryData: {
+    name: string;
+    description?: string;
+  }): Promise<ApiResponse> {
+    return this.makeRequest('POST', '/service-categories', categoryData);
+  }
+
+  async getSubcategoriesForCategory(categoryId: string): Promise<ApiResponse> {
+    return this.makeRequest('GET', `/service-categories/${categoryId}/subcategories`);
+  }
+
+  async createSubcategory(subcategoryData: {
+    name: string;
+    description?: string;
+    categoryId: string;
+  }): Promise<ApiResponse> {
+    return this.makeRequest('POST', '/service-categories/subcategories', subcategoryData);
+  }
 }
 
 export default new ApiService();

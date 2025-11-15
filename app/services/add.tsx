@@ -9,25 +9,30 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Modal,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import AppHeader from '../../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
 
-// Validation schema
+// Validation schema (removed discount field)
 const serviceValidationSchema = Yup.object().shape({
   name: Yup.string()
     .min(2, 'Service name must be at least 2 characters')
     .required('Service name is required'),
   description: Yup.string()
-    .min(10, 'Description must be at least 10 characters'),
+    .min(10, 'Description must be at least 10 characters')
+    .required('Description is required'),
   duration: Yup.number()
     .min(1, 'Duration must be at least 1 minute')
-    .max(600, 'Duration cannot exceed 600 minutes'),
+    .max(600, 'Duration cannot exceed 600 minutes')
+    .required('Duration is required'),
   price: Yup.number()
     .min(1, 'Price must be greater than 0')
     .required('Price is required'),
@@ -46,31 +51,149 @@ export default function AddServiceScreen() {
     duration: '',
     price: '',
     category: '',
+    subCategory: '',
   });
 
+  // Category management state
+  const [categories, setCategories] = useState<any[]>([]);
+  useEffect(() => { console.log('🔄 Categories state updated:', categories.length, 'categories'); }, [categories]);
+  const [subcategories, setSubcategories] = useState<any[]>([]);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newSubcategoryName, setNewSubcategoryName] = useState('');
+  const [selectedCategoryForSubcat, setSelectedCategoryForSubcat] = useState('');
+  const formikRef = React.useRef<any>(null);
+
   useEffect(() => {
-    if (isEditMode) {
-      loadServiceData();
-    }
+    const loadData = async () => {
+      // Load categories first
+      const cats = await loadCategories();
+      // Then load service data if in edit mode, passing the loaded categories
+      if (isEditMode) {
+        await loadServiceData(cats);
+      }
+    };
+    loadData();
   }, [isEditMode, id]);
 
-  const loadServiceData = async () => {
+  const loadCategories = async () => {
+    try {
+      const response = await apiService.getCategoriesForService();
+      console.log('📦 Categories API Response:', JSON.stringify(response, null, 2));
+
+      if (response.success && response.data) {
+        // Handle double-nested response from apiService
+        // Response structure: { success, data: { success, data: [...] } }
+        let categoriesData = [];
+
+        if (Array.isArray(response.data)) {
+          // Direct array
+          categoriesData = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          // Double-nested (from apiService wrapper)
+          categoriesData = response.data.data;
+        } else if (response.data.categories && Array.isArray(response.data.categories)) {
+          // Nested in categories property
+          categoriesData = response.data.categories;
+        }
+
+        console.log('✅ Categories loaded:', categoriesData.length, 'items');
+        console.log('📋 Sample category:', categoriesData[0]);
+        setCategories(categoriesData);
+        return categoriesData; // Return for immediate use
+      } else {
+        console.log('❌ No categories in response');
+        setCategories([]);
+        return [];
+      }
+    } catch (error) {
+      console.error('❌ Error loading categories:', error);
+      setCategories([]);
+      return [];
+    }
+  };
+
+  const loadServiceData = async (loadedCategories) => {
     try {
       setLoading(true);
       const response = await apiService.getService(id as string);
-      
-      if (response.success && response.data && response.data.data) {
-        const service = response.data.data;
-        setInitialValues({
+
+      if (response.success && response.data) {
+        const service = response.data.data || response.data;
+        const categoriesToUse = loadedCategories || categories;
+
+        console.log('📝 Loading service for edit:', service.name);
+        console.log('📂 Available categories:', categoriesToUse.length);
+
+        console.log('🔍 Service data:', {
+          category: service.category,
+          category_id: service.category_id,
+          categoryType: typeof service.category,
+          subcategory_id: service.subcategory_id,
+          sub_category: service.sub_category
+        });
+        // Handle different category formats
+        let categoryValue = '';
+        let subcategoryValue = '';
+
+        // Priority 1: category_id (if exists)
+        if (service.category_id) {
+          categoryValue = service.category_id.toString();
+          console.log('✓ Using category_id:', categoryValue);
+        }
+        // Priority 2: category as number (current format)
+        else if (service.category && typeof service.category === 'number') {
+          categoryValue = service.category.toString();
+          console.log('✓ Using category (number):', categoryValue);
+        }
+        // Priority 3: category as numeric string
+        else if (service.category && !isNaN(Number(service.category))) {
+          categoryValue = service.category.toString();
+          console.log('✓ Using category (numeric string):', categoryValue);
+        }
+        // Priority 4: category as string name (old format), try to find matching category by name
+        else if (service.category && typeof service.category === 'string') {
+          console.log('🔍 Old format - looking for category by name:', service.category);
+          const matchingCategory = categoriesToUse.find(
+            cat => cat.name.toLowerCase() === service.category.toLowerCase()
+          );
+          if (matchingCategory) {
+            categoryValue = matchingCategory.id.toString();
+            console.log('✓ Found matching category ID:', categoryValue, 'for', matchingCategory.name);
+          } else {
+            console.log('❌ No matching category found for:', service.category);
+          }
+        }
+        // Handle different subcategory formats
+        if (service.subcategory_id) {
+          subcategoryValue = service.subcategory_id.toString();
+          console.log('✓ Using subcategory_id:', subcategoryValue);
+        } else if (service.sub_category && typeof service.sub_category === 'number') {
+          subcategoryValue = service.sub_category.toString();
+          console.log('✓ Using sub_category (number):', subcategoryValue);
+        } else if (service.sub_category && !isNaN(Number(service.sub_category))) {
+          subcategoryValue = service.sub_category.toString();
+          console.log('✓ Using sub_category (numeric string):', subcategoryValue);
+        }
+        const initialData = {
           name: service.name || '',
           description: service.description || '',
           duration: service.duration ? service.duration.toString() : '',
           price: service.price ? service.price.toString() : '',
-          category: service.category || '',
-        });
-      } else {
-        Alert.alert('Error', 'Failed to load service data');
-        router.back();
+          category: categoryValue,
+          subCategory: subcategoryValue,
+        };
+
+        console.log('📋 Setting initial values:', initialData);
+
+        setInitialValues(initialData);
+
+        // Load subcategories if category is a valid numeric ID
+        if (categoryValue && !isNaN(Number(categoryValue))) {
+          console.log('📥 Loading subcategories for category:', categoryValue);
+          await loadSubcategories(categoryValue);
+        }
       }
     } catch (error) {
       console.error('Error loading service:', error);
@@ -81,26 +204,131 @@ export default function AddServiceScreen() {
     }
   };
 
-  const serviceCategories = [
-    'General Consultation',
-    'Vaccination',
-    'Surgery',
-    'Dental Care',
-    'Emergency Care',
-    'Grooming',
-    'Laboratory Tests',
-    'Health Checkup',
-  ];
+  const loadSubcategories = async (categoryId: string) => {
+    if (!categoryId) {
+      setSubcategories([]);
+      return;
+    }
 
-  const handleSave = async (values: any, { setSubmitting }: any) => {
     try {
+      const response = await apiService.getSubcategoriesForCategory(categoryId);
+      console.log('📦 Subcategories API Response:', response);
+
+      if (response.success && response.data) {
+        // Handle double-nested response from apiService
+        let subcategoriesData = [];
+
+        if (Array.isArray(response.data)) {
+          subcategoriesData = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          subcategoriesData = response.data.data;
+        } else if (response.data.subcategories && Array.isArray(response.data.subcategories)) {
+          subcategoriesData = response.data.subcategories;
+        }
+
+        console.log('✅ Subcategories loaded:', subcategoriesData.length, 'items');
+        setSubcategories(subcategoriesData);
+      } else {
+        setSubcategories([]);
+      }
+    } catch (error) {
+      console.error('❌ Error loading subcategories:', error);
+      setSubcategories([]);
+    }
+  };
+
+  const handleCategoryChange = (categoryId: string, setFieldValue: any) => {
+    setFieldValue('category', categoryId);
+    setFieldValue('subCategory', ''); // Reset subcategory
+    setSelectedCategoryForSubcat(categoryId);
+    loadSubcategories(categoryId);
+  };
+
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) {
+      Alert.alert('Error', 'Please enter category name');
+      return;
+    }
+
+    try {
+      const response = await apiService.createCategory({
+        name: newCategoryName.trim(),
+      });
+
+      if (response.success) {
+        setShowCategoryModal(false);
+        setNewCategoryName('');
+        await loadCategories();
+
+        // Auto-select the newly created category
+        const newCategoryId = response.data.id?.toString();
+        if (newCategoryId && formikRef.current) {
+          formikRef.current.setFieldValue('category', newCategoryId);
+          setSelectedCategoryForSubcat(newCategoryId);
+          // Load subcategories for the new category
+          loadSubcategories(newCategoryId);
+        }
+        Alert.alert('Success', 'Category created successfully');
+      } else {
+        Alert.alert('Error', response.error || 'Failed to create category');
+      }
+    } catch (error) {
+      console.error('Create category error:', error);
+      Alert.alert('Error', 'Failed to create category');
+    }
+  };
+
+  const handleCreateSubcategory = async () => {
+    if (!newSubcategoryName.trim()) {
+      Alert.alert('Error', 'Please enter subcategory name');
+      return;
+    }
+
+    if (!selectedCategoryForSubcat) {
+      Alert.alert('Error', 'Please select a category first');
+      return;
+    }
+
+    try {
+      const response = await apiService.createSubcategory({
+        name: newSubcategoryName.trim(),
+        categoryId: selectedCategoryForSubcat,
+      });
+
+      if (response.success) {
+        setShowSubcategoryModal(false);
+        setNewSubcategoryName('');
+        await loadSubcategories(selectedCategoryForSubcat);
+
+        // Auto-select the newly created subcategory
+        const newSubcategoryId = response.data.id?.toString();
+        if (newSubcategoryId && formikRef.current) {
+          formikRef.current.setFieldValue('subCategory', newSubcategoryId);
+        }
+        Alert.alert('Success', 'Subcategory created successfully');
+      } else {
+        Alert.alert('Error', response.error || 'Failed to create subcategory');
+      }
+    } catch (error) {
+      console.error('Create subcategory error:', error);
+      Alert.alert('Error', 'Failed to create subcategory');
+    }
+  };
+
+  const handleSubmit = async (values: any) => {
+    try {
+      setLoading(true);
+
       const serviceData = {
         name: values.name,
         description: values.description,
-        duration: values.duration ? parseInt(values.duration) : undefined,
+        duration: parseInt(values.duration),
         price: parseFloat(values.price),
-        category: values.category
+        category: values.category,
+        subCategory: values.subCategory,
       };
+
+      console.log('📤 Submitting service:', serviceData);
 
       let response;
       if (isEditMode) {
@@ -108,27 +336,38 @@ export default function AddServiceScreen() {
       } else {
         response = await apiService.createService(serviceData);
       }
-      
-      if (!response.success) {
-        Alert.alert('Error', response.error || `Failed to ${isEditMode ? 'update' : 'add'} service`);
-        return;
+
+      console.log('📥 Service creation response:', response);
+
+      if (response.success) {
+        const message = isEditMode
+          ? 'Service updated successfully'
+          : 'Service created successfully';
+
+        Alert.alert(
+          'Success',
+          message,
+          [{
+            text: 'OK',
+            onPress: () => {
+              router.back();
+            }
+          }]
+        );
+      } else {
+        Alert.alert('Error', response.error || 'Failed to save service');
       }
-      
-      Alert.alert('Success', `Service ${isEditMode ? 'updated' : 'added'} successfully`, [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
     } catch (error) {
-      console.error(`${isEditMode ? 'Update' : 'Create'} service error:`, error);
-      Alert.alert('Error', `Failed to ${isEditMode ? 'update' : 'add'} service`);
+      console.error('Submit error:', error);
+      Alert.alert('Error', 'Failed to save service');
     } finally {
-      setSubmitting(false);
+      setLoading(false);
     }
   };
 
-  if (loading) {
+  if (loading && isEditMode) {
     return (
       <SafeAreaView style={styles.container}>
-        <AppHeader title={isEditMode ? "Edit Service" : "Add Service"} showBackButton={true} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading service...</Text>
@@ -139,61 +378,163 @@ export default function AddServiceScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <AppHeader title={isEditMode ? "Edit Service" : "Add Service"} showBackButton={true} />
-
-      <Formik
-        initialValues={initialValues}
-        enableReinitialize={true}
-        validationSchema={serviceValidationSchema}
-        onSubmit={handleSave}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
       >
-        {({ handleChange, handleBlur, handleSubmit, values, errors, touched, setFieldValue, isSubmitting }) => (
-          <>
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>
+            {isEditMode ? 'Edit Service' : 'Add Service'}
+          </Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        <Formik
+          innerRef={formikRef}
+          initialValues={initialValues}
+          validationSchema={serviceValidationSchema}
+          onSubmit={handleSubmit}
+          enableReinitialize
+        >
+          {({
+            handleChange,
+            handleBlur,
+            handleSubmit,
+            setFieldValue,
+            values,
+            errors,
+            touched,
+          }) => (
+            <ScrollView
+              style={styles.scrollView}
+              showsVerticalScrollIndicator={false}
+            >
               {/* Service Name */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Service Information</Text>
-                
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Service Name *</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter service name"
-                    placeholderTextColor={Colors.textSecondary}
-                    value={values.name}
-                    onChangeText={handleChange('name')}
-                    onBlur={handleBlur('name')}
-                  />
-                  {touched.name && errors.name && (
-                    <Text style={styles.errorText}>{errors.name}</Text>
-                  )}
-                </View>
+                <Text style={styles.sectionLabel}>Service Name</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter service name"
+                  placeholderTextColor="#999"
+                  value={values.name}
+                  onChangeText={handleChange('name')}
+                  onBlur={handleBlur('name')}
+                />
+                {touched.name && errors.name && (
+                  <Text style={styles.errorText}>{errors.name}</Text>
+                )}
+              </View>
 
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Description</Text>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    placeholder="Enter service description"
-                    placeholderTextColor={Colors.textSecondary}
-                    value={values.description}
-                    onChangeText={handleChange('description')}
-                    onBlur={handleBlur('description')}
-                    multiline
-                    numberOfLines={4}
-                    textAlignVertical="top"
-                  />
-                  {touched.description && errors.description && (
-                    <Text style={styles.errorText}>{errors.description}</Text>
-                  )}
-                </View>
+              {/* Description */}
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Description</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Enter service description"
+                  placeholderTextColor="#999"
+                  value={values.description}
+                  onChangeText={handleChange('description')}
+                  onBlur={handleBlur('description')}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+                {touched.description && errors.description && (
+                  <Text style={styles.errorText}>{errors.description}</Text>
+                )}
+              </View>
 
+              {/* Category */}
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Category</Text>
+                <View style={styles.pickerWrapper}>
+                  <Picker
+                    selectedValue={values.category}
+                    onValueChange={(value) => handleCategoryChange(value, setFieldValue)}
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Select Category" value="" />
+                    {categories.map((cat: any) => (
+                      <Picker.Item
+                        key={cat.id}
+                        label={cat.name}
+                        value={cat.id.toString()}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => setShowCategoryModal(true)}
+                >
+                  <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+                  <Text style={styles.addButtonText}>Add Category</Text>
+                </TouchableOpacity>
+                {touched.category && errors.category && (
+                  <Text style={styles.errorText}>{errors.category}</Text>
+                )}
+              </View>
+
+              {/* Sub Category */}
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Sub Category (Optional)</Text>
+                <View style={styles.pickerWrapper}>
+                  <Picker
+                    selectedValue={values.subCategory}
+                    onValueChange={handleChange('subCategory')}
+                    style={styles.picker}
+                    enabled={!!values.category}
+                  >
+                    <Picker.Item label="Select Sub Category" value="" />
+                    {subcategories.map((subcat: any) => (
+                      <Picker.Item
+                        key={subcat.id}
+                        label={subcat.name}
+                        value={subcat.id.toString()}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+                <TouchableOpacity
+                  style={[styles.addButton, !values.category && styles.addButtonDisabled]}
+                  onPress={() => {
+                    if (values.category) {
+                      setSelectedCategoryForSubcat(values.category);
+                      setShowSubcategoryModal(true);
+                    }
+                  }}
+                  disabled={!values.category}
+                >
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={20}
+                    color={values.category ? Colors.primary : '#999'}
+                  />
+                  <Text
+                    style={[
+                      styles.addButtonText,
+                      !values.category && styles.addButtonTextDisabled,
+                    ]}
+                  >
+                    Add Subcategory
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Duration and Price */}
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Duration & Price</Text>
                 <View style={styles.row}>
-                  <View style={[styles.inputGroup, styles.halfWidth]}>
-                    <Text style={styles.label}>Duration (minutes)</Text>
+                  <View style={styles.halfInput}>
+                    <Text style={styles.inputLabel}>Duration (mins)</Text>
                     <TextInput
                       style={styles.input}
                       placeholder="30"
-                      placeholderTextColor={Colors.textSecondary}
+                      placeholderTextColor="#999"
                       value={values.duration}
                       onChangeText={handleChange('duration')}
                       onBlur={handleBlur('duration')}
@@ -204,17 +545,20 @@ export default function AddServiceScreen() {
                     )}
                   </View>
 
-                  <View style={[styles.inputGroup, styles.halfWidth]}>
-                    <Text style={styles.label}>Price *</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="₹0"
-                      placeholderTextColor={Colors.textSecondary}
-                      value={values.price}
-                      onChangeText={handleChange('price')}
-                      onBlur={handleBlur('price')}
-                      keyboardType="numeric"
-                    />
+                  <View style={styles.halfInput}>
+                    <Text style={styles.inputLabel}>Price</Text>
+                    <View style={styles.priceInputContainer}>
+                      <Text style={styles.currencySymbol}>₹</Text>
+                      <TextInput
+                        style={[styles.input, styles.priceInput]}
+                        placeholder="500"
+                        placeholderTextColor="#999"
+                        value={values.price}
+                        onChangeText={handleChange('price')}
+                        onBlur={handleBlur('price')}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
                     {touched.price && errors.price && (
                       <Text style={styles.errorText}>{errors.price}</Text>
                     )}
@@ -222,69 +566,108 @@ export default function AddServiceScreen() {
                 </View>
               </View>
 
-              {/* Category Selection */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Category *</Text>
-                <Text style={styles.sectionSubtitle}>Select a category for your service</Text>
-                
-                <View style={styles.categoryGrid}>
-                  {serviceCategories.map((category) => (
-                    <TouchableOpacity
-                      key={category}
-                      style={[
-                        styles.categoryCard,
-                        values.category === category && styles.selectedCategory
-                      ]}
-                      onPress={() => setFieldValue('category', category)}
-                    >
-                      <View style={[
-                        styles.categoryIcon,
-                        { backgroundColor: values.category === category ? Colors.primary : Colors.backgroundSecondary }
-                      ]}>
-                        <Ionicons 
-                          name="medical-outline" 
-                          size={20} 
-                          color={values.category === category ? Colors.white : Colors.textSecondary} 
-                        />
-                      </View>
-                      <Text style={[
-                        styles.categoryText,
-                        values.category === category && styles.selectedCategoryText
-                      ]}>
-                        {category}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                {touched.category && errors.category && (
-                  <Text style={styles.errorText}>{errors.category}</Text>
-                )}
-              </View>
-
-              {/* Add some bottom padding for the save button */}
-              <View style={styles.bottomPadding} />
-            </ScrollView>
-
-            {/* Save Button */}
-            <View style={styles.buttonContainer}>
+              {/* Submit Button */}
               <TouchableOpacity
-                style={[styles.saveButton, isSubmitting && styles.disabledButton]}
-                onPress={handleSubmit}
-                disabled={isSubmitting}
+                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                onPress={() => handleSubmit()}
+                disabled={loading}
               >
-                {isSubmitting ? (
-                  <Text style={styles.saveButtonText}>{isEditMode ? 'Updating...' : 'Adding...'}</Text>
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
                 ) : (
-                  <>
-                    <Ionicons name="checkmark-circle-outline" size={20} color={Colors.white} />
-                    <Text style={styles.saveButtonText}>{isEditMode ? 'Update Service' : 'Add Service'}</Text>
-                  </>
+                  <Text style={styles.submitButtonText}>
+                    {isEditMode ? 'Update Service' : 'Create Service'}
+                  </Text>
                 )}
               </TouchableOpacity>
+
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          )}
+        </Formik>
+
+        {/* Add Category Modal */}
+        <Modal
+          visible={showCategoryModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowCategoryModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Add New Category</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Category Name"
+                placeholderTextColor="#999"
+                value={newCategoryName}
+                onChangeText={setNewCategoryName}
+                autoFocus
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => {
+                    setShowCategoryModal(false);
+                    setNewCategoryName('');
+                  }}
+                >
+                  <Text style={styles.modalButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonSave]}
+                  onPress={handleCreateCategory}
+                >
+                  <Text style={[styles.modalButtonText, styles.modalButtonTextSave]}>
+                    Add
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </>
-        )}
-      </Formik>
+          </View>
+        </Modal>
+
+        {/* Add Subcategory Modal */}
+        <Modal
+          visible={showSubcategoryModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowSubcategoryModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Add New Subcategory</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Subcategory Name"
+                placeholderTextColor="#999"
+                value={newSubcategoryName}
+                onChangeText={setNewSubcategoryName}
+                autoFocus
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => {
+                    setShowSubcategoryModal(false);
+                    setNewSubcategoryName('');
+                  }}
+                >
+                  <Text style={styles.modalButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonSave]}
+                  onPress={handleCreateSubcategory}
+                >
+                  <Text style={[styles.modalButtonText, styles.modalButtonTextSave]}>
+                    Add
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -292,135 +675,198 @@ export default function AddServiceScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.backgroundSecondary,
+    backgroundColor: '#F5F5F5',
   },
-  content: {
+  keyboardView: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  scrollView: {
     flex: 1,
   },
   section: {
-    backgroundColor: Colors.white,
-    marginBottom: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.lg,
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
   },
-  sectionTitle: {
-    fontSize: Typography.fontSizes.lg,
-    fontWeight: Typography.fontWeights.bold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
   },
-  sectionSubtitle: {
-    fontSize: Typography.fontSizes.sm,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.md,
-  },
-  inputGroup: {
-    marginBottom: Spacing.md,
-  },
-  label: {
-    fontSize: Typography.fontSizes.sm,
-    fontWeight: Typography.fontWeights.semibold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
+  inputLabel: {
+    fontSize: 13,
+    color: '#666',
+    marginBottom: 6,
   },
   input: {
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    fontSize: Typography.fontSizes.base,
-    color: Colors.textPrimary,
-    backgroundColor: Colors.white,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    color: '#333',
+    backgroundColor: '#fff',
   },
   textArea: {
-    height: 100,
-    textAlignVertical: 'top',
+    minHeight: 100,
+    paddingTop: 12,
+  },
+  pickerWrapper: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+  },
+  picker: {
+    height: 50,
+    color: '#333',
   },
   row: {
     flexDirection: 'row',
-    gap: Spacing.md,
+    gap: 12,
   },
-  halfWidth: {
+  halfInput: {
     flex: 1,
   },
-  categoryGrid: {
+  priceInputContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-  },
-  categoryCard: {
-    width: '48%',
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    backgroundColor: '#fff',
   },
-  selectedCategory: {
-    backgroundColor: Colors.backgroundTertiary,
-    borderColor: Colors.primary,
+  currencySymbol: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    paddingLeft: 12,
   },
-  categoryIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.sm,
+  priceInput: {
+    flex: 1,
+    borderWidth: 0,
   },
-  categoryText: {
-    fontSize: Typography.fontSizes.xs,
-    fontWeight: Typography.fontWeights.medium,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  selectedCategoryText: {
-    color: Colors.primary,
-    fontWeight: Typography.fontWeights.bold,
-  },
-  bottomPadding: {
-    height: 100,
-  },
-  buttonContainer: {
-    backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-  },
-  saveButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.md,
+  addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
+    paddingVertical: 10,
+    marginTop: 8,
   },
-  disabledButton: {
-    backgroundColor: Colors.textSecondary,
+  addButtonText: {
+    fontSize: 14,
+    color: Colors.primary,
+    marginLeft: 6,
+    fontWeight: '500',
   },
-  saveButtonText: {
-    fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.bold,
-    color: Colors.white,
+  addButtonDisabled: {
+    opacity: 0.5,
+  },
+  addButtonTextDisabled: {
+    color: '#999',
+  },
+  submitButton: {
+    backgroundColor: Colors.primary,
+    marginHorizontal: 16,
+    marginTop: 24,
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   errorText: {
-    color: Colors.error,
-    fontSize: Typography.fontSizes.sm,
-    marginTop: Spacing.xs,
+    color: Colors.error || '#EF4444',
+    fontSize: 12,
+    marginTop: 4,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: Spacing.xl,
   },
   loadingText: {
-    fontSize: Typography.fontSizes.base,
-    color: Colors.textSecondary,
-    marginTop: Spacing.md,
+    marginTop: 12,
+    fontSize: 14,
+    color: '#666',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 24,
+    width: '85%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+    color: '#333',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    marginBottom: 20,
+    color: '#333',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#F5F5F5',
+  },
+  modalButtonSave: {
+    backgroundColor: Colors.primary,
+  },
+  modalButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#666',
+  },
+  modalButtonTextSave: {
+    color: '#fff',
   },
 });
