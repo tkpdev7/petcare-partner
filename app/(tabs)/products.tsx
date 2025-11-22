@@ -178,7 +178,10 @@ export default function ProductsScreen() {
     <View style={styles.productCard}>
       <View style={styles.productHeader}>
         <Text style={styles.productName}>{item.name}</Text>
-        <TouchableOpacity style={styles.editButton}>
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => router.push(`/products/add?id=${item.id}&mode=edit`)}
+        >
           <Text style={styles.editButtonText}>Edit</Text>
         </TouchableOpacity>
       </View>

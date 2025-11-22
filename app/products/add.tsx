@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   Switch,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -46,6 +46,18 @@ const productValidationSchema = Yup.object().shape({
 
 export default function AddProductScreen() {
   const router = useRouter();
+  const { id, mode } = useLocalSearchParams();
+  const isEditMode = mode === 'edit' && id;
+  const [loading, setLoading] = useState(false);
+  const [initialValues, setInitialValues] = useState({
+    title: '',
+    description: '',
+    price: '',
+    category: '',
+    subCategory: '',
+    inventoryQuantity: '',
+    discount: '',
+  });
   const [images, setImages] = useState<string[]>([]);
   const [video, setVideo] = useState('');
 
@@ -64,6 +76,43 @@ export default function AddProductScreen() {
     'medicines': ['Vaccines', 'Antibiotics', 'Vitamins', 'Flea Control'],
     'grooming': ['Shampoos', 'Brushes', 'Nail Clippers', 'Dental Care'],
     'toys': ['Chew Toys', 'Interactive Toys', 'Balls', 'Rope Toys'],
+  };
+
+  useEffect(() => {
+    if (isEditMode) {
+      loadProductData();
+    }
+  }, [isEditMode, id]);
+
+  const loadProductData = async () => {
+    try {
+      setLoading(true);
+      const response = await apiService.getProduct(id as string);
+      if (response.success && response.data) {
+        const product = response.data.data || response.data;
+        setInitialValues({
+          title: product.name || product.title || '',
+          description: product.description || '',
+          price: product.price?.toString() || '',
+          category: product.category || '',
+          subCategory: product.subCategory || product.sub_category || '',
+          inventoryQuantity: product.stock?.toString() || product.inventoryQuantity?.toString() || '',
+          discount: product.discount?.toString() || '',
+        });
+        if (product.images && Array.isArray(product.images)) {
+          setImages(product.images);
+        }
+        if (product.video) {
+          setVideo(product.video);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading product:', error);
+      Alert.alert('Error', 'Failed to load product data');
+      router.back();
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSave = async (values: any, { setSubmitting }: any) => {
@@ -86,10 +135,12 @@ export default function AddProductScreen() {
         video: video || undefined,
       };
 
-      const response = await apiService.createProduct(productData);
+      const response = isEditMode
+        ? await apiService.updateProduct(id as string, productData)
+        : await apiService.createProduct(productData);
       
       if (!response.success) {
-        Alert.alert('Error', response.error || 'Failed to add product');
+        Alert.alert('Error', response.error || `Failed to ${isEditMode ? 'update' : 'add'} product`);
         return;
       }
       
@@ -99,8 +150,8 @@ export default function AddProductScreen() {
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (error) {
-      console.error('Add product error:', error);
-      Alert.alert('Error', 'Failed to add product. Please try again.');
+      console.error(`${isEditMode ? 'Update' : 'Add'} product error:`, error);
+      Alert.alert('Error', `Failed to ${isEditMode ? 'update' : 'add'} product. Please try again.`);
     } finally {
       setSubmitting(false);
     }
@@ -151,6 +202,17 @@ export default function AddProductScreen() {
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
+  if (loading && isEditMode) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading product...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -160,22 +222,17 @@ export default function AddProductScreen() {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add Product</Text>
+        <Text style={styles.headerTitle}>
+          {isEditMode ? 'Edit Product' : 'Add Product'}
+        </Text>
         <View style={styles.saveButton} />
       </View>
 
       <Formik
-        initialValues={{
-          title: '',
-          description: '',
-          price: '',
-          category: '',
-          subCategory: '',
-          inventoryQuantity: '',
-          discount: '',
-        }}
+        initialValues={initialValues}
         validationSchema={productValidationSchema}
         onSubmit={handleSave}
+        enableReinitialize={true}
       >
         {({ handleChange, handleBlur, handleSubmit, values, errors, touched, setFieldValue, isSubmitting }) => (
           <>
@@ -350,7 +407,9 @@ export default function AddProductScreen() {
                   {isSubmitting ? (
                     <ActivityIndicator color={Colors.white} />
                   ) : (
-                    <Text style={styles.submitButtonText}>Add Product</Text>
+                    <Text style={styles.submitButtonText}>
+                      {isEditMode ? 'Update Product' : 'Add Product'}
+                    </Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -523,5 +582,15 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
     marginLeft: Spacing.md,
     marginBottom: Spacing.sm,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#666',
   },
 });
