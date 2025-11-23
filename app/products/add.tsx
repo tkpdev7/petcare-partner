@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  Modal,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -61,44 +62,142 @@ export default function AddProductScreen() {
   const [images, setImages] = useState<string[]>([]);
   const [video, setVideo] = useState('');
 
-  const categories = [
-    { label: 'Select Category', value: '' },
-    { label: 'Pet Food', value: 'pet-food' },
-    { label: 'Pet Accessories', value: 'accessories' },
-    { label: 'Medicines', value: 'medicines' },
-    { label: 'Grooming', value: 'grooming' },
-    { label: 'Toys', value: 'toys' },
-  ];
-
-  const subCategories = {
-    'pet-food': ['Dry Food', 'Wet Food', 'Treats', 'Supplements'],
-    'accessories': ['Collars', 'Leashes', 'Beds', 'Carriers'],
-    'medicines': ['Vaccines', 'Antibiotics', 'Vitamins', 'Flea Control'],
-    'grooming': ['Shampoos', 'Brushes', 'Nail Clippers', 'Dental Care'],
-    'toys': ['Chew Toys', 'Interactive Toys', 'Balls', 'Rope Toys'],
-  };
+  // Category management state
+  const [categories, setCategories] = useState<any[]>([]);
+  const [subcategories, setSubcategories] = useState<any[]>([]);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newSubcategoryName, setNewSubcategoryName] = useState('');
+  const [selectedCategoryForSubcat, setSelectedCategoryForSubcat] = useState('');
+  const formikRef = React.useRef<any>(null);
 
   useEffect(() => {
-    if (isEditMode) {
-      loadProductData();
-    }
+    const loadData = async () => {
+      // Load categories first
+      const cats = await loadCategories();
+      // Then load product data if in edit mode, passing the loaded categories
+      if (isEditMode) {
+        await loadProductData(cats);
+      }
+    };
+    loadData();
   }, [isEditMode, id]);
 
-  const loadProductData = async () => {
+  const loadCategories = async () => {
+    try {
+      const response = await apiService.getCategoriesForProduct();
+      console.log(' Categories API Response:', JSON.stringify(response, null, 2));
+
+      if (response.success && response.data) {
+        // Handle double-nested response from apiService
+        let categoriesData = [];
+
+        if (Array.isArray(response.data)) {
+          // Direct array
+          categoriesData = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          // Double-nested (from apiService wrapper)
+          categoriesData = response.data.data;
+        } else if (response.data.categories && Array.isArray(response.data.categories)) {
+          // Nested in categories property
+          categoriesData = response.data.categories;
+        }
+
+        console.log(' Categories loaded:', categoriesData.length, 'items');
+        console.log(' Sample category:', categoriesData[0]);
+        setCategories(categoriesData);
+        return categoriesData; // Return for immediate use
+      } else {
+        console.log(' No categories in response');
+        setCategories([]);
+        return [];
+      }
+    } catch (error) {
+      console.error(' Error loading categories:', error);
+      setCategories([]);
+      return [];
+    }
+  };
+
+  const loadProductData = async (loadedCategories) => {
     try {
       setLoading(true);
       const response = await apiService.getProduct(id as string);
       if (response.success && response.data) {
         const product = response.data.data || response.data;
-        setInitialValues({
+        const categoriesToUse = loadedCategories || categories;
+
+        console.log(' Loading product for edit:', product.title);
+        console.log(' Available categories:', categoriesToUse.length);
+
+        // Handle different category formats
+        let categoryValue = '';
+        let subcategoryValue = '';
+
+        // Priority 1: category_id (if exists)
+        if (product.category_id) {
+          categoryValue = product.category_id.toString();
+          console.log(' Using category_id:', categoryValue);
+        }
+        // Priority 2: category as number (current format)
+        else if (product.category && typeof product.category === 'number') {
+          categoryValue = product.category.toString();
+          console.log(' Using category (number):', categoryValue);
+        }
+        // Priority 3: category as numeric string
+        else if (product.category && \!isNaN(Number(product.category))) {
+          categoryValue = product.category.toString();
+          console.log(' Using category (numeric string):', categoryValue);
+        }
+        // Priority 4: category as string name (old format), try to find matching category by name
+        else if (product.category && typeof product.category === 'string') {
+          console.log(' Old format - looking for category by name:', product.category);
+          const matchingCategory = categoriesToUse.find(
+            cat => cat.name.toLowerCase() === product.category.toLowerCase()
+          );
+          if (matchingCategory) {
+            categoryValue = matchingCategory.id.toString();
+            console.log(' Found matching category ID:', categoryValue, 'for', matchingCategory.name);
+          } else {
+            console.log(' No matching category found for:', product.category);
+          }
+        }
+
+        // Handle different subcategory formats
+        if (product.subcategory_id) {
+          subcategoryValue = product.subcategory_id.toString();
+          console.log(' Using subcategory_id:', subcategoryValue);
+        } else if (product.sub_category && typeof product.sub_category === 'number') {
+          subcategoryValue = product.sub_category.toString();
+          console.log(' Using sub_category (number):', subcategoryValue);
+        } else if (product.subCategory && typeof product.subCategory === 'number') {
+          subcategoryValue = product.subCategory.toString();
+          console.log(' Using subCategory (number):', subcategoryValue);
+        } else if (product.sub_category && \!isNaN(Number(product.sub_category))) {
+          subcategoryValue = product.sub_category.toString();
+          console.log(' Using sub_category (numeric string):', subcategoryValue);
+        }
+
+        const initialData = {
           title: product.name || product.title || '',
           description: product.description || '',
           price: product.price?.toString() || '',
-          category: product.category || '',
-          subCategory: product.subCategory || product.sub_category || '',
+          category: categoryValue,
+          subCategory: subcategoryValue,
           inventoryQuantity: product.stock?.toString() || product.inventoryQuantity?.toString() || '',
           discount: product.discount?.toString() || '',
-        });
+        };
+
+        console.log(' Setting initial values:', initialData);
+
+        setInitialValues(initialData);
+
+        // Load subcategories if category is a valid numeric ID
+        if (categoryValue && \!isNaN(Number(categoryValue))) {
+          console.log(' Loading subcategories for category:', categoryValue);
+          await loadSubcategories(categoryValue);
+        }
         if (product.images && Array.isArray(product.images)) {
           setImages(product.images);
         }
@@ -112,6 +211,117 @@ export default function AddProductScreen() {
       router.back();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSubcategories = async (categoryId: string) => {
+    if (\!categoryId) {
+      setSubcategories([]);
+      return;
+    }
+
+    try {
+      const response = await apiService.getSubcategoriesForProductCategory(categoryId);
+      console.log(' Subcategories API Response:', response);
+
+      if (response.success && response.data) {
+        // Handle double-nested response from apiService
+        let subcategoriesData = [];
+
+        if (Array.isArray(response.data)) {
+          subcategoriesData = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          subcategoriesData = response.data.data;
+        } else if (response.data.subcategories && Array.isArray(response.data.subcategories)) {
+          subcategoriesData = response.data.subcategories;
+        }
+
+        console.log(' Subcategories loaded:', subcategoriesData.length, 'items');
+        setSubcategories(subcategoriesData);
+      } else {
+        setSubcategories([]);
+      }
+    } catch (error) {
+      console.error(' Error loading subcategories:', error);
+      setSubcategories([]);
+    }
+  };
+
+  const handleCategoryChange = (categoryId: string, setFieldValue: any) => {
+    setFieldValue('category', categoryId);
+    setFieldValue('subCategory', ''); // Reset subcategory
+    setSelectedCategoryForSubcat(categoryId);
+    loadSubcategories(categoryId);
+  };
+
+  const handleCreateCategory = async () => {
+    if (\!newCategoryName.trim()) {
+      Alert.alert('Error', 'Please enter category name');
+      return;
+    }
+
+    try {
+      const response = await apiService.createProductCategory({
+        name: newCategoryName.trim(),
+      });
+
+      if (response.success) {
+        setShowCategoryModal(false);
+        setNewCategoryName('');
+        await loadCategories();
+
+        // Auto-select the newly created category
+        const newCategoryId = response.data.id?.toString();
+        if (newCategoryId && formikRef.current) {
+          formikRef.current.setFieldValue('category', newCategoryId);
+          setSelectedCategoryForSubcat(newCategoryId);
+          // Load subcategories for the new category
+          loadSubcategories(newCategoryId);
+        }
+        Alert.alert('Success', 'Category created successfully');
+      } else {
+        Alert.alert('Error', response.error || 'Failed to create category');
+      }
+    } catch (error) {
+      console.error('Create category error:', error);
+      Alert.alert('Error', 'Failed to create category');
+    }
+  };
+
+  const handleCreateSubcategory = async () => {
+    if (\!newSubcategoryName.trim()) {
+      Alert.alert('Error', 'Please enter subcategory name');
+      return;
+    }
+
+    if (\!selectedCategoryForSubcat) {
+      Alert.alert('Error', 'Please select a category first');
+      return;
+    }
+
+    try {
+      const response = await apiService.createProductSubcategory({
+        name: newSubcategoryName.trim(),
+        categoryId: selectedCategoryForSubcat,
+      });
+
+      if (response.success) {
+        setShowSubcategoryModal(false);
+        setNewSubcategoryName('');
+        await loadSubcategories(selectedCategoryForSubcat);
+
+        // Auto-select the newly created subcategory
+        const newSubcategoryId = response.data.id?.toString();
+        if (newSubcategoryId && formikRef.current) {
+          formikRef.current.setFieldValue('subCategory', newSubcategoryId);
+        }
+        Alert.alert('Success', 'Subcategory created successfully');
+      } else {
+        Alert.alert('Error', response.error || 'Failed to create subcategory');
+      }
+    } catch (error) {
+      console.error('Create subcategory error:', error);
+      Alert.alert('Error', 'Failed to create subcategory');
     }
   };
 
@@ -229,6 +439,7 @@ export default function AddProductScreen() {
       </View>
 
       <Formik
+        innerRef={formikRef}
         initialValues={initialValues}
         validationSchema={productValidationSchema}
         onSubmit={handleSave}
@@ -275,38 +486,74 @@ export default function AddProductScreen() {
                     <Picker
                       selectedValue={values.category}
                       style={styles.picker}
-                      onValueChange={(value) => {
-                        setFieldValue('category', value);
-                        setFieldValue('subCategory', '');
-                      }}
+                      onValueChange={(value) => handleCategoryChange(value, setFieldValue)}
                     >
-                      {categories.map((category) => (
-                        <Picker.Item key={category.value} label={category.label} value={category.value} />
+                      <Picker.Item label="Select Category" value="" />
+                      {categories.map((cat: any) => (
+                        <Picker.Item
+                          key={cat.id}
+                          label={cat.name}
+                          value={cat.id.toString()}
+                        />
                       ))}
                     </Picker>
                   </View>
+                  <TouchableOpacity
+                    style={styles.addButton}
+                    onPress={() => setShowCategoryModal(true)}
+                  >
+                    <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+                    <Text style={styles.addButtonText}>Add Category</Text>
+                  </TouchableOpacity>
                   {touched.category && errors.category && (
                     <Text style={styles.errorText}>{errors.category}</Text>
                   )}
                 </View>
 
-                {values.category && (
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Sub Category</Text>
-                    <View style={styles.pickerContainer}>
-                      <Picker
-                        selectedValue={values.subCategory}
-                        style={styles.picker}
-                        onValueChange={(value) => setFieldValue('subCategory', value)}
-                      >
-                        <Picker.Item label="Select Sub Category" value="" />
-                        {(subCategories[values.category] || []).map((subCat) => (
-                          <Picker.Item key={subCat} label={subCat} value={subCat} />
-                        ))}
-                      </Picker>
-                    </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Sub Category</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={values.subCategory}
+                      style={styles.picker}
+                      onValueChange={(value) => setFieldValue('subCategory', value)}
+                      enabled={!!values.category}
+                    >
+                      <Picker.Item label="Select Sub Category" value="" />
+                      {subcategories.map((subcat: any) => (
+                        <Picker.Item
+                          key={subcat.id}
+                          label={subcat.name}
+                          value={subcat.id.toString()}
+                        />
+                      ))}
+                    </Picker>
                   </View>
-                )}
+                  <TouchableOpacity
+                    style={[styles.addButton, !values.category && styles.addButtonDisabled]}
+                    onPress={() => {
+                      if (values.category) {
+                        setSelectedCategoryForSubcat(values.category);
+                        setShowSubcategoryModal(true);
+                      }
+                    }}
+                    disabled={!values.category}
+                  >
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={20}
+                      color={values.category ? Colors.primary : '#999'}
+                    />
+                    <Text
+                      style={[
+                        styles.addButtonText,
+                        !values.category && styles.addButtonTextDisabled,
+                      ]}
+                    >
+                      Add Subcategory
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>Price (₹) *</Text>
@@ -414,6 +661,88 @@ export default function AddProductScreen() {
                 </TouchableOpacity>
               </View>
             </ScrollView>
+
+            {/* Add Category Modal */}
+            <Modal
+              visible={showCategoryModal}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setShowCategoryModal(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Add New Category</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Category Name"
+                    placeholderTextColor="#999"
+                    value={newCategoryName}
+                    onChangeText={setNewCategoryName}
+                    autoFocus
+                  />
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={[styles.modalButton, styles.modalButtonCancel]}
+                      onPress={() => {
+                        setShowCategoryModal(false);
+                        setNewCategoryName('');
+                      }}
+                    >
+                      <Text style={styles.modalButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.modalButton, styles.modalButtonSave]}
+                      onPress={handleCreateCategory}
+                    >
+                      <Text style={[styles.modalButtonText, styles.modalButtonTextSave]}>
+                        Add
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+
+            {/* Add Subcategory Modal */}
+            <Modal
+              visible={showSubcategoryModal}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setShowSubcategoryModal(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>Add New Subcategory</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Subcategory Name"
+                    placeholderTextColor="#999"
+                    value={newSubcategoryName}
+                    onChangeText={setNewSubcategoryName}
+                    autoFocus
+                  />
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity
+                      style={[styles.modalButton, styles.modalButtonCancel]}
+                      onPress={() => {
+                        setShowSubcategoryModal(false);
+                        setNewSubcategoryName('');
+                      }}
+                    >
+                      <Text style={styles.modalButtonText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.modalButton, styles.modalButtonSave]}
+                      onPress={handleCreateSubcategory}
+                    >
+                      <Text style={[styles.modalButtonText, styles.modalButtonTextSave]}>
+                        Add
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
           </>
         )}
       </Formik>
@@ -592,5 +921,76 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     color: '#666',
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  addButtonText: {
+    fontSize: 14,
+    color: Colors.primary,
+    marginLeft: 6,
+    fontWeight: '500',
+  },
+  addButtonDisabled: {
+    opacity: 0.5,
+  },
+  addButtonTextDisabled: {
+    color: '#999',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 24,
+    width: '85%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+    color: '#333',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    marginBottom: 20,
+    color: '#333',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#F5F5F5',
+  },
+  modalButtonSave: {
+    backgroundColor: Colors.primary,
+  },
+  modalButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#666',
+  },
+  modalButtonTextSave: {
+    color: '#fff',
   },
 });

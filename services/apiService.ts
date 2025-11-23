@@ -323,6 +323,10 @@ class ApiService {
     return this.makeRequest('GET', '/partner-products', undefined, config);
   }
 
+  async getProduct(id: string): Promise<ApiResponse> {
+    return this.makeRequest('GET', `/partner-products/${id}`);
+  }
+
   async createProduct(productData: {
     title: string;
     description: string;
@@ -583,6 +587,30 @@ class ApiService {
     categoryId: string;
   }): Promise<ApiResponse> {
     return this.makeRequest('POST', '/service-categories/subcategories', subcategoryData);
+  }
+
+  // Product Category Management APIs
+  async getCategoriesForProduct(): Promise<ApiResponse> {
+    return this.makeRequest('GET', '/product-categories');
+  }
+
+  async createProductCategory(categoryData: {
+    name: string;
+    description?: string;
+  }): Promise<ApiResponse> {
+    return this.makeRequest('POST', '/product-categories', categoryData);
+  }
+
+  async getSubcategoriesForProductCategory(categoryId: string): Promise<ApiResponse> {
+    return this.makeRequest('GET', `/product-categories/${categoryId}/subcategories`);
+  }
+
+  async createProductSubcategory(subcategoryData: {
+    name: string;
+    description?: string;
+    categoryId: string;
+  }): Promise<ApiResponse> {
+    return this.makeRequest('POST', '/product-categories/subcategories', subcategoryData);
   }
 }
 
