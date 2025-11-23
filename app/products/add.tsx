@@ -146,7 +146,7 @@ export default function AddProductScreen() {
           console.log(' Using category (number):', categoryValue);
         }
         // Priority 3: category as numeric string
-        else if (product.category && \!isNaN(Number(product.category))) {
+        else if (product.category && !isNaN(Number(product.category))) {
           categoryValue = product.category.toString();
           console.log(' Using category (numeric string):', categoryValue);
         }
@@ -174,7 +174,7 @@ export default function AddProductScreen() {
         } else if (product.subCategory && typeof product.subCategory === 'number') {
           subcategoryValue = product.subCategory.toString();
           console.log(' Using subCategory (number):', subcategoryValue);
-        } else if (product.sub_category && \!isNaN(Number(product.sub_category))) {
+        } else if (product.sub_category && !isNaN(Number(product.sub_category))) {
           subcategoryValue = product.sub_category.toString();
           console.log(' Using sub_category (numeric string):', subcategoryValue);
         }
@@ -194,7 +194,7 @@ export default function AddProductScreen() {
         setInitialValues(initialData);
 
         // Load subcategories if category is a valid numeric ID
-        if (categoryValue && \!isNaN(Number(categoryValue))) {
+        if (categoryValue && !isNaN(Number(categoryValue))) {
           console.log(' Loading subcategories for category:', categoryValue);
           await loadSubcategories(categoryValue);
         }
@@ -215,7 +215,7 @@ export default function AddProductScreen() {
   };
 
   const loadSubcategories = async (categoryId: string) => {
-    if (\!categoryId) {
+    if (!categoryId) {
       setSubcategories([]);
       return;
     }
@@ -255,7 +255,7 @@ export default function AddProductScreen() {
   };
 
   const handleCreateCategory = async () => {
-    if (\!newCategoryName.trim()) {
+    if (!newCategoryName.trim()) {
       Alert.alert('Error', 'Please enter category name');
       return;
     }
@@ -289,12 +289,12 @@ export default function AddProductScreen() {
   };
 
   const handleCreateSubcategory = async () => {
-    if (\!newSubcategoryName.trim()) {
+    if (!newSubcategoryName.trim()) {
       Alert.alert('Error', 'Please enter subcategory name');
       return;
     }
 
-    if (\!selectedCategoryForSubcat) {
+    if (!selectedCategoryForSubcat) {
       Alert.alert('Error', 'Please select a category first');
       return;
     }
