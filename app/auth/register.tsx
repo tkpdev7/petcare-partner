@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -95,9 +97,20 @@ export default function RegisterScreen() {
 
   const validateAdditionalFields = () => {
     if (!storeLocation.address) {
-      Alert.alert('Error', 'Please pin your store location');
+      Alert.alert('Error', 'Please pin your store location on the map');
       return false;
     }
+
+    // Validate that actual coordinates are set (not default 0,0)
+    if (!storeLocation.latitude || !storeLocation.longitude ||
+        (storeLocation.latitude === 0 && storeLocation.longitude === 0)) {
+      Alert.alert(
+        'Location Required',
+        'Please use "Pick Current Location" button or tap on the map to pin your exact store location. This is required for customers to find you.'
+      );
+      return false;
+    }
+
     return true;
   };
 
@@ -240,10 +253,17 @@ export default function RegisterScreen() {
         <Text style={styles.subtitle}>Join our partner network</Text>
       </View>
 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
       <ScrollView 
         style={styles.content} 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled={true}
       >
 
         <Formik
@@ -715,6 +735,7 @@ export default function RegisterScreen() {
           />
         )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -737,7 +758,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
-    paddingBottom: Spacing.xl * 2, // Extra padding at bottom
+    paddingBottom: 100, // Increased bottom padding for keyboard
   },
   backButton: {
     alignSelf: 'flex-start',
