@@ -158,7 +158,7 @@ export default function ProductsScreen() {
           <View style={styles.productActions}>
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => router.push(`/products/edit?id=${item.id}`)}
+              onPress={() => router.push(`/products/add?id=${item.id}&mode=edit`)}
             >
               <Ionicons name="create-outline" size={20} color="#FF7A59" />
             </TouchableOpacity>
