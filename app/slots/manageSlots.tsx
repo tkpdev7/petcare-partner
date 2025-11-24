@@ -190,7 +190,21 @@ export default function ManageSlotsScreen() {
           ]
         );
       } else {
-        Alert.alert('Error', response.error || 'Failed to create slot');
+        // Show specific message for duplicate slots
+        if (response.duplicateSlots) {
+          Alert.alert(
+            'Duplicate Slots',
+            response.error || 'You already have slots in the selected date and time. Please select different date or timings',
+            [
+              {
+                text: 'OK',
+                style: 'default',
+              },
+            ]
+          );
+        } else {
+          Alert.alert('Error', response.error || 'Failed to create slot');
+        }
       }
     } catch (error: any) {
       console.error('Create slot error:', error);
