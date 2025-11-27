@@ -170,6 +170,8 @@ export default function ManageSlotsScreen() {
 
       const response = await apiService.createPartnerSlots(payload);
 
+      console.log('Create slot response:', JSON.stringify(response, null, 2));
+
       if (response.success) {
         Alert.alert(
           'Success',

@@ -80,17 +80,20 @@ class ApiService {
       };
     } catch (error) {
       console.error(`API Error (${method} ${endpoint}):`, error);
-      
+
       if (error instanceof AxiosError) {
-        const errorMessage = error.response?.data?.message || 
-                           error.response?.data?.error || 
-                           error.message || 
+        const errorData = error.response?.data;
+        const errorMessage = errorData?.message ||
+                           errorData?.error ||
+                           error.message ||
                            'Network request failed';
-        
+
         return {
           success: false,
           error: errorMessage,
-          data: error.response?.data,
+          data: errorData,
+          // Pass through any additional flags from the error response
+          ...(errorData?.duplicateSlots && { duplicateSlots: true }),
         };
       }
 
