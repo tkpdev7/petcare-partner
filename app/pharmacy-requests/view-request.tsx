@@ -94,10 +94,19 @@ export default function ViewRequestScreen() {
     }
   };
 
-  const handleViewPrescription = () => {
+  const handleViewPrescription = async () => {
     if (requestDetails?.prescription_url) {
-      // TODO: Open prescription viewer
-      Alert.alert('View Prescription', 'Opening prescription viewer...');
+      try {
+        const canOpen = await Linking.canOpenURL(requestDetails.prescription_url);
+        if (canOpen) {
+          await Linking.openURL(requestDetails.prescription_url);
+        } else {
+          Alert.alert('Error', 'Cannot open prescription file');
+        }
+      } catch (error) {
+        console.error('Error opening prescription:', error);
+        Alert.alert('Error', 'Failed to open prescription file');
+      }
     } else {
       Alert.alert('Info', 'No prescription attached');
     }
