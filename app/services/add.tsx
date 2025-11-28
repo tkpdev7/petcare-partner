@@ -485,7 +485,7 @@ export default function AddServiceScreen() {
                 <View style={styles.pickerWrapper}>
                   <Picker
                     selectedValue={values.subCategory}
-                    onValueChange={handleChange('subCategory')}
+                    onValueChange={(value) => setFieldValue('subCategory', value)}
                     style={styles.picker}
                     enabled={!!values.category}
                   >
