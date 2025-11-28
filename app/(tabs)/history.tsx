@@ -179,10 +179,11 @@ export default function HistoryScreen() {
   const filteredHistory = history.filter(item => {
     if (filter === 'all') return true;
 
-    // Map filter to actual statuses (same logic as backend)
+    // Map filter to actual statuses
     if (filter === 'pending') {
-      // "New/Upcoming" - includes placed, confirmed, processing, packed, shipped, out_for_delivery
-      return ['pending', 'placed', 'confirmed', 'processing', 'packed', 'shipped', 'out_for_delivery', 'in_progress'].includes(item.status);
+      // "New/Upcoming" - For appointments: scheduled, confirmed, in_progress
+      // For product orders: placed, confirmed, processing, packed, shipped, out_for_delivery
+      return ['pending', 'scheduled', 'confirmed', 'placed', 'processing', 'packed', 'shipped', 'out_for_delivery', 'in_progress'].includes(item.status);
     } else if (filter === 'completed') {
       // "Completed" - includes delivered and completed
       return ['completed', 'delivered'].includes(item.status);
