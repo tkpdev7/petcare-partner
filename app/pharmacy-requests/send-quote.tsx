@@ -107,13 +107,22 @@ export default function SendQuoteScreen() {
 
       const totalAmount = calculateTotalAmount();
 
+      // Determine availability status based on available medicines
+      let availabilityStatus = 'available';
+      const availableMeds = medicineQuotes.filter(q => q.available);
+      if (availableMeds.length === 0) {
+        availabilityStatus = 'unavailable';
+      } else if (availableMeds.length < medicineQuotes.length) {
+        availabilityStatus = 'partial';
+      }
+
       const quoteData = {
         request_id: requestId,
         quoted_medicines: quotedMedicines,
         total_amount: totalAmount,
         estimated_delivery_time: deliveryTime,
         additional_notes: additionalNotes,
-        availability_status: medicineQuotes.every(q => q.available) ? 'all_available' : 'partial',
+        availability_status: availabilityStatus,
       };
 
       const response = await apiService.makeRequest('POST', '/quote', quoteData);
