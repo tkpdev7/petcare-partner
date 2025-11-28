@@ -24,6 +24,10 @@ export default function RootLayout() {
         <Stack.Screen name="orders/details" options={{ headerShown: false }} />
         <Stack.Screen name="revenue" options={{ headerShown: false }} />
         <Stack.Screen name="reviews" options={{ headerShown: false }} />
+        <Stack.Screen name="pharmacy-requests/index" options={{ headerShown: false }} />
+        <Stack.Screen name="pharmacy-requests/view-request" options={{ headerShown: false }} />
+        <Stack.Screen name="pharmacy-requests/send-quote" options={{ headerShown: false }} />
+        <Stack.Screen name="pharmacy-requests/success" options={{ headerShown: false }} />
       </Stack>
     </>
   );
