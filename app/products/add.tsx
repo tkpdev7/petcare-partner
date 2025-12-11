@@ -197,6 +197,15 @@ export default function AddProductScreen() {
         if (categoryValue && !isNaN(Number(categoryValue))) {
           console.log(' Loading subcategories for category:', categoryValue);
           await loadSubcategories(categoryValue);
+
+          // After subcategories are loaded, set the subcategory value in Formik
+          // This ensures the subcategory picker displays the correct value
+          if (subcategoryValue && formikRef.current) {
+            console.log(' Setting subcategory in Formik:', subcategoryValue);
+            setTimeout(() => {
+              formikRef.current?.setFieldValue('subCategory', subcategoryValue);
+            }, 100);
+          }
         }
         if (product.images && Array.isArray(product.images)) {
           setImages(product.images);
