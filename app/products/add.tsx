@@ -356,7 +356,7 @@ export default function AddProductScreen() {
       
       Alert.alert(
         'Success',
-        'Product added successfully!',
+        `Product ${isEditMode ? 'updated' : 'added'} successfully!`,
         [{ text: 'OK', onPress: () => router.back() }]
       );
     } catch (error) {
