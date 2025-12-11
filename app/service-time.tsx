@@ -22,15 +22,25 @@ import apiService from '../services/apiService';
 
 export default function ServiceTimeScreen() {
   const router = useRouter();
+  const { prefillDate, prefillStartTime, prefillEndTime, prefillDuration }: any = useRouter().params || {};
+
   const [isActiveOnline, setIsActiveOnline] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Date Range
-  const [startDate, setStartDate] = useState(new Date());
+  // Date Range - use prefilled value if available
+  const [startDate, setStartDate] = useState(() => {
+    if (prefillDate) {
+      return new Date(prefillDate);
+    }
+    return new Date();
+  });
   const [endDate, setEndDate] = useState(() => {
+    if (prefillDate) {
+      return new Date(prefillDate);
+    }
     const date = new Date();
     date.setDate(date.getDate() + 7); // Default to 7 days from today
     return date;
@@ -38,13 +48,25 @@ export default function ServiceTimeScreen() {
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
-  // Time Range
+  // Time Range - use prefilled values if available
   const [startTime, setStartTime] = useState(() => {
+    if (prefillStartTime) {
+      const [hours, minutes] = prefillStartTime.split(':');
+      const time = new Date();
+      time.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      return time;
+    }
     const time = new Date();
     time.setHours(9, 0, 0, 0); // 9:00 AM
     return time;
   });
   const [endTime, setEndTime] = useState(() => {
+    if (prefillEndTime) {
+      const [hours, minutes] = prefillEndTime.split(':');
+      const time = new Date();
+      time.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      return time;
+    }
     const time = new Date();
     time.setHours(18, 0, 0, 0); // 6:00 PM
     return time;
@@ -52,8 +74,8 @@ export default function ServiceTimeScreen() {
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
-  // Slot Duration
-  const [slotDuration, setSlotDuration] = useState(30);
+  // Slot Duration - use prefilled value if available
+  const [slotDuration, setSlotDuration] = useState(prefillDuration ? parseInt(prefillDuration) : 30);
 
   const slotDurationOptions = [
     { label: '15 minutes', value: 15 },

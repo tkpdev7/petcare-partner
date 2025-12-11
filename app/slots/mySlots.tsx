@@ -103,7 +103,7 @@ export default function MySlotsScreen() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    return date.toLocaleDateString('en-GB', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -256,6 +256,10 @@ export default function MySlotsScreen() {
               <Text style={styles.detailValue}>{formatTime(lastSlot.end_time)}</Text>
             </View>
             <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Slot duration:</Text>
+              <Text style={styles.detailValue}>{firstSlot.slot_duration} minutes</Text>
+            </View>
+            <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Slots Create on:</Text>
               <Text style={styles.detailValue}>
                 {formatTime(firstSlot.start_time)} & {formatDate(date)}
@@ -269,7 +273,15 @@ export default function MySlotsScreen() {
             <View style={styles.actionButtons}>
               <TouchableOpacity
                 style={styles.editButton}
-                onPress={() => router.push('/service-time')}
+                onPress={() => router.push({
+                  pathname: '/service-time',
+                  params: {
+                    prefillDate: date,
+                    prefillStartTime: firstSlot.start_time,
+                    prefillEndTime: lastSlot.end_time,
+                    prefillDuration: firstSlot.slot_duration
+                  }
+                })}
               >
                 <Text style={styles.editButtonText}>Edit</Text>
               </TouchableOpacity>
