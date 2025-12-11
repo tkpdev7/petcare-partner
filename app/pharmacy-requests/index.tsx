@@ -93,7 +93,9 @@ export default function MyRequestsScreen() {
       request.required_medicines?.some(med => med.name?.toLowerCase().includes(searchQuery.toLowerCase()));
 
     if (filter === 'all') return matchesSearch;
-    if (filter === 'active') return matchesSearch && request.status === 'active';
+    // Active tab: Show requests that are active AND haven't been quoted yet
+    if (filter === 'active') return matchesSearch && request.status === 'active' && (request.quote_count || 0) === 0;
+    // Quoted tab: Show requests where vendor has submitted a quote
     if (filter === 'quoted') return matchesSearch && (request.quote_count || 0) > 0;
 
     return matchesSearch;

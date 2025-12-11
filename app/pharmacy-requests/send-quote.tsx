@@ -30,7 +30,6 @@ export default function SendQuoteScreen() {
 
   const [parsedMedicines, setParsedMedicines] = useState<any[]>([]);
   const [medicineQuotes, setMedicineQuotes] = useState<MedicineQuote[]>([]);
-  const [deliveryTime, setDeliveryTime] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -82,12 +81,6 @@ export default function SendQuoteScreen() {
       return false;
     }
 
-    // Check if delivery time is provided
-    if (!deliveryTime.trim()) {
-      Alert.alert('Validation Error', 'Please provide estimated delivery time');
-      return false;
-    }
-
     return true;
   };
 
@@ -120,7 +113,6 @@ export default function SendQuoteScreen() {
         request_id: requestId,
         quoted_medicines: quotedMedicines,
         total_amount: totalAmount,
-        estimated_delivery_time: deliveryTime,
         additional_notes: additionalNotes,
         availability_status: availabilityStatus,
       };
@@ -270,21 +262,11 @@ export default function SendQuoteScreen() {
             ))}
           </View>
 
-          {/* Delivery Information */}
+          {/* Additional Notes */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="time" size={20} color="#FF7A59" />
-              <Text style={styles.sectionTitle}>Delivery Information</Text>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Estimated Delivery Time *</Text>
-              <TextInput
-                style={styles.input}
-                value={deliveryTime}
-                onChangeText={setDeliveryTime}
-                placeholder="e.g., 2-3 hours, Same day, 24 hours"
-              />
+              <Ionicons name="document-text" size={20} color="#FF7A59" />
+              <Text style={styles.sectionTitle}>Additional Information</Text>
             </View>
 
             <View style={styles.inputGroup}>
@@ -307,12 +289,6 @@ export default function SendQuoteScreen() {
               <Text style={styles.summaryLabel}>Available Medicines:</Text>
               <Text style={styles.summaryValue}>
                 {availableCount} of {medicineQuotes.length}
-              </Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Delivery Time:</Text>
-              <Text style={styles.summaryValue}>
-                {deliveryTime || 'Not specified'}
               </Text>
             </View>
             <View style={styles.summaryDivider} />
