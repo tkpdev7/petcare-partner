@@ -59,8 +59,9 @@ export default function ProfileScreen() {
     try {
       // Try to get fresh data from API first
       const response = await apiService.getProfile();
-      if (response.success && response.data?.data) {
-        const apiData = response.data.data;
+      console.log('Profile API response:', response);
+      if (response.success && response.data) {
+        const apiData = response.data;
         const newData = {
           id: apiData.id,
           name: apiData.name || apiData.business_name,
@@ -74,6 +75,7 @@ export default function ProfileScreen() {
           rating: apiData.rating || 4.5,
           reviewCount: apiData.reviewCount || 0,
         };
+        console.log('Setting partner data:', newData);
         setPartnerData(newData);
         // Update local storage
         await AsyncStorage.setItem('partnerData', JSON.stringify(newData));
