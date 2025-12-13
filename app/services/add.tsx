@@ -146,8 +146,10 @@ export default function AddServiceScreen() {
 
         console.log('🔍 Service data:', {
           category: service.category,
+          categoryId: service.categoryId,
           category_id: service.category_id,
           categoryType: typeof service.category,
+          subcategoryId: service.subcategoryId,
           subcategory_id: service.subcategory_id,
           sub_category: service.sub_category
         });
@@ -155,22 +157,27 @@ export default function AddServiceScreen() {
         let categoryValue = '';
         let subcategoryValue = '';
 
-        // Priority 1: category_id (if exists)
-        if (service.category_id) {
-          categoryValue = service.category_id.toString();
-          console.log('✓ Using category_id:', categoryValue);
+        // Priority 1: categoryId (camelCase from API)
+        if (service.categoryId) {
+          categoryValue = service.categoryId.toString();
+          console.log('✓ Using categoryId (camelCase):', categoryValue);
         }
-        // Priority 2: category as number (current format)
+        // Priority 2: category_id (snake_case fallback)
+        else if (service.category_id) {
+          categoryValue = service.category_id.toString();
+          console.log('✓ Using category_id (snake_case):', categoryValue);
+        }
+        // Priority 3: category as number (current format)
         else if (service.category && typeof service.category === 'number') {
           categoryValue = service.category.toString();
           console.log('✓ Using category (number):', categoryValue);
         }
-        // Priority 3: category as numeric string
+        // Priority 4: category as numeric string
         else if (service.category && !isNaN(Number(service.category))) {
           categoryValue = service.category.toString();
           console.log('✓ Using category (numeric string):', categoryValue);
         }
-        // Priority 4: category as string name (old format), try to find matching category by name
+        // Priority 5: category as string name (old format), try to find matching category by name
         else if (service.category && typeof service.category === 'string') {
           console.log('🔍 Old format - looking for category by name:', service.category);
           const matchingCategory = categoriesToUse.find(
@@ -183,11 +190,20 @@ export default function AddServiceScreen() {
             console.log('❌ No matching category found for:', service.category);
           }
         }
+
         // Handle different subcategory formats
-        if (service.subcategory_id) {
+        // Priority 1: subcategoryId (camelCase from API) - THIS IS THE FIX!
+        if (service.subcategoryId) {
+          subcategoryValue = service.subcategoryId.toString();
+          console.log('✓ Using subcategoryId (camelCase):', subcategoryValue);
+        }
+        // Priority 2: subcategory_id (snake_case fallback)
+        else if (service.subcategory_id) {
           subcategoryValue = service.subcategory_id.toString();
-          console.log('✓ Using subcategory_id:', subcategoryValue);
-        } else if (service.sub_category && typeof service.sub_category === 'number') {
+          console.log('✓ Using subcategory_id (snake_case):', subcategoryValue);
+        }
+        // Priority 3: sub_category (legacy format)
+        else if (service.sub_category && typeof service.sub_category === 'number') {
           subcategoryValue = service.sub_category.toString();
           console.log('✓ Using sub_category (number):', subcategoryValue);
         } else if (service.sub_category && !isNaN(Number(service.sub_category))) {

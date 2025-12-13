@@ -146,48 +146,63 @@ export default function AddProductScreen() {
         let categoryValue = '';
         let subcategoryValue = '';
 
-        // Priority 1: category_id (if exists)
-        if (product.category_id) {
-          categoryValue = product.category_id.toString();
-          console.log(' Using category_id:', categoryValue);
+        // Priority 1: categoryId (camelCase from API) - FIXED!
+        if (product.categoryId) {
+          categoryValue = product.categoryId.toString();
+          console.log('✓ Using categoryId (camelCase):', categoryValue);
         }
-        // Priority 2: category as number (current format)
+        // Priority 2: category_id (snake_case fallback)
+        else if (product.category_id) {
+          categoryValue = product.category_id.toString();
+          console.log('✓ Using category_id (snake_case):', categoryValue);
+        }
+        // Priority 3: category as number (current format)
         else if (product.category && typeof product.category === 'number') {
           categoryValue = product.category.toString();
-          console.log(' Using category (number):', categoryValue);
+          console.log('✓ Using category (number):', categoryValue);
         }
-        // Priority 3: category as numeric string
+        // Priority 4: category as numeric string
         else if (product.category && !isNaN(Number(product.category))) {
           categoryValue = product.category.toString();
-          console.log(' Using category (numeric string):', categoryValue);
+          console.log('✓ Using category (numeric string):', categoryValue);
         }
-        // Priority 4: category as string name (old format), try to find matching category by name
+        // Priority 5: category as string name (old format), try to find matching category by name
         else if (product.category && typeof product.category === 'string') {
-          console.log(' Old format - looking for category by name:', product.category);
+          console.log('🔍 Old format - looking for category by name:', product.category);
           const matchingCategory = categoriesToUse.find(
             cat => cat.name.toLowerCase() === product.category.toLowerCase()
           );
           if (matchingCategory) {
             categoryValue = matchingCategory.id.toString();
-            console.log(' Found matching category ID:', categoryValue, 'for', matchingCategory.name);
+            console.log('✓ Found matching category ID:', categoryValue, 'for', matchingCategory.name);
           } else {
-            console.log(' No matching category found for:', product.category);
+            console.log('❌ No matching category found for:', product.category);
           }
         }
 
         // Handle different subcategory formats
-        if (product.subcategory_id) {
+        // Priority 1: subcategoryId (camelCase from API) - FIXED!
+        if (product.subcategoryId) {
+          subcategoryValue = product.subcategoryId.toString();
+          console.log('✓ Using subcategoryId (camelCase):', subcategoryValue);
+        }
+        // Priority 2: subcategory_id (snake_case fallback)
+        else if (product.subcategory_id) {
           subcategoryValue = product.subcategory_id.toString();
-          console.log(' Using subcategory_id:', subcategoryValue);
-        } else if (product.sub_category && typeof product.sub_category === 'number') {
-          subcategoryValue = product.sub_category.toString();
-          console.log(' Using sub_category (number):', subcategoryValue);
-        } else if (product.subCategory && typeof product.subCategory === 'number') {
+          console.log('✓ Using subcategory_id (snake_case):', subcategoryValue);
+        }
+        // Priority 3: subCategory (legacy camelCase)
+        else if (product.subCategory && typeof product.subCategory === 'number') {
           subcategoryValue = product.subCategory.toString();
-          console.log(' Using subCategory (number):', subcategoryValue);
+          console.log('✓ Using subCategory (number):', subcategoryValue);
+        }
+        // Priority 4: sub_category (legacy format)
+        else if (product.sub_category && typeof product.sub_category === 'number') {
+          subcategoryValue = product.sub_category.toString();
+          console.log('✓ Using sub_category (number):', subcategoryValue);
         } else if (product.sub_category && !isNaN(Number(product.sub_category))) {
           subcategoryValue = product.sub_category.toString();
-          console.log(' Using sub_category (numeric string):', subcategoryValue);
+          console.log('✓ Using sub_category (numeric string):', subcategoryValue);
         }
 
         const initialData = {
