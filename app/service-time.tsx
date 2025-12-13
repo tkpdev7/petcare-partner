@@ -257,9 +257,9 @@ export default function ServiceTimeScreen() {
       return false;
     }
 
-    // Check if end date is after start date
-    if (endDate <= startDate) {
-      Alert.alert('Invalid Date Range', 'End date must be after start date');
+    // Check if end date is not before start date (allow same day for single-day slots)
+    if (endDate < startDate) {
+      Alert.alert('Invalid Date Range', 'End date cannot be before start date');
       return false;
     }
 
