@@ -11,7 +11,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import RNPickerSelect from 'react-native-picker-select';
@@ -22,7 +22,15 @@ import apiService from '../services/apiService';
 
 export default function ServiceTimeScreen() {
   const router = useRouter();
-  const { prefillDate, prefillStartTime, prefillEndTime, prefillDuration }: any = useRouter().params || {};
+  const { prefillDate, prefillStartTime, prefillEndTime, prefillDuration } = useLocalSearchParams();
+
+  // Debug logging for prefill params
+  console.log('Prefill params received:', {
+    prefillDate,
+    prefillStartTime,
+    prefillEndTime,
+    prefillDuration
+  });
 
   const [isActiveOnline, setIsActiveOnline] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -32,13 +40,13 @@ export default function ServiceTimeScreen() {
 
   // Date Range - use prefilled value if available
   const [startDate, setStartDate] = useState(() => {
-    if (prefillDate) {
+    if (prefillDate && typeof prefillDate === 'string') {
       return new Date(prefillDate);
     }
     return new Date();
   });
   const [endDate, setEndDate] = useState(() => {
-    if (prefillDate) {
+    if (prefillDate && typeof prefillDate === 'string') {
       return new Date(prefillDate);
     }
     const date = new Date();
@@ -50,7 +58,7 @@ export default function ServiceTimeScreen() {
 
   // Time Range - use prefilled values if available
   const [startTime, setStartTime] = useState(() => {
-    if (prefillStartTime) {
+    if (prefillStartTime && typeof prefillStartTime === 'string') {
       const [hours, minutes] = prefillStartTime.split(':');
       const time = new Date();
       time.setHours(parseInt(hours), parseInt(minutes), 0, 0);
@@ -61,7 +69,7 @@ export default function ServiceTimeScreen() {
     return time;
   });
   const [endTime, setEndTime] = useState(() => {
-    if (prefillEndTime) {
+    if (prefillEndTime && typeof prefillEndTime === 'string') {
       const [hours, minutes] = prefillEndTime.split(':');
       const time = new Date();
       time.setHours(parseInt(hours), parseInt(minutes), 0, 0);
@@ -75,7 +83,13 @@ export default function ServiceTimeScreen() {
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
   // Slot Duration - use prefilled value if available
-  const [slotDuration, setSlotDuration] = useState(prefillDuration ? parseInt(prefillDuration) : 30);
+  const [slotDuration, setSlotDuration] = useState(() => {
+    if (prefillDuration) {
+      const duration = typeof prefillDuration === 'string' ? parseInt(prefillDuration) : prefillDuration;
+      return isNaN(duration) ? 30 : duration;
+    }
+    return 30;
+  });
 
   const slotDurationOptions = [
     { label: '15 minutes', value: 15 },
