@@ -84,6 +84,17 @@ export default function AddProductScreen() {
     loadData();
   }, [isEditMode, id]);
 
+  // Ensure subcategory value is set after subcategories are loaded
+  useEffect(() => {
+    if (subcategories.length > 0 && initialValues.subCategory && formikRef.current) {
+      const currentFormikValue = formikRef.current.values.subCategory;
+      if (currentFormikValue !== initialValues.subCategory) {
+        console.log('🎯 Setting subcategory from useEffect:', initialValues.subCategory);
+        formikRef.current.setFieldValue('subCategory', initialValues.subCategory);
+      }
+    }
+  }, [subcategories, initialValues.subCategory]);
+
   const loadCategories = async () => {
     try {
       const response = await apiService.getCategoriesForProduct();
@@ -197,15 +208,8 @@ export default function AddProductScreen() {
         if (categoryValue && !isNaN(Number(categoryValue))) {
           console.log(' Loading subcategories for category:', categoryValue);
           await loadSubcategories(categoryValue);
-
-          // After subcategories are loaded, set the subcategory value in Formik
-          // This ensures the subcategory picker displays the correct value
-          if (subcategoryValue && formikRef.current) {
-            console.log(' Setting subcategory in Formik:', subcategoryValue);
-            setTimeout(() => {
-              formikRef.current?.setFieldValue('subCategory', subcategoryValue);
-            }, 100);
-          }
+          // Subcategory value will be set by the useEffect that watches subcategories state
+          console.log('✅ Subcategories loaded, useEffect will handle setting the value');
         }
         if (product.images && Array.isArray(product.images)) {
           setImages(product.images);

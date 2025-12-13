@@ -77,6 +77,17 @@ export default function AddServiceScreen() {
     loadData();
   }, [isEditMode, id]);
 
+  // Ensure subcategory value is set after subcategories are loaded
+  useEffect(() => {
+    if (subcategories.length > 0 && initialValues.subCategory && formikRef.current) {
+      const currentFormikValue = formikRef.current.values.subCategory;
+      if (currentFormikValue !== initialValues.subCategory) {
+        console.log('🎯 Setting subcategory from useEffect:', initialValues.subCategory);
+        formikRef.current.setFieldValue('subCategory', initialValues.subCategory);
+      }
+    }
+  }, [subcategories, initialValues.subCategory]);
+
   const loadCategories = async () => {
     try {
       const response = await apiService.getCategoriesForService();
@@ -193,6 +204,8 @@ export default function AddServiceScreen() {
         if (categoryValue && !isNaN(Number(categoryValue))) {
           console.log('📥 Loading subcategories for category:', categoryValue);
           await loadSubcategories(categoryValue);
+          // Subcategory value will be set by the useEffect that watches subcategories state
+          console.log('✅ Subcategories loaded, useEffect will handle setting the value');
         }
       }
     } catch (error) {
