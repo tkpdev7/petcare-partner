@@ -12,12 +12,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
 
@@ -53,6 +56,10 @@ export default function AddServiceScreen() {
     category: '',
     subCategory: '',
   });
+
+  // Image and video state
+  const [images, setImages] = useState<string[]>([]);
+  const [video, setVideo] = useState('');
 
   // Category management state
   const [categories, setCategories] = useState<any[]>([]);
@@ -200,6 +207,16 @@ export default function AddServiceScreen() {
 
         setInitialValues(initialData);
 
+        // Load images and video if they exist
+        if (service.images && Array.isArray(service.images) && service.images.length > 0) {
+          console.log('📸 Loading service images:', service.images.length);
+          setImages(service.images);
+        }
+        if (service.video) {
+          console.log('🎥 Loading service video:', service.video);
+          setVideo(service.video);
+        }
+
         // Load subcategories if category is a valid numeric ID
         if (categoryValue && !isNaN(Number(categoryValue))) {
           console.log('📥 Loading subcategories for category:', categoryValue);
@@ -248,6 +265,59 @@ export default function AddServiceScreen() {
       console.error('❌ Error loading subcategories:', error);
       setSubcategories([]);
     }
+  };
+
+  // Image picker
+  const pickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant access to your photo library to select images.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'Images',
+        allowsMultipleSelection: true,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets) {
+        const newImages = result.assets.map(asset => asset.uri);
+        setImages(prev => [...prev, ...newImages].slice(0, 5)); // Max 5 images
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Error', `Failed to pick images: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  // Video picker
+  const pickVideo = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'video/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled) {
+        setVideo(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Video picker error:', error);
+      Alert.alert('Error', 'Failed to pick video');
+    }
+  };
+
+  // Remove image
+  const removeImage = (index: number) => {
+    setImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Remove video
+  const removeVideo = () => {
+    setVideo('');
   };
 
   const handleCategoryChange = (categoryId: string, setFieldValue: any) => {
@@ -329,6 +399,12 @@ export default function AddServiceScreen() {
   };
 
   const handleSubmit = async (values: any) => {
+    // Validate at least one image
+    if (images.length === 0) {
+      Alert.alert('Error', 'Please add at least one service image');
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -339,6 +415,8 @@ export default function AddServiceScreen() {
         price: parseFloat(values.price),
         category: values.category,
         subCategory: values.subCategory,
+        images: images,
+        video: video || undefined,
       };
 
       console.log('📤 Submitting service:', serviceData);
@@ -458,6 +536,55 @@ export default function AddServiceScreen() {
                 />
                 {touched.description && errors.description && (
                   <Text style={styles.errorText}>{errors.description}</Text>
+                )}
+              </View>
+
+              {/* Service Images */}
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Service Images (Max 5) *</Text>
+                <View style={styles.imageGrid}>
+                  {images.map((image, index) => (
+                    <View key={index} style={styles.imageItem}>
+                      <Image source={{ uri: image }} style={styles.serviceImage} />
+                      <TouchableOpacity
+                        style={styles.removeImageButton}
+                        onPress={() => removeImage(index)}
+                      >
+                        <Ionicons name="close-circle" size={24} color={Colors.error} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+
+                  {images.length < 5 && (
+                    <TouchableOpacity style={styles.addImageButton} onPress={pickImage}>
+                      <Ionicons name="camera-outline" size={32} color={Colors.textSecondary} />
+                      <Text style={styles.addImageText}>Add Photo</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
+              {/* Service Video */}
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Service Video (Optional)</Text>
+                {video ? (
+                  <View style={styles.videoContainer}>
+                    <View style={styles.videoPlaceholder}>
+                      <Ionicons name="videocam" size={40} color={Colors.primary} />
+                      <Text style={styles.videoText}>Video selected</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.removeVideoButton}
+                      onPress={removeVideo}
+                    >
+                      <Ionicons name="close-circle" size={24} color={Colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.addVideoButton} onPress={pickVideo}>
+                    <Ionicons name="videocam-outline" size={32} color={Colors.textSecondary} />
+                    <Text style={styles.addVideoText}>Add Video</Text>
+                  </TouchableOpacity>
                 )}
               </View>
 
@@ -881,5 +1008,84 @@ const styles = StyleSheet.create({
   },
   modalButtonTextSave: {
     color: '#fff',
+  },
+  imageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  imageItem: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  serviceImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
+  },
+  addImageButton: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F9F9F9',
+  },
+  addImageText: {
+    fontSize: 12,
+    color: Colors.textSecondary || '#666',
+    marginTop: 4,
+  },
+  videoContainer: {
+    position: 'relative',
+  },
+  videoPlaceholder: {
+    height: 120,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F9F9F9',
+  },
+  videoText: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 8,
+  },
+  removeVideoButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
+  },
+  addVideoButton: {
+    height: 120,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F9F9F9',
+  },
+  addVideoText: {
+    fontSize: 14,
+    color: Colors.textSecondary || '#666',
+    marginTop: 8,
   },
 });
