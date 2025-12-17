@@ -511,7 +511,7 @@ class ApiService {
   }
 
   // Image Upload APIs
-  async uploadImage(imageUri: string, bucketName: string = 'partners', folderPath: string = 'profiles'): Promise<ApiResponse> {
+  async uploadImage(imageUri: string, bucketName: string = 'users', folderPath: string = 'profiles'): Promise<ApiResponse> {
     try {
       const formData = new FormData();
 

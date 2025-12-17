@@ -159,8 +159,8 @@ export default function ProfileScreen() {
         setUploadingImage(true);
 
         try {
-          // Upload image to backend
-          const uploadResponse = await apiService.uploadImage(imageUri, 'partners', 'profiles');
+          // Upload image to backend (using 'users' bucket for all user types including partners)
+          const uploadResponse = await apiService.uploadImage(imageUri, 'users', 'profiles');
 
           if (uploadResponse.success && uploadResponse.data?.url) {
             const photoUrl = uploadResponse.data.url;

@@ -36,6 +36,7 @@ export default function AccountScreen() {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [partnerData, setPartnerData] = useState<PartnerData>({
     id: '',
     name: '',
@@ -55,15 +56,54 @@ export default function AccountScreen() {
 
   const loadPartnerData = async () => {
     try {
-      const data = await AsyncStorage.getItem('partnerData');
-      if (data) {
-        const parsed = JSON.parse(data);
+      // STEP 1: Load from AsyncStorage immediately for instant display
+      const cachedData = await AsyncStorage.getItem('partnerData');
+      if (cachedData) {
+        const parsed = JSON.parse(cachedData);
         setPartnerData({
           ...parsed,
           description: parsed.description || '',
           rating: parsed.rating || 4.5,
-          reviewCount: parsed.reviewCount || 23,
+          reviewCount: parsed.reviewCount || 0,
         });
+        console.log('Loaded cached partner data');
+      }
+
+      // STEP 2: Fetch fresh data from API in background to sync
+      try {
+        const apiService = (await import('../../services/apiService')).default;
+        const response = await apiService.getProfile();
+        console.log('Profile API response:', response);
+
+        if (response.success && response.data && response.data.data) {
+          // API returns nested data: response.data.data contains actual partner info
+          const apiData = response.data.data;
+          const newData = {
+            id: apiData.id,
+            name: apiData.name || apiData.business_name,
+            email: apiData.email,
+            phone: apiData.phone,
+            address: apiData.address || '',
+            serviceType: apiData.serviceType,
+            verified: apiData.verified,
+            profilePhoto: apiData.profilePhoto,
+            description: apiData.description || '',
+            rating: parseFloat(apiData.rating) || 4.5,
+            reviewCount: apiData.reviewCount || 0,
+          };
+          console.log('Synced fresh partner data from API:', {
+            name: newData.name,
+            email: newData.email,
+            phone: newData.phone,
+            hasPhoto: !!newData.profilePhoto
+          });
+          setPartnerData(newData);
+          // Update local storage cache
+          await AsyncStorage.setItem('partnerData', JSON.stringify(newData));
+        }
+      } catch (apiError) {
+        console.log('API fetch failed, using cached data:', apiError.message);
+        // It's okay, we already loaded cached data above
       }
     } catch (error) {
       console.error('Error loading partner data:', error);
@@ -73,13 +113,28 @@ export default function AccountScreen() {
   const handleSave = async () => {
     setLoading(true);
     try {
-      // TODO: Replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      await AsyncStorage.setItem('partnerData', JSON.stringify(partnerData));
-      Alert.alert('Success', 'Profile updated successfully');
-      setIsEditing(false);
+      // Import apiService at the top of the file to use it here
+      const apiService = (await import('../../services/apiService')).default;
+
+      // Call API to update profile
+      const response = await apiService.updatePartnerProfile({
+        name: partnerData.name,
+        address: partnerData.address,
+        description: partnerData.description,
+      });
+
+      if (response.success) {
+        // Update local storage
+        await AsyncStorage.setItem('partnerData', JSON.stringify(partnerData));
+        Alert.alert('Success', 'Profile updated successfully');
+        setIsEditing(false);
+        // Reload fresh data
+        await loadPartnerData();
+      } else {
+        Alert.alert('Error', response.error || 'Failed to update profile');
+      }
     } catch (error) {
+      console.error('Update profile error:', error);
       Alert.alert('Error', 'Failed to update profile');
     } finally {
       setLoading(false);
@@ -90,24 +145,62 @@ export default function AccountScreen() {
     try {
       // Request permissions first
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (status !== 'granted') {
         Alert.alert('Permission Required', 'Please grant access to your photo library to select images.');
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'Images',
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 1,
+        quality: 0.8, // Slightly compress to reduce upload size
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setPartnerData(prev => ({
-          ...prev,
-          profilePhoto: result.assets[0].uri
-        }));
+        const imageUri = result.assets[0].uri;
+
+        // Show uploading indicator
+        setUploadingImage(true);
+
+        try {
+          // Import apiService
+          const apiService = (await import('../../services/apiService')).default;
+
+          // Upload image to backend (using 'users' bucket for all user types including partners)
+          const uploadResponse = await apiService.uploadImage(imageUri, 'users', 'profiles');
+
+          if (uploadResponse.success && uploadResponse.data?.url) {
+            const photoUrl = uploadResponse.data.url;
+
+            // Update partner profile photo in database
+            const updateResponse = await apiService.updatePartnerPhoto(photoUrl);
+
+            if (updateResponse.success) {
+              // Update local state
+              setPartnerData(prev => ({
+                ...prev,
+                profilePhoto: photoUrl
+              }));
+
+              // Update AsyncStorage
+              const updatedData = { ...partnerData, profilePhoto: photoUrl };
+              await AsyncStorage.setItem('partnerData', JSON.stringify(updatedData));
+
+              Alert.alert('Success', 'Profile photo updated successfully!');
+            } else {
+              Alert.alert('Error', updateResponse.error || 'Failed to update profile photo');
+            }
+          } else {
+            Alert.alert('Error', uploadResponse.error || 'Failed to upload image');
+          }
+        } catch (uploadError) {
+          console.error('Upload error:', uploadError);
+          Alert.alert('Error', 'Failed to upload image');
+        } finally {
+          setUploadingImage(false);
+        }
       }
     } catch (error) {
       console.error('Image picker error:', error);
@@ -170,17 +263,21 @@ export default function AccountScreen() {
         <View style={styles.profileSection}>
           <TouchableOpacity
             style={styles.profileImageContainer}
-            onPress={isEditing ? handleImagePicker : undefined}
-            disabled={!isEditing}
+            onPress={handleImagePicker}
+            disabled={uploadingImage}
           >
-            {partnerData.profilePhoto ? (
+            {uploadingImage ? (
+              <View style={styles.placeholderImage}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+              </View>
+            ) : partnerData.profilePhoto ? (
               <Image source={{ uri: partnerData.profilePhoto }} style={styles.profileImage} />
             ) : (
               <View style={styles.placeholderImage}>
                 <Ionicons name="person" size={48} color="#ccc" />
               </View>
             )}
-            {isEditing && (
+            {!uploadingImage && (
               <View style={styles.editImageOverlay}>
                 <Ionicons name="camera" size={20} color="#fff" />
               </View>

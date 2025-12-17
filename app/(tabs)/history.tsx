@@ -33,6 +33,9 @@ interface HistoryItem {
   petSpecies?: string;
   petBreed?: string;
   customerPhone?: string;
+  cancellationReason?: string;
+  cancelledBy?: string;
+  cancelledAt?: string;
 }
 
 export default function HistoryScreen() {
@@ -46,6 +49,9 @@ export default function HistoryScreen() {
   const [selectedAppointment, setSelectedAppointment] = useState<HistoryItem | null>(null);
   const [treatmentSummary, setTreatmentSummary] = useState('');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [appointmentToCancel, setAppointmentToCancel] = useState<HistoryItem | null>(null);
 
   // Determine if this partner type should show orders (pharmacy & essentials) or appointments (vet & grooming)
   const showOrders = partnerData?.serviceType === 'pharmacy' || partnerData?.serviceType === 'essentials';
@@ -151,7 +157,10 @@ export default function HistoryScreen() {
             notes: item.notes || '',
             petSpecies: item.petSpecies || item.pet?.species,
             petBreed: item.petBreed || item.pet?.breed,
-            customerPhone: item.customer_phone || item.customerPhone || item.customer?.phone
+            customerPhone: item.customer_phone || item.customerPhone || item.customer?.phone,
+            cancellationReason: item.cancellationReason || item.cancellation_reason,
+            cancelledBy: item.cancelledBy || item.cancelled_by,
+            cancelledAt: item.cancelledAt || item.cancelled_at
           };
         });
 
@@ -255,6 +264,42 @@ export default function HistoryScreen() {
     } catch (error) {
       console.error(`Error updating ${showOrders ? 'order' : 'appointment'} status:`, error);
       Alert.alert('Error', `An error occurred while updating ${showOrders ? 'order' : 'appointment'} status`);
+    }
+  };
+
+  const cancelAppointment = async () => {
+    if (!appointmentToCancel || !cancelReason.trim()) {
+      Alert.alert('Error', 'Please provide a cancellation reason');
+      return;
+    }
+
+    try {
+      const response = await apiService.cancelAppointment(
+        appointmentToCancel.id,
+        cancelReason.trim()
+      );
+
+      if (response.success) {
+        // Update the local state
+        setHistory(prevHistory =>
+          prevHistory.map(item =>
+            item.id === appointmentToCancel.id
+              ? { ...item, status: 'cancelled' as const, cancellationReason: cancelReason.trim(), cancelledBy: 'provider' }
+              : item
+          )
+        );
+
+        setShowCancelModal(false);
+        setAppointmentToCancel(null);
+        setCancelReason('');
+
+        Alert.alert('Success', 'Appointment cancelled successfully!');
+      } else {
+        Alert.alert('Error', response.message || 'Failed to cancel appointment');
+      }
+    } catch (error) {
+      console.error('Error cancelling appointment:', error);
+      Alert.alert('Error', 'An error occurred while cancelling the appointment');
     }
   };
 
@@ -380,7 +425,14 @@ export default function HistoryScreen() {
                 >
                   <Text style={styles.completeButtonText}>Mark Complete</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.cancelButton}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => {
+                    setAppointmentToCancel(item);
+                    setCancelReason('');
+                    setShowCancelModal(true);
+                  }}
+                >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
               </>
@@ -598,6 +650,16 @@ export default function HistoryScreen() {
                     {getStatusText(selectedAppointment.status)}
                   </Text>
                 </View>
+                {selectedAppointment.status === 'cancelled' && selectedAppointment.cancellationReason && (
+                  <View style={styles.detailColumn}>
+                    <Text style={styles.detailLabel}>Cancellation Reason:</Text>
+                    <Text style={styles.detailValue}>{selectedAppointment.cancellationReason}</Text>
+                    <Text style={styles.detailSubtext}>
+                      Cancelled by {selectedAppointment.cancelledBy === 'user' ? 'Customer' :
+                                   selectedAppointment.cancelledBy === 'provider' ? 'You (Provider)' : 'System'}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>{showOrders ? 'Amount:' : 'Charge:'}</Text>
                   <Text style={styles.detailValue}>₹{selectedAppointment.totalAmount}</Text>
@@ -681,6 +743,64 @@ export default function HistoryScreen() {
                 disabled={!showOrders ? !treatmentSummary.trim() : false}
               >
                 <Text style={styles.modalCompleteButtonText}>Mark Complete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Cancel Modal */}
+      <Modal
+        visible={showCancelModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCancelModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Cancel Appointment</Text>
+              <TouchableOpacity
+                onPress={() => setShowCancelModal(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.modalDescription}>
+                Please provide a reason for cancelling this appointment:
+              </Text>
+              <TextInput
+                style={styles.treatmentInput}
+                placeholder="Enter cancellation reason (required)"
+                value={cancelReason}
+                onChangeText={setCancelReason}
+                multiline
+                numberOfLines={3}
+                maxLength={200}
+                textAlignVertical="top"
+              />
+              <Text style={styles.characterCount}>{cancelReason.length}/200</Text>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowCancelModal(false)}
+              >
+                <Text style={styles.modalCancelButtonText}>Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalCompleteButton,
+                  !cancelReason.trim() && styles.disabledButton
+                ]}
+                onPress={cancelAppointment}
+                disabled={!cancelReason.trim()}
+              >
+                <Text style={styles.modalCompleteButtonText}>Cancel Appointment</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1055,6 +1175,12 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSizes.sm,
     color: Colors.textPrimary,
     flex: 1,
+  },
+  detailSubtext: {
+    fontSize: Typography.fontSizes.xs,
+    color: Colors.textTertiary,
+    marginTop: Spacing.xs,
+    fontStyle: 'italic',
   },
   detailColumn: {
     marginTop: Spacing.sm,
