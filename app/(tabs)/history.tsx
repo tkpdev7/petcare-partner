@@ -1520,4 +1520,54 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginLeft: Spacing.sm,
   },
+  datePickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  datePickerContainer: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+    maxHeight: '70%',
+    paddingBottom: Spacing.xl,
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  datePickerTitle: {
+    fontSize: Typography.fontSizes.lg,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.textPrimary,
+  },
+  datePickerScroll: {
+    maxHeight: 400,
+  },
+  dateOption: {
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  dateOptionSelected: {
+    backgroundColor: Colors.primaryLight,
+  },
+  dateOptionContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dateOptionText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  dateOptionTextSelected: {
+    color: Colors.primary,
+    fontWeight: Typography.fontWeights.semibold,
+  },
 });
