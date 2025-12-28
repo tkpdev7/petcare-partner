@@ -356,8 +356,39 @@ export default function HistoryScreen() {
     } catch (error: any) {
       console.error(`Error updating ${showOrders ? 'order' : 'appointment'} status:`, error);
       console.error('Error response:', JSON.stringify(error.response?.data, null, 2));
+
       const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || `An error occurred while updating ${showOrders ? 'order' : 'appointment'} status`;
-      Alert.alert('Error', errorMessage);
+
+      // Special handling for OTP errors
+      if (errorMessage.toLowerCase().includes('invalid otp')) {
+        Alert.alert(
+          'Invalid OTP',
+          'The OTP you entered does not match. Please verify the 4-digit code shown on the customer\'s app and try again.',
+          [
+            { text: 'OK', onPress: () => setOtpCode('') } // Clear OTP field on dismiss
+          ]
+        );
+      } else if (errorMessage.toLowerCase().includes('otp expired')) {
+        Alert.alert(
+          'OTP Expired',
+          'The OTP has expired. The appointment time has passed. Please contact support if you need to complete this appointment.',
+          [{ text: 'OK' }]
+        );
+      } else if (errorMessage.toLowerCase().includes('otp already verified')) {
+        Alert.alert(
+          'Already Verified',
+          'This appointment has already been verified and completed.',
+          [{ text: 'OK' }]
+        );
+      } else if (errorMessage.toLowerCase().includes('otp not generated')) {
+        Alert.alert(
+          'OTP Not Available',
+          'No OTP has been generated for this appointment. Please ask the customer to generate an OTP from their app.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
     }
   };
 
