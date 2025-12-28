@@ -12,6 +12,8 @@ import {
   Modal,
   Alert,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -63,6 +65,7 @@ export default function HistoryScreen() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [showSlotPicker, setShowSlotPicker] = useState(false);
 
   // Determine if this partner type should show orders (pharmacy & essentials) or appointments (vet & grooming)
   const showOrders = partnerData?.serviceType === 'pharmacy' || partnerData?.serviceType === 'essentials';
@@ -235,6 +238,7 @@ export default function HistoryScreen() {
     setFollowUpDate('');
     setFollowUpTime('');
     setAvailableSlots([]);
+    setShowSlotPicker(false);
   };
 
   const loadAvailableSlots = async (date: string) => {
@@ -337,6 +341,7 @@ export default function HistoryScreen() {
         setFollowUpDate('');
         setFollowUpTime('');
         setAvailableSlots([]);
+        setShowSlotPicker(false);
 
         Alert.alert('Success', `${showOrders ? 'Order' : 'Appointment'} marked as ${showOrders ? 'delivered' : 'completed'} successfully!`);
       } else {
@@ -778,19 +783,24 @@ export default function HistoryScreen() {
         animationType="slide"
         onRequestClose={() => setShowCompletionModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{showOrders ? 'Complete Order' : 'Complete Appointment'}</Text>
-              <TouchableOpacity
-                onPress={() => setShowCompletionModal(false)}
-                style={styles.closeButton}
-              >
-                <Ionicons name="close" size={24} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingView}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{showOrders ? 'Complete Order' : 'Complete Appointment'}</Text>
+                <TouchableOpacity
+                  onPress={() => setShowCompletionModal(false)}
+                  style={styles.closeButton}
+                >
+                  <Ionicons name="close" size={24} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
 
-            <View style={styles.modalBody}>
+              <ScrollView style={styles.modalScrollView}>
+                <View style={styles.modalBody}>
               {!showOrders && (
                 <>
                   <Text style={styles.modalDescription}>
@@ -810,7 +820,16 @@ export default function HistoryScreen() {
                   <View style={styles.checkboxContainer}>
                     <TouchableOpacity
                       style={styles.checkbox}
-                      onPress={() => setIsFollowUpSelected(!isFollowUpSelected)}
+                      onPress={() => {
+                        setIsFollowUpSelected(!isFollowUpSelected);
+                        if (isFollowUpSelected) {
+                          // Reset when unchecking
+                          setShowSlotPicker(false);
+                          setFollowUpDate('');
+                          setFollowUpTime('');
+                          setAvailableSlots([]);
+                        }
+                      }}
                     >
                       <Ionicons
                         name={isFollowUpSelected ? "checkbox" : "square-outline"}
@@ -866,24 +885,54 @@ export default function HistoryScreen() {
                               <Text style={styles.loadingSlotsText}>Loading available slots...</Text>
                             </View>
                           ) : availableSlots.length > 0 ? (
-                            <View style={styles.slotsContainer}>
-                              {availableSlots.map((slot: any, index: number) => (
-                                <TouchableOpacity
-                                  key={index}
-                                  style={[
-                                    styles.slotButton,
-                                    followUpTime === slot.start_time && styles.selectedSlotButton
-                                  ]}
-                                  onPress={() => setFollowUpTime(slot.start_time)}
-                                >
-                                  <Text style={[
-                                    styles.slotButtonText,
-                                    followUpTime === slot.start_time && styles.selectedSlotButtonText
-                                  ]}>
-                                    {slot.start_time} - {slot.end_time}
-                                  </Text>
-                                </TouchableOpacity>
-                              ))}
+                            <View>
+                              {/* Dropdown-style slot selector */}
+                              <TouchableOpacity
+                                style={styles.slotSelector}
+                                onPress={() => setShowSlotPicker(!showSlotPicker)}
+                              >
+                                <Text style={styles.slotSelectorText}>
+                                  {followUpTime
+                                    ? availableSlots.find(s => s.start_time === followUpTime)
+                                      ? `${availableSlots.find(s => s.start_time === followUpTime).start_time} - ${availableSlots.find(s => s.start_time === followUpTime).end_time}`
+                                      : 'Select Time Slot'
+                                    : 'Select Time Slot'}
+                                </Text>
+                                <Ionicons
+                                  name={showSlotPicker ? "chevron-up" : "chevron-down"}
+                                  size={20}
+                                  color={Colors.textSecondary}
+                                />
+                              </TouchableOpacity>
+
+                              {/* Expandable slots list */}
+                              {showSlotPicker && (
+                                <ScrollView style={styles.slotsDropdown} nestedScrollEnabled={true}>
+                                  {availableSlots.map((slot: any, index: number) => (
+                                    <TouchableOpacity
+                                      key={index}
+                                      style={[
+                                        styles.slotOption,
+                                        followUpTime === slot.start_time && styles.selectedSlotOption
+                                      ]}
+                                      onPress={() => {
+                                        setFollowUpTime(slot.start_time);
+                                        setShowSlotPicker(false);
+                                      }}
+                                    >
+                                      <Text style={[
+                                        styles.slotOptionText,
+                                        followUpTime === slot.start_time && styles.selectedSlotOptionText
+                                      ]}>
+                                        {slot.start_time} - {slot.end_time}
+                                      </Text>
+                                      {followUpTime === slot.start_time && (
+                                        <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />
+                                      )}
+                                    </TouchableOpacity>
+                                  ))}
+                                </ScrollView>
+                              )}
                             </View>
                           ) : (
                             <Text style={styles.noSlotsText}>No available slots for selected date</Text>
@@ -911,28 +960,30 @@ export default function HistoryScreen() {
                 textAlignVertical="top"
               />
               <Text style={styles.characterCount}>{treatmentSummary.length}/500</Text>
-            </View>
+                </View>
+              </ScrollView>
 
-            <View style={styles.modalFooter}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => setShowCompletionModal(false)}
-              >
-                <Text style={styles.modalCancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalCompleteButton,
-                  (!showOrders && (!otpCode.trim() || (isFollowUpSelected && (!followUpDate || !followUpTime)))) && styles.disabledButton
-                ]}
-                onPress={markAsCompleted}
-                disabled={!showOrders && (!otpCode.trim() || (isFollowUpSelected && (!followUpDate || !followUpTime)))}
-              >
-                <Text style={styles.modalCompleteButtonText}>Confirm Completion</Text>
-              </TouchableOpacity>
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => setShowCompletionModal(false)}
+                >
+                  <Text style={styles.modalCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modalCompleteButton,
+                    (!showOrders && (!otpCode.trim() || (isFollowUpSelected && (!followUpDate || !followUpTime)))) && styles.disabledButton
+                  ]}
+                  onPress={markAsCompleted}
+                  disabled={!showOrders && (!otpCode.trim() || (isFollowUpSelected && (!followUpDate || !followUpTime)))}
+                >
+                  <Text style={styles.modalCompleteButtonText}>Confirm Completion</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Cancel Modal */}
@@ -1306,6 +1357,9 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
     textAlign: 'center',
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -1318,7 +1372,10 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     width: '100%',
     maxWidth: 400,
-    maxHeight: '80%',
+    maxHeight: '85%',
+  },
+  modalScrollView: {
+    maxHeight: '70%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1479,6 +1536,50 @@ const styles = StyleSheet.create({
   dateSelectorText: {
     fontSize: Typography.fontSizes.base,
     color: Colors.textPrimary,
+  },
+  slotSelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: Spacing.md,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    marginBottom: Spacing.sm,
+  },
+  slotSelectorText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  slotsDropdown: {
+    maxHeight: 200,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    marginBottom: Spacing.md,
+  },
+  slotOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  selectedSlotOption: {
+    backgroundColor: Colors.primaryLight || '#FFE5E0',
+  },
+  slotOptionText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  selectedSlotOptionText: {
+    color: Colors.primary,
+    fontWeight: Typography.fontWeights.semibold,
   },
   slotsContainer: {
     flexDirection: 'row',
