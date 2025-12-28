@@ -106,8 +106,34 @@ export default function SendQuoteScreen() {
       setLoading(true);
       const response = await apiService.makeRequest('GET', `/medicine-request/${id}`);
 
+      console.log('=== FULL API RESPONSE ===');
+      console.log('Response:', JSON.stringify(response, null, 2));
+
       if (response.success && response.data) {
         const requestData = response.data.request || response.data;
+
+        console.log('=== REQUEST DATA ===');
+        console.log('Request Data:', JSON.stringify(requestData, null, 2));
+        console.log('prescription_file_url:', requestData.prescription_file_url);
+        console.log('prescription_url:', requestData.prescription_url);
+        console.log('documents:', requestData.documents);
+        console.log('document_url:', requestData.document_url);
+
+        // Check all possible prescription locations
+        const prescriptionUrl =
+          requestData.prescription_file_url ||
+          requestData.prescription_url ||
+          requestData.document_url ||
+          (requestData.documents && requestData.documents[0]?.url) ||
+          null;
+
+        console.log('Final prescription URL:', prescriptionUrl);
+
+        // Add the prescription URL to the request data if found
+        if (prescriptionUrl && !requestData.prescription_file_url) {
+          requestData.prescription_file_url = prescriptionUrl;
+        }
+
         setRequestDetails(requestData);
       } else {
         Alert.alert('Error', response.error || 'Failed to load request details');
