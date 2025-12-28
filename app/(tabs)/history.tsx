@@ -349,7 +349,15 @@ export default function HistoryScreen() {
         setAvailableSlots([]);
         setShowSlotPicker(false);
 
-        Alert.alert('Success', `${showOrders ? 'Order' : 'Appointment'} marked as ${showOrders ? 'delivered' : 'completed'} successfully!`);
+        // Refresh the appointments list to show new follow-up appointment
+        await loadHistory();
+
+        Alert.alert(
+          'Success',
+          isFollowUpSelected
+            ? `${showOrders ? 'Order' : 'Appointment'} completed and follow-up appointment scheduled successfully!`
+            : `${showOrders ? 'Order' : 'Appointment'} marked as ${showOrders ? 'delivered' : 'completed'} successfully!`
+        );
       } else {
         // Handle failed response (success: false)
         const errorMessage = response.error || response.message || response.data?.error || `Failed to update ${showOrders ? 'order' : 'appointment'} status`;
@@ -370,9 +378,16 @@ export default function HistoryScreen() {
             [{ text: 'OK' }]
           );
         } else if (errorMessage.toLowerCase().includes('otp already verified')) {
+          // Appointment was already completed - refresh to update UI
+          setShowCompletionModal(false);
+          setSelectedAppointment(null);
+          setOtpCode('');
+
+          await loadHistory(); // Refresh to get latest status
+
           Alert.alert(
-            'Already Verified',
-            'This appointment has already been verified and completed.',
+            'Already Completed',
+            'This appointment has already been verified and completed. The list has been refreshed.',
             [{ text: 'OK' }]
           );
         } else if (errorMessage.toLowerCase().includes('otp not generated')) {
