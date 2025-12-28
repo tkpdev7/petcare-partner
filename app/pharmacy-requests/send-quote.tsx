@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from '../../services/apiService';
 
 interface MedicineQuote {
@@ -26,38 +27,55 @@ interface MedicineQuote {
 
 export default function SendQuoteScreen() {
   const router = useRouter();
-  const { requestId, requestTitle, medicines } = useLocalSearchParams();
+  const { requestId, requestTitle } = useLocalSearchParams();
 
-  const [parsedMedicines, setParsedMedicines] = useState<any[]>([]);
-  const [medicineQuotes, setMedicineQuotes] = useState<MedicineQuote[]>([]);
+  const [partnerId, setPartnerId] = useState<string>('');
+  const [medicineQuotes, setMedicineQuotes] = useState<MedicineQuote[]>([
+    { name: '', price: 0, quantity: 1, available: true, notes: '' }
+  ]);
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    try {
-      const medicinesArray = typeof medicines === 'string' ? JSON.parse(medicines) : [];
-      setParsedMedicines(medicinesArray);
+    loadPartnerData();
+  }, []);
 
-      // Initialize medicine quotes
-      setMedicineQuotes(
-        medicinesArray.map((med: any) => ({
-          name: med.name,
-          price: 0,
-          quantity: med.quantity || 1,
-          available: true,
-          notes: '',
-        }))
-      );
+  const loadPartnerData = async () => {
+    try {
+      const partnerDataStr = await AsyncStorage.getItem('partnerData');
+      if (partnerDataStr) {
+        const partnerData = JSON.parse(partnerDataStr);
+        setPartnerId(partnerData.id);
+      } else {
+        Alert.alert('Error', 'Partner information not found');
+        router.back();
+      }
     } catch (error) {
-      console.error('Error parsing medicines:', error);
-      Alert.alert('Error', 'Failed to load medicine information');
+      console.error('Error loading partner data:', error);
+      Alert.alert('Error', 'Failed to load partner information');
       router.back();
     }
-  }, [medicines]);
+  };
 
   const updateMedicineQuote = (index: number, field: keyof MedicineQuote, value: any) => {
     const updated = [...medicineQuotes];
     updated[index] = { ...updated[index], [field]: value };
+    setMedicineQuotes(updated);
+  };
+
+  const addMedicine = () => {
+    setMedicineQuotes([
+      ...medicineQuotes,
+      { name: '', price: 0, quantity: 1, available: true, notes: '' }
+    ]);
+  };
+
+  const removeMedicine = (index: number) => {
+    if (medicineQuotes.length === 1) {
+      Alert.alert('Error', 'You must have at least one medicine in the quote');
+      return;
+    }
+    const updated = medicineQuotes.filter((_, i) => i !== index);
     setMedicineQuotes(updated);
   };
 
@@ -71,6 +89,13 @@ export default function SendQuoteScreen() {
   };
 
   const validateQuote = () => {
+    // Check if all medicines have names
+    const hasEmptyName = medicineQuotes.some(quote => !quote.name.trim());
+    if (hasEmptyName) {
+      Alert.alert('Validation Error', 'Please enter medicine names for all items');
+      return false;
+    }
+
     // Check if at least one medicine is available with price
     const hasAvailableMedicine = medicineQuotes.some(
       quote => quote.available && quote.price > 0
@@ -111,6 +136,7 @@ export default function SendQuoteScreen() {
 
       const quoteData = {
         request_id: requestId,
+        partner_id: partnerId,
         quoted_medicines: quotedMedicines,
         total_amount: totalAmount,
         additional_notes: additionalNotes,
@@ -178,18 +204,43 @@ export default function SendQuoteScreen() {
             <View style={styles.sectionHeader}>
               <Ionicons name="medical" size={20} color="#FF7A59" />
               <Text style={styles.sectionTitle}>Medicine Quotes</Text>
+              <TouchableOpacity style={styles.addButton} onPress={addMedicine}>
+                <Ionicons name="add-circle" size={28} color="#FF7A59" />
+              </TouchableOpacity>
             </View>
             <Text style={styles.sectionSubtitle}>
-              Provide pricing for each medicine
+              Add medicines and provide pricing
             </Text>
 
             {medicineQuotes.map((quote, index) => (
               <View key={index} style={styles.medicineQuoteCard}>
                 <View style={styles.medicineQuoteHeader}>
-                  <View style={styles.medicineNameRow}>
-                    <Ionicons name="medical-outline" size={18} color="#666" />
-                    <Text style={styles.medicineName}>{quote.name}</Text>
+                  <View style={styles.medicineHeaderTop}>
+                    <View style={styles.medicineNameRow}>
+                      <Ionicons name="medical-outline" size={18} color="#666" />
+                      <Text style={styles.medicineLabel}>Medicine #{index + 1}</Text>
+                    </View>
+                    {medicineQuotes.length > 1 && (
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => removeMedicine(index)}
+                      >
+                        <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                      </TouchableOpacity>
+                    )}
                   </View>
+
+                  {/* Medicine Name Input */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Medicine Name *</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={quote.name}
+                      onChangeText={(text) => updateMedicineQuote(index, 'name', text)}
+                      placeholder="Enter medicine name"
+                    />
+                  </View>
+
                   <TouchableOpacity
                     style={styles.availabilityToggle}
                     onPress={() => updateMedicineQuote(index, 'available', !quote.available)}
@@ -405,6 +456,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginLeft: 8,
+    flex: 1,
+  },
+  addButton: {
+    padding: 4,
   },
   sectionSubtitle: {
     fontSize: 13,
@@ -420,16 +475,32 @@ const styles = StyleSheet.create({
   medicineQuoteHeader: {
     marginBottom: 12,
   },
+  medicineHeaderTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   medicineNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+  },
+  medicineLabel: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#666',
+    marginLeft: 8,
   },
   medicineName: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#333',
     marginLeft: 8,
+  },
+  deleteButton: {
+    padding: 6,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 6,
   },
   availabilityToggle: {
     flexDirection: 'row',
