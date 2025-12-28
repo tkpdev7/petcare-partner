@@ -60,6 +60,8 @@ export default function HistoryScreen() {
   const [followUpTime, setFollowUpTime] = useState('');
   const [availableSlots, setAvailableSlots] = useState<any[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
 
   // Determine if this partner type should show orders (pharmacy & essentials) or appointments (vet & grooming)
   const showOrders = partnerData?.serviceType === 'pharmacy' || partnerData?.serviceType === 'essentials';
@@ -837,24 +839,8 @@ export default function HistoryScreen() {
                             dates.push(date.toISOString().split('T')[0]);
                           }
 
-                          Alert.alert(
-                            'Select Follow-up Date',
-                            `Choose from next ${daysToShow} days`,
-                            [
-                              ...dates.slice(0, 10).map(date => ({ // Show first 10 dates in alert
-                                text: new Date(date).toLocaleDateString('en-US', {
-                                  weekday: 'short',
-                                  month: 'short',
-                                  day: 'numeric'
-                                }),
-                                onPress: () => {
-                                  setFollowUpDate(date);
-                                  loadAvailableSlots(date);
-                                }
-                              })),
-                              { text: 'Cancel', style: 'cancel' }
-                            ]
-                          );
+                          setAvailableDates(dates);
+                          setShowDatePicker(true);
                         }}
                       >
                         <Text style={styles.dateSelectorText}>
@@ -1000,6 +986,58 @@ export default function HistoryScreen() {
                 <Text style={styles.modalCompleteButtonText}>Cancel Appointment</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Date Picker Modal */}
+      <Modal
+        visible={showDatePicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDatePicker(false)}
+      >
+        <View style={styles.datePickerOverlay}>
+          <View style={styles.datePickerContainer}>
+            <View style={styles.datePickerHeader}>
+              <Text style={styles.datePickerTitle}>Select Follow-up Date</Text>
+              <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                <Ionicons name="close" size={24} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.datePickerScroll}>
+              {availableDates.map((date, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.dateOption,
+                    followUpDate === date && styles.dateOptionSelected
+                  ]}
+                  onPress={() => {
+                    setFollowUpDate(date);
+                    loadAvailableSlots(date);
+                    setShowDatePicker(false);
+                  }}
+                >
+                  <View style={styles.dateOptionContent}>
+                    <Text style={[
+                      styles.dateOptionText,
+                      followUpDate === date && styles.dateOptionTextSelected
+                    ]}>
+                      {new Date(date).toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </Text>
+                    {followUpDate === date && (
+                      <Ionicons name="checkmark-circle" size={24} color={Colors.primary} />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </View>
       </Modal>
