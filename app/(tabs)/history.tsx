@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import AppHeader from '../../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
@@ -87,6 +88,16 @@ export default function HistoryScreen() {
       loadHistory();
     }
   }, [partnerData, filter]);
+
+  // Auto-refresh appointments when tab comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (partnerData) {
+        console.log('History tab focused - refreshing appointments...');
+        loadHistory();
+      }
+    }, [partnerData, filter])
+  );
 
   const loadPartnerData = async () => {
     try {
