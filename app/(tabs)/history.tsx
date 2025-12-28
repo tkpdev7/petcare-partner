@@ -351,7 +351,45 @@ export default function HistoryScreen() {
 
         Alert.alert('Success', `${showOrders ? 'Order' : 'Appointment'} marked as ${showOrders ? 'delivered' : 'completed'} successfully!`);
       } else {
-        Alert.alert('Error', response.message || `Failed to update ${showOrders ? 'order' : 'appointment'} status`);
+        // Handle failed response (success: false)
+        const errorMessage = response.error || response.message || response.data?.error || `Failed to update ${showOrders ? 'order' : 'appointment'} status`;
+
+        // Special handling for OTP errors
+        if (errorMessage.toLowerCase().includes('invalid otp')) {
+          Alert.alert(
+            'Invalid OTP',
+            'The OTP you entered does not match. Please verify the 4-digit code shown on the customer\'s app and try again.',
+            [
+              { text: 'OK', onPress: () => setOtpCode('') } // Clear OTP field on dismiss
+            ]
+          );
+        } else if (errorMessage.toLowerCase().includes('otp expired')) {
+          Alert.alert(
+            'OTP Expired',
+            'The OTP has expired. The appointment time has passed. Please contact support if you need to complete this appointment.',
+            [{ text: 'OK' }]
+          );
+        } else if (errorMessage.toLowerCase().includes('otp already verified')) {
+          Alert.alert(
+            'Already Verified',
+            'This appointment has already been verified and completed.',
+            [{ text: 'OK' }]
+          );
+        } else if (errorMessage.toLowerCase().includes('otp not generated')) {
+          Alert.alert(
+            'OTP Not Available',
+            'No OTP has been generated for this appointment. Please ask the customer to generate an OTP from their app.',
+            [{ text: 'OK' }]
+          );
+        } else if (errorMessage.toLowerCase().includes('slot') && errorMessage.toLowerCase().includes('not available')) {
+          Alert.alert(
+            'Time Slot Unavailable',
+            'The selected follow-up time slot is no longer available. Please choose a different time.',
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert('Error', errorMessage);
+        }
       }
     } catch (error: any) {
       console.error(`Error updating ${showOrders ? 'order' : 'appointment'} status:`, error);
