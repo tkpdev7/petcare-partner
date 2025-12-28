@@ -53,6 +53,14 @@ export default function HistoryScreen() {
   const [cancelReason, setCancelReason] = useState('');
   const [appointmentToCancel, setAppointmentToCancel] = useState<HistoryItem | null>(null);
 
+  // OTP and follow-up states
+  const [otpCode, setOtpCode] = useState('');
+  const [isFollowUpSelected, setIsFollowUpSelected] = useState(false);
+  const [followUpDate, setFollowUpDate] = useState('');
+  const [followUpTime, setFollowUpTime] = useState('');
+  const [availableSlots, setAvailableSlots] = useState<any[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
   // Determine if this partner type should show orders (pharmacy & essentials) or appointments (vet & grooming)
   const showOrders = partnerData?.serviceType === 'pharmacy' || partnerData?.serviceType === 'essentials';
 
@@ -219,10 +227,64 @@ export default function HistoryScreen() {
     setSelectedAppointment(appointment);
     setShowCompletionModal(true);
     setTreatmentSummary('');
+    setOtpCode('');
+    setIsFollowUpSelected(false);
+    setFollowUpDate('');
+    setFollowUpTime('');
+    setAvailableSlots([]);
+  };
+
+  const loadAvailableSlots = async (date: string) => {
+    if (!selectedAppointment || !partnerData) return;
+
+    setLoadingSlots(true);
+    try {
+      console.log('=== LOADING FOLLOW-UP SLOTS ===');
+      console.log('Partner ID:', partnerData.id);
+      console.log('Date:', date);
+      console.log('Provider Type: partner');
+
+      const response = await apiService.getAvailableSlotsForFollowup({
+        provider_type: 'partner',
+        provider_id: partnerData.id.toString(),
+        date: date
+      });
+
+      console.log('Slots API Response:', JSON.stringify(response, null, 2));
+
+      if (response.success) {
+        console.log(`Found ${response.data?.length || 0} available slots`);
+        setAvailableSlots(response.data || []);
+
+        if (!response.data || response.data.length === 0) {
+          Alert.alert(
+            'No Slots Available',
+            response.message || 'No time slots are available for the selected date. Please choose a different date or check your slot settings.',
+            [{ text: 'OK' }]
+          );
+        }
+      } else {
+        console.error('Slots API Error:', response);
+        setAvailableSlots([]);
+        Alert.alert('Error', response.message || 'Failed to load available time slots');
+      }
+    } catch (error) {
+      console.error('Error loading slots:', error);
+      setAvailableSlots([]);
+      Alert.alert('Error', 'Failed to load available time slots. Please try again.');
+    } finally {
+      setLoadingSlots(false);
+    }
   };
 
   const markAsCompleted = async () => {
     if (!selectedAppointment) return;
+
+    // Validate OTP for appointments
+    if (!showOrders && !otpCode.trim()) {
+      Alert.alert('Error', 'Please enter the OTP code provided by the customer');
+      return;
+    }
 
     try {
       let response;
@@ -235,11 +297,20 @@ export default function HistoryScreen() {
           treatmentSummary
         );
       } else {
-        // Update appointment status
-        response = await apiService.updateAppointmentStatus(
+        // Complete appointment with OTP verification and optional follow-up
+        const completionData: any = {
+          otp_code: otpCode.trim(),
+          notes: treatmentSummary
+        };
+
+        if (isFollowUpSelected && followUpDate && followUpTime) {
+          completionData.follow_up_date = followUpDate;
+          completionData.follow_up_time = followUpTime;
+        }
+
+        response = await apiService.completeAppointmentWithFollowup(
           selectedAppointment.id,
-          'completed',
-          treatmentSummary
+          completionData
         );
       }
 
@@ -256,14 +327,20 @@ export default function HistoryScreen() {
         setShowCompletionModal(false);
         setSelectedAppointment(null);
         setTreatmentSummary('');
+        setOtpCode('');
+        setIsFollowUpSelected(false);
+        setFollowUpDate('');
+        setFollowUpTime('');
+        setAvailableSlots([]);
 
         Alert.alert('Success', `${showOrders ? 'Order' : 'Appointment'} marked as ${showOrders ? 'delivered' : 'completed'} successfully!`);
       } else {
-        Alert.alert('Error', `Failed to update ${showOrders ? 'order' : 'appointment'} status`);
+        Alert.alert('Error', response.message || `Failed to update ${showOrders ? 'order' : 'appointment'} status`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error updating ${showOrders ? 'order' : 'appointment'} status:`, error);
-      Alert.alert('Error', `An error occurred while updating ${showOrders ? 'order' : 'appointment'} status`);
+      const errorMessage = error.response?.data?.error || error.message || `An error occurred while updating ${showOrders ? 'order' : 'appointment'} status`;
+      Alert.alert('Error', errorMessage);
     }
   };
 
@@ -709,6 +786,126 @@ export default function HistoryScreen() {
             </View>
 
             <View style={styles.modalBody}>
+              {!showOrders && (
+                <>
+                  <Text style={styles.modalDescription}>
+                    Please enter the OTP code provided by the customer:
+                  </Text>
+                  <TextInput
+                    style={styles.otpInput}
+                    placeholder="Enter 4-digit OTP"
+                    value={otpCode}
+                    onChangeText={(text) => setOtpCode(text.replace(/[^0-9]/g, '').substring(0, 4))}
+                    keyboardType="numeric"
+                    maxLength={4}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+
+                  <View style={styles.checkboxContainer}>
+                    <TouchableOpacity
+                      style={styles.checkbox}
+                      onPress={() => setIsFollowUpSelected(!isFollowUpSelected)}
+                    >
+                      <Ionicons
+                        name={isFollowUpSelected ? "checkbox" : "square-outline"}
+                        size={24}
+                        color={isFollowUpSelected ? Colors.primary : Colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+                    <Text style={styles.checkboxLabel}>Schedule Follow-up Appointment</Text>
+                  </View>
+
+                  {isFollowUpSelected && (
+                    <View style={styles.followUpContainer}>
+                      <Text style={styles.followUpLabel}>Select Date:</Text>
+                      <TouchableOpacity
+                        style={styles.dateSelector}
+                        onPress={() => {
+                          // Generate dates from tomorrow until Jan 3, 2026 (or next 30 days, whichever is less)
+                          const dates = [];
+                          const today = new Date();
+                          const endDate = new Date('2026-01-03');
+                          const maxDays = 30; // Fallback limit
+
+                          let daysToShow = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                          daysToShow = Math.min(daysToShow, maxDays); // Cap at 30 days
+
+                          for (let i = 1; i <= daysToShow; i++) {
+                            const date = new Date();
+                            date.setDate(date.getDate() + i);
+                            dates.push(date.toISOString().split('T')[0]);
+                          }
+
+                          Alert.alert(
+                            'Select Follow-up Date',
+                            `Choose from next ${daysToShow} days`,
+                            [
+                              ...dates.slice(0, 10).map(date => ({ // Show first 10 dates in alert
+                                text: new Date(date).toLocaleDateString('en-US', {
+                                  weekday: 'short',
+                                  month: 'short',
+                                  day: 'numeric'
+                                }),
+                                onPress: () => {
+                                  setFollowUpDate(date);
+                                  loadAvailableSlots(date);
+                                }
+                              })),
+                              { text: 'Cancel', style: 'cancel' }
+                            ]
+                          );
+                        }}
+                      >
+                        <Text style={styles.dateSelectorText}>
+                          {followUpDate ? new Date(followUpDate).toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          }) : 'Select Date'}
+                        </Text>
+                        <Ionicons name="calendar-outline" size={20} color={Colors.textSecondary} />
+                      </TouchableOpacity>
+
+                      {followUpDate && (
+                        <>
+                          <Text style={styles.followUpLabel}>Select Time Slot:</Text>
+                          {loadingSlots ? (
+                            <View style={styles.loadingSlots}>
+                              <ActivityIndicator size="small" color={Colors.primary} />
+                              <Text style={styles.loadingSlotsText}>Loading available slots...</Text>
+                            </View>
+                          ) : availableSlots.length > 0 ? (
+                            <View style={styles.slotsContainer}>
+                              {availableSlots.map((slot: any, index: number) => (
+                                <TouchableOpacity
+                                  key={index}
+                                  style={[
+                                    styles.slotButton,
+                                    followUpTime === slot.start_time && styles.selectedSlotButton
+                                  ]}
+                                  onPress={() => setFollowUpTime(slot.start_time)}
+                                >
+                                  <Text style={[
+                                    styles.slotButtonText,
+                                    followUpTime === slot.start_time && styles.selectedSlotButtonText
+                                  ]}>
+                                    {slot.start_time} - {slot.end_time}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          ) : (
+                            <Text style={styles.noSlotsText}>No available slots for selected date</Text>
+                          )}
+                        </>
+                      )}
+                    </View>
+                  )}
+                </>
+              )}
+
               <Text style={styles.modalDescription}>
                 {showOrders
                   ? 'Please provide any notes about order completion (optional):'
@@ -728,7 +925,7 @@ export default function HistoryScreen() {
             </View>
 
             <View style={styles.modalFooter}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.modalCancelButton}
                 onPress={() => setShowCompletionModal(false)}
               >
@@ -737,12 +934,12 @@ export default function HistoryScreen() {
               <TouchableOpacity
                 style={[
                   styles.modalCompleteButton,
-                  !showOrders && !treatmentSummary.trim() && styles.disabledButton
+                  (!showOrders && (!otpCode.trim() || (isFollowUpSelected && (!followUpDate || !followUpTime)))) && styles.disabledButton
                 ]}
                 onPress={markAsCompleted}
-                disabled={!showOrders ? !treatmentSummary.trim() : false}
+                disabled={!showOrders && (!otpCode.trim() || (isFollowUpSelected && (!followUpDate || !followUpTime)))}
               >
-                <Text style={styles.modalCompleteButtonText}>Mark Complete</Text>
+                <Text style={styles.modalCompleteButtonText}>Confirm Completion</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1187,5 +1384,102 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.5,
+  },
+  otpInput: {
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    fontSize: Typography.fontSizes.lg,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    letterSpacing: 4,
+    fontWeight: Typography.fontWeights.bold,
+    marginBottom: Spacing.lg,
+    backgroundColor: Colors.white,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  checkbox: {
+    marginRight: Spacing.sm,
+  },
+  checkboxLabel: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  followUpContainer: {
+    marginBottom: Spacing.md,
+    padding: Spacing.md,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.sm,
+  },
+  followUpLabel: {
+    fontSize: Typography.fontSizes.sm,
+    fontWeight: Typography.fontWeights.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  dateSelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: Spacing.md,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    marginBottom: Spacing.md,
+  },
+  dateSelectorText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+  },
+  slotsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  slotButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  selectedSlotButton: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  slotButtonText: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textPrimary,
+  },
+  selectedSlotButtonText: {
+    color: Colors.white,
+  },
+  noSlotsText: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    padding: Spacing.md,
+  },
+  loadingSlots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
+  },
+  loadingSlotsText: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textSecondary,
+    marginLeft: Spacing.sm,
   },
 });
