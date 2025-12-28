@@ -256,10 +256,12 @@ export default function HistoryScreen() {
       console.log('Slots API Response:', JSON.stringify(response, null, 2));
 
       if (response.success) {
-        console.log(`Found ${response.data?.length || 0} available slots`);
-        setAvailableSlots(response.data || []);
+        // Handle nested data structure (response.data.data)
+        const slotsArray = response.data?.data || response.data || [];
+        console.log(`Found ${slotsArray.length} available slots`);
+        setAvailableSlots(slotsArray);
 
-        if (!response.data || response.data.length === 0) {
+        if (slotsArray.length === 0) {
           Alert.alert(
             'No Slots Available',
             response.message || 'No time slots are available for the selected date. Please choose a different date or check your slot settings.',
