@@ -20,11 +20,11 @@ interface MedicineRequest {
   request_number: string;
   request_title: string;
   request_description: string;
-  required_medicines: Array<{
+  required_medicines: {
     name: string;
     dosage?: string;
     quantity?: number;
-  }>;
+  }[];
   urgency_level: 'low' | 'normal' | 'high' | 'urgent';
   delivery_address: string;
   status: 'active' | 'closed' | 'expired';
@@ -105,7 +105,7 @@ export default function MyRequestsScreen() {
     <TouchableOpacity
       style={styles.requestCard}
       onPress={() => router.push({
-        pathname: '/pharmacy-requests/view-request',
+        pathname: '/pharmacy-requests/send-quote-new',
         params: { id: item.id }
       })}
     >
@@ -116,24 +116,24 @@ export default function MyRequestsScreen() {
             <Text style={styles.urgencyText}>{urgencyLabels[item.urgency_level]}</Text>
           </View>
         </View>
-        <Text style={styles.requestNumber}>{item.request_number}</Text>
+        <Text style={styles.requestNumber}>Request #{item.request_number || item.id}</Text>
       </View>
 
       <View style={styles.medicinesList}>
         <View style={styles.medicineHeader}>
-          <Ionicons name="medical" size={16} color="#666" />
-          <Text style={styles.medicineLabel}>Required Medicines:</Text>
+          <Ionicons name="document-text" size={16} color="#666" />
+          <Text style={styles.medicineLabel}>Prescription:</Text>
         </View>
-        {item.required_medicines?.slice(0, 3).map((medicine, index) => (
-          <View key={index} style={styles.medicineItem}>
-            <Text style={styles.medicineName}>• {medicine.name}</Text>
-            {medicine.quantity && (
-              <Text style={styles.medicineQuantity}>Qty: {medicine.quantity}</Text>
-            )}
+        {item.has_documents || item.document_url ? (
+          <View style={styles.prescriptionAvailable}>
+            <Ionicons name="checkmark-circle" size={18} color="#10B981" />
+            <Text style={styles.prescriptionAvailableText}>Prescription uploaded</Text>
           </View>
-        ))}
-        {item.required_medicines?.length > 3 && (
-          <Text style={styles.moreText}>+{item.required_medicines.length - 3} more</Text>
+        ) : (
+          <View style={styles.prescriptionUnavailable}>
+            <Ionicons name="alert-circle" size={18} color="#F59E0B" />
+            <Text style={styles.prescriptionUnavailableText}>No prescription uploaded</Text>
+          </View>
         )}
       </View>
 
@@ -166,11 +166,11 @@ export default function MyRequestsScreen() {
         <TouchableOpacity
           style={styles.viewButton}
           onPress={() => router.push({
-            pathname: '/pharmacy-requests/view-request',
+            pathname: '/pharmacy-requests/send-quote-new',
             params: { id: item.id }
           })}
         >
-          <Text style={styles.viewButtonText}>View & Quote</Text>
+          <Text style={styles.viewButtonText}>Send Quote</Text>
           <Ionicons name="arrow-forward" size={16} color="#FF7A59" />
         </TouchableOpacity>
       </View>
@@ -559,5 +559,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginLeft: 8,
+  },
+  prescriptionAvailable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  prescriptionAvailableText: {
+    fontSize: 13,
+    color: '#10B981',
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  prescriptionUnavailable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF7ED',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  prescriptionUnavailableText: {
+    fontSize: 13,
+    color: '#F59E0B',
+    fontWeight: '600',
+    marginLeft: 6,
   },
 });
