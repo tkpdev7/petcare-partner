@@ -388,19 +388,6 @@ export default function HistoryScreen() {
             'The OTP has expired. The appointment time has passed. Please contact support if you need to complete this appointment.',
             [{ text: 'OK' }]
           );
-        } else if (errorMessage.toLowerCase().includes('otp already verified')) {
-          // Appointment was already completed - refresh to update UI
-          setShowCompletionModal(false);
-          setSelectedAppointment(null);
-          setOtpCode('');
-
-          await loadHistory(); // Refresh to get latest status
-
-          Alert.alert(
-            'Already Completed',
-            'This appointment has already been verified and completed. The list has been refreshed.',
-            [{ text: 'OK' }]
-          );
         } else if (errorMessage.toLowerCase().includes('otp not generated')) {
           Alert.alert(
             'OTP Not Available',
