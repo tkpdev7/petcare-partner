@@ -120,7 +120,6 @@ export default function ViewRequestScreen() {
       params: {
         requestId: requestDetails.id,
         requestTitle: requestDetails.request_title,
-        medicines: JSON.stringify(requestDetails.required_medicines),
       }
     });
   };
@@ -199,57 +198,55 @@ export default function ViewRequestScreen() {
         {/* Request Description */}
         {requestDetails.request_description && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Description</Text>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="document-text-outline" size={20} color="#FF7A59" />
+              <Text style={styles.sectionTitle}>Description</Text>
+            </View>
             <Text style={styles.descriptionText}>{requestDetails.request_description}</Text>
           </View>
         )}
 
-        {/* Required Medicines */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="medical" size={20} color="#FF7A59" />
-            <Text style={styles.sectionTitle}>Required Medicines</Text>
-          </View>
-          {requestDetails.required_medicines.map((medicine, index) => (
-            <View key={index} style={styles.medicineCard}>
-              <View style={styles.medicineHeader}>
-                <Text style={styles.medicineName}>{medicine.name}</Text>
-                {medicine.quantity && (
-                  <View style={styles.quantityBadge}>
-                    <Text style={styles.quantityText}>Qty: {medicine.quantity}</Text>
-                  </View>
-                )}
-              </View>
-              {medicine.dosage && (
-                <View style={styles.medicineDetail}>
-                  <Ionicons name="pulse" size={14} color="#666" />
-                  <Text style={styles.medicineDetailText}>Dosage: {medicine.dosage}</Text>
-                </View>
-              )}
-              {medicine.form && (
-                <View style={styles.medicineDetail}>
-                  <Ionicons name="flask" size={14} color="#666" />
-                  <Text style={styles.medicineDetailText}>Form: {medicine.form}</Text>
-                </View>
-              )}
-            </View>
-          ))}
-        </View>
-
-        {/* Prescription */}
-        {requestDetails.prescription_url && (
+        {/* Prescription - Prominent Section */}
+        {requestDetails.prescription_url ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Prescription</Text>
-            <TouchableOpacity style={styles.prescriptionCard} onPress={handleViewPrescription}>
-              <View style={styles.prescriptionIcon}>
-                <Ionicons name="document-text" size={32} color="#FF7A59" />
+            <View style={styles.sectionHeader}>
+              <Ionicons name="document-text" size={20} color="#FF7A59" />
+              <Text style={styles.sectionTitle}>Customer's Prescription</Text>
+            </View>
+            <TouchableOpacity style={styles.prescriptionCardProminent} onPress={handleViewPrescription}>
+              <View style={styles.prescriptionIconLarge}>
+                <Ionicons name="document-text" size={48} color="#FF7A59" />
               </View>
-              <View style={styles.prescriptionInfo}>
-                <Text style={styles.prescriptionTitle}>View Prescription</Text>
-                <Text style={styles.prescriptionSubtitle}>Tap to view uploaded prescription</Text>
+              <View style={styles.prescriptionInfoCenter}>
+                <Text style={styles.prescriptionTitleLarge}>View Prescription Document</Text>
+                <Text style={styles.prescriptionSubtitleLarge}>
+                  Check the prescription to understand medicine requirements
+                </Text>
+                <View style={styles.tapToViewButton}>
+                  <Ionicons name="eye-outline" size={18} color="#fff" />
+                  <Text style={styles.tapToViewText}>Tap to View</Text>
+                </View>
               </View>
-              <Ionicons name="chevron-forward" size={24} color="#999" />
             </TouchableOpacity>
+            <View style={styles.infoBox}>
+              <Ionicons name="information-circle" size={18} color="#3B82F6" />
+              <Text style={styles.infoBoxText}>
+                Based on the prescription, enter the medicines you can provide in your quote
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="medical" size={20} color="#FF7A59" />
+              <Text style={styles.sectionTitle}>Medicine Information</Text>
+            </View>
+            <View style={styles.noPrescriptionBox}>
+              <Ionicons name="alert-circle" size={24} color="#F59E0B" />
+              <Text style={styles.noPrescriptionText}>
+                No prescription uploaded. You may contact the customer for details.
+              </Text>
+            </View>
           </View>
         )}
 
@@ -516,6 +513,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FFEDD5',
   },
+  prescriptionCardProminent: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: '#FF7A59',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   prescriptionIcon: {
     width: 50,
     height: 50,
@@ -525,8 +531,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
+  prescriptionIconLarge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   prescriptionInfo: {
     flex: 1,
+  },
+  prescriptionInfoCenter: {
+    alignItems: 'center',
   },
   prescriptionTitle: {
     fontSize: 15,
@@ -534,9 +552,68 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 2,
   },
+  prescriptionTitleLarge: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
   prescriptionSubtitle: {
     fontSize: 13,
     color: '#666',
+  },
+  prescriptionSubtitleLarge: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  tapToViewButton: {
+    flexDirection: 'row',
+    backgroundColor: '#FF7A59',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    gap: 8,
+  },
+  tapToViewText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  infoBoxText: {
+    fontSize: 13,
+    color: '#3B82F6',
+    marginLeft: 8,
+    flex: 1,
+    lineHeight: 18,
+  },
+  noPrescriptionBox: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF7ED',
+    borderRadius: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#FFEDD5',
+    alignItems: 'center',
+  },
+  noPrescriptionText: {
+    fontSize: 14,
+    color: '#F59E0B',
+    marginLeft: 12,
+    flex: 1,
+    lineHeight: 20,
   },
   infoRow: {
     flexDirection: 'row',
