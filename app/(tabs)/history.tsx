@@ -309,7 +309,7 @@ export default function HistoryScreen() {
         // Complete appointment with OTP verification and optional follow-up
         const completionData: any = {
           otp_code: otpCode.trim(),
-          notes: treatmentSummary
+          notes: treatmentSummary || 'Appointment completed'
         };
 
         if (isFollowUpSelected && followUpDate && followUpTime) {
@@ -317,10 +317,16 @@ export default function HistoryScreen() {
           completionData.follow_up_time = followUpTime;
         }
 
+        console.log('=== COMPLETING APPOINTMENT ===');
+        console.log('Appointment ID:', selectedAppointment.id);
+        console.log('Completion Data:', JSON.stringify(completionData, null, 2));
+
         response = await apiService.completeAppointmentWithFollowup(
           selectedAppointment.id,
           completionData
         );
+
+        console.log('Completion Response:', JSON.stringify(response, null, 2));
       }
 
       if (response.success) {
@@ -349,7 +355,8 @@ export default function HistoryScreen() {
       }
     } catch (error: any) {
       console.error(`Error updating ${showOrders ? 'order' : 'appointment'} status:`, error);
-      const errorMessage = error.response?.data?.error || error.message || `An error occurred while updating ${showOrders ? 'order' : 'appointment'} status`;
+      console.error('Error response:', JSON.stringify(error.response?.data, null, 2));
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || `An error occurred while updating ${showOrders ? 'order' : 'appointment'} status`;
       Alert.alert('Error', errorMessage);
     }
   };
@@ -1086,7 +1093,7 @@ export default function HistoryScreen() {
                       })}
                     </Text>
                     {followUpDate === date && (
-                      <Ionicons name="checkmark-circle" size={24} color={Colors.primary} />
+                      <Ionicons name="checkmark-circle" size={24} color={Colors.white} />
                     )}
                   </View>
                 </TouchableOpacity>
@@ -1658,7 +1665,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   dateOptionSelected: {
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: Colors.primary,
   },
   dateOptionContent: {
     flexDirection: 'row',
@@ -1671,7 +1678,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dateOptionTextSelected: {
-    color: Colors.primary,
+    color: Colors.white,
     fontWeight: Typography.fontWeights.semibold,
   },
 });
