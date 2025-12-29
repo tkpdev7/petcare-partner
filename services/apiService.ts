@@ -229,6 +229,67 @@ class ApiService {
     return this.makeRequest('PUT', `/partner-appointments/${id}/cancel`, { reason });
   }
 
+  async completeAppointmentWithFollowup(id: string, data: {
+    otp_code: string;
+    follow_up_date?: string;
+    follow_up_time?: string;
+    notes?: string;
+    prescription_file_url?: string;
+    clinical_notes?: string;
+  }): Promise<ApiResponse> {
+    return this.makeRequest('POST', `appointment/appointments/${id}/complete-with-followup`, data);
+  }
+
+  async uploadPrescription(fileUri: string, appointmentId: string): Promise<ApiResponse> {
+    try {
+      const formData = new FormData();
+
+      // Convert file URI to blob for upload
+      const filename = fileUri.split('/').pop() || 'prescription.pdf';
+      const match = /\.(\w+)$/.exec(filename);
+      const fileExtension = match ? match[1].toLowerCase() : 'pdf';
+
+      // Determine MIME type
+      let mimeType = 'application/pdf';
+      if (['jpg', 'jpeg', 'png'].includes(fileExtension)) {
+        mimeType = `image/${fileExtension}`;
+      }
+
+      formData.append('image', {
+        uri: fileUri,
+        name: filename,
+        type: mimeType,
+      } as any);
+
+      formData.append('bucketName', 'prescriptions');
+      formData.append('folderPath', `appointments/${appointmentId}`);
+
+      const response = await this.api.post('/upload/single', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message,
+      };
+    } catch (error) {
+      console.error('Upload prescription error:', error);
+      if (error instanceof AxiosError) {
+        return {
+          success: false,
+          error: error.response?.data?.error || 'Failed to upload prescription',
+        };
+      }
+      return {
+        success: false,
+        error: 'Failed to upload prescription',
+      };
+    }
+  }
+
   async getAppointmentStats(params?: {
     startDate?: string;
     endDate?: string;
@@ -471,13 +532,13 @@ class ApiService {
   // Quote APIs (for pharmacy partners)
   async createQuote(quoteData: {
     request_id: string;
-    quoted_medicines: Array<{
+    quoted_medicines: {
       name: string;
       price: number;
       quantity: number;
       available: boolean;
       notes?: string;
-    }>;
+    }[];
     total_amount: number;
     estimated_delivery_time: string;
     additional_notes?: string;
@@ -508,6 +569,16 @@ class ApiService {
 
   async getPartnerQuoteStats(): Promise<ApiResponse> {
     return this.makeRequest('GET', '/quote/partner/me/stats');
+  }
+
+  // Customer API endpoints for follow-up appointment booking
+  async getAvailableSlotsForFollowup(params: {
+    provider_type: string;
+    provider_id: string;
+    date: string;
+  }): Promise<ApiResponse> {
+    const queryString = `provider_type=${params.provider_type}&provider_id=${params.provider_id}&date=${params.date}`;
+    return this.makeRequest('GET', `appointment/getAvailableSlots?${queryString}`);
   }
 
   // Image Upload APIs

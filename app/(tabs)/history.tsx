@@ -18,6 +18,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import AppHeader from '../../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
@@ -68,8 +70,16 @@ export default function HistoryScreen() {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [showSlotPicker, setShowSlotPicker] = useState(false);
 
+  // Prescription and clinical notes states (for vet appointments)
+  const [prescriptionFile, setPrescriptionFile] = useState<any>(null);
+  const [clinicalNotes, setClinicalNotes] = useState('');
+  const [uploadingPrescription, setUploadingPrescription] = useState(false);
+
   // Determine if this partner type should show orders (pharmacy & essentials) or appointments (vet & grooming)
   const showOrders = partnerData?.serviceType === 'pharmacy' || partnerData?.serviceType === 'essentials';
+
+  // Check if this is a vet appointment (not grooming)
+  const isVetAppointment = !showOrders && partnerData?.serviceType === 'vet';
 
   useEffect(() => {
     loadPartnerData();
@@ -250,6 +260,10 @@ export default function HistoryScreen() {
     setFollowUpTime('');
     setAvailableSlots([]);
     setShowSlotPicker(false);
+    // Reset prescription and clinical notes
+    setPrescriptionFile(null);
+    setClinicalNotes('');
+    setUploadingPrescription(false);
   };
 
   const loadAvailableSlots = async (date: string) => {
@@ -297,6 +311,77 @@ export default function HistoryScreen() {
     }
   };
 
+  const pickPrescriptionFile = async () => {
+    try {
+      Alert.alert(
+        'Choose Upload Method',
+        'Would you like to upload a photo or a document?',
+        [
+          {
+            text: 'Take Photo',
+            onPress: async () => {
+              const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+              if (!permissionResult.granted) {
+                Alert.alert('Permission Required', 'Camera permission is required to take photos');
+                return;
+              }
+
+              const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                quality: 0.8,
+              });
+
+              if (!result.canceled && result.assets[0]) {
+                setPrescriptionFile(result.assets[0]);
+              }
+            },
+          },
+          {
+            text: 'Choose from Gallery',
+            onPress: async () => {
+              const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (!permissionResult.granted) {
+                Alert.alert('Permission Required', 'Gallery permission is required to select photos');
+                return;
+              }
+
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                quality: 0.8,
+              });
+
+              if (!result.canceled && result.assets[0]) {
+                setPrescriptionFile(result.assets[0]);
+              }
+            },
+          },
+          {
+            text: 'Upload Document (PDF)',
+            onPress: async () => {
+              const result = await DocumentPicker.getDocumentAsync({
+                type: ['application/pdf', 'image/*'],
+                copyToCacheDirectory: true,
+              });
+
+              if (!result.canceled && result.assets[0]) {
+                setPrescriptionFile(result.assets[0]);
+              }
+            },
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Error picking prescription file:', error);
+      Alert.alert('Error', 'Failed to select file. Please try again.');
+    }
+  };
+
   const markAsCompleted = async () => {
     if (!selectedAppointment) return;
 
@@ -318,10 +403,51 @@ export default function HistoryScreen() {
         );
       } else {
         // Complete appointment with OTP verification and optional follow-up
+        let prescriptionFileUrl = null;
+
+        // Upload prescription if provided (for vet appointments)
+        if (isVetAppointment && prescriptionFile) {
+          setUploadingPrescription(true);
+          console.log('📤 Uploading prescription file...');
+
+          try {
+            const uploadResponse = await apiService.uploadPrescription(
+              prescriptionFile.uri,
+              selectedAppointment.id
+            );
+
+            if (uploadResponse.success && uploadResponse.data?.url) {
+              prescriptionFileUrl = uploadResponse.data.url;
+              console.log('✅ Prescription uploaded:', prescriptionFileUrl);
+            } else {
+              setUploadingPrescription(false);
+              Alert.alert('Error', 'Failed to upload prescription. Please try again.');
+              return;
+            }
+          } catch (error) {
+            setUploadingPrescription(false);
+            console.error('Prescription upload error:', error);
+            Alert.alert('Error', 'Failed to upload prescription. Please try again.');
+            return;
+          } finally {
+            setUploadingPrescription(false);
+          }
+        }
+
         const completionData: any = {
           otp_code: otpCode.trim(),
           notes: treatmentSummary || 'Appointment completed'
         };
+
+        // Add prescription and clinical notes for vet appointments
+        if (isVetAppointment) {
+          if (prescriptionFileUrl) {
+            completionData.prescription_file_url = prescriptionFileUrl;
+          }
+          if (clinicalNotes.trim()) {
+            completionData.clinical_notes = clinicalNotes.trim();
+          }
+        }
 
         if (isFollowUpSelected && followUpDate && followUpTime) {
           completionData.follow_up_date = followUpDate;
@@ -1033,6 +1159,65 @@ export default function HistoryScreen() {
                 </>
               )}
 
+              {/* Prescription Upload and Clinical Notes (Only for Vet Appointments) */}
+              {!showOrders && isVetAppointment && (
+                <>
+                  <View style={styles.vetSectionDivider} />
+
+                  <Text style={styles.vetSectionTitle}>Medical Documentation</Text>
+
+                  {/* Prescription Upload */}
+                  <Text style={styles.modalDescription}>
+                    Upload Prescription (Optional):
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.prescriptionUploadButton}
+                    onPress={pickPrescriptionFile}
+                    disabled={uploadingPrescription}
+                  >
+                    <Ionicons name="document-attach-outline" size={24} color={Colors.primary} />
+                    <Text style={styles.prescriptionUploadText}>
+                      {prescriptionFile ? 'Change File' : 'Upload Prescription'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {prescriptionFile && (
+                    <View style={styles.selectedFileContainer}>
+                      <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                      <Text style={styles.selectedFileName} numberOfLines={1}>
+                        {prescriptionFile.name || prescriptionFile.uri.split('/').pop()}
+                      </Text>
+                      <TouchableOpacity onPress={() => setPrescriptionFile(null)}>
+                        <Ionicons name="close-circle" size={20} color={Colors.error} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {uploadingPrescription && (
+                    <View style={styles.uploadingContainer}>
+                      <ActivityIndicator size="small" color={Colors.primary} />
+                      <Text style={styles.uploadingText}>Uploading prescription...</Text>
+                    </View>
+                  )}
+
+                  {/* Clinical Notes */}
+                  <Text style={[styles.modalDescription, { marginTop: Spacing.lg }]}>
+                    Clinical Notes (Optional):
+                  </Text>
+                  <TextInput
+                    style={styles.treatmentInput}
+                    placeholder="Enter clinical observations, diagnosis, vital signs, etc."
+                    value={clinicalNotes}
+                    onChangeText={setClinicalNotes}
+                    multiline
+                    numberOfLines={4}
+                    maxLength={500}
+                    textAlignVertical="top"
+                  />
+                  <Text style={styles.characterCount}>{clinicalNotes.length}/500</Text>
+                </>
+              )}
+
               <Text style={styles.modalDescription}>
                 {showOrders
                   ? 'Please provide any notes about order completion (optional):'
@@ -1506,6 +1691,60 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     textAlign: 'right',
     marginBottom: Spacing.md,
+  },
+  vetSectionDivider: {
+    height: 1,
+    backgroundColor: Colors.borderLight,
+    marginVertical: Spacing.lg,
+  },
+  vetSectionTitle: {
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.primary,
+    marginBottom: Spacing.md,
+  },
+  prescriptionUploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    borderRadius: BorderRadius.sm,
+    borderStyle: 'dashed',
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.primaryLight || '#FFE5E0',
+  },
+  prescriptionUploadText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.primary,
+    fontWeight: Typography.fontWeights.medium,
+    marginLeft: Spacing.sm,
+  },
+  selectedFileContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.sm,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  selectedFileName: {
+    flex: 1,
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textPrimary,
+  },
+  uploadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  uploadingText: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textSecondary,
   },
   modalFooter: {
     flexDirection: 'row',
