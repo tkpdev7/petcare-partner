@@ -6,15 +6,18 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import apiService from '../../services/apiService';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
+import KeyboardAwareScrollView from '../../components/KeyboardAwareScrollView';
 
 export default function VerifyScreen() {
   const router = useRouter();
+  const modal = useCustomModal();
   const { email } = useLocalSearchParams();
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,12 +25,12 @@ export default function VerifyScreen() {
 
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
-      Alert.alert('Error', 'Please enter a valid 6-digit code');
+      modal.showError('Please enter a valid 6-digit code');
       return;
     }
 
     if (!email) {
-      Alert.alert('Error', 'Email is required for verification');
+      modal.showError('Email is required for verification');
       return;
     }
 
@@ -39,22 +42,19 @@ export default function VerifyScreen() {
       });
 
       if (response.success) {
-        Alert.alert(
-          'Email Verified!',
+        modal.showSuccess(
           'Your account has been created successfully. You can now log in.',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.replace('/auth/login')
-            }
-          ]
+          {
+            title: 'Email Verified!',
+            onClose: () => router.replace('/auth/login')
+          }
         );
       } else {
-        Alert.alert('Error', response.error || 'Verification failed. Please try again.');
+        modal.showError(response.error || 'Verification failed. Please try again.');
       }
     } catch (error) {
       console.error('Verification error:', error);
-      Alert.alert('Error', 'Verification failed. Please try again.');
+      modal.showError('Verification failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -62,7 +62,7 @@ export default function VerifyScreen() {
 
   const handleResendOtp = async () => {
     if (!email) {
-      Alert.alert('Error', 'Email is required to resend OTP');
+      modal.showError('Email is required to resend OTP');
       return;
     }
 
@@ -71,13 +71,13 @@ export default function VerifyScreen() {
       const response = await apiService.resendOtp(email as string);
 
       if (response.success) {
-        Alert.alert('Success', 'OTP sent successfully to ' + email);
+        modal.showSuccess('OTP sent successfully to ' + email);
       } else {
-        Alert.alert('Error', response.error || 'Failed to resend OTP');
+        modal.showError(response.error || 'Failed to resend OTP');
       }
     } catch (error) {
       console.error('Resend OTP error:', error);
-      Alert.alert('Error', 'Failed to resend OTP');
+      modal.showError('Failed to resend OTP');
     } finally {
       setResending(false);
     }
@@ -85,10 +85,17 @@ export default function VerifyScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <KeyboardAwareScrollView>
+        <View style={styles.content}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/auth/register');
+            }
+          }}
         >
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
@@ -138,7 +145,9 @@ export default function VerifyScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+        </View>
+      </KeyboardAwareScrollView>
+      <CustomModal {...modal.modalProps} />
     </SafeAreaView>
   );
 }

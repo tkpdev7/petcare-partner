@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
-  Alert,
   ActivityIndicator,
   Switch,
   Modal,
@@ -18,10 +17,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import KeyboardAwareScrollView from '../../components/KeyboardAwareScrollView';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 
 // Validation schema
 const productValidationSchema = Yup.object().shape({
@@ -46,6 +48,7 @@ const productValidationSchema = Yup.object().shape({
 });
 
 export default function AddProductScreen() {
+  const modal = useCustomModal();
   const router = useRouter();
   const { id, mode } = useLocalSearchParams();
   const isEditMode = mode === 'edit' && id;
@@ -235,7 +238,7 @@ export default function AddProductScreen() {
       }
     } catch (error) {
       console.error('Error loading product:', error);
-      Alert.alert('Error', 'Failed to load product data');
+      modal.showError('Failed to load product data');
       router.back();
     } finally {
       setLoading(false);
@@ -284,7 +287,7 @@ export default function AddProductScreen() {
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) {
-      Alert.alert('Error', 'Please enter category name');
+      modal.showError('Please enter category name');
       return;
     }
 
@@ -306,24 +309,24 @@ export default function AddProductScreen() {
           // Load subcategories for the new category
           loadSubcategories(newCategoryId);
         }
-        Alert.alert('Success', 'Category created successfully');
+        modal.showSuccess('Category created successfully');
       } else {
-        Alert.alert('Error', response.error || 'Failed to create category');
+        modal.showError(response.error || 'Failed to create category');
       }
     } catch (error) {
       console.error('Create category error:', error);
-      Alert.alert('Error', 'Failed to create category');
+      modal.showError('Failed to create category');
     }
   };
 
   const handleCreateSubcategory = async () => {
     if (!newSubcategoryName.trim()) {
-      Alert.alert('Error', 'Please enter subcategory name');
+      modal.showError('Please enter subcategory name');
       return;
     }
 
     if (!selectedCategoryForSubcat) {
-      Alert.alert('Error', 'Please select a category first');
+      modal.showError('Please select a category first');
       return;
     }
 
@@ -343,19 +346,19 @@ export default function AddProductScreen() {
         if (newSubcategoryId && formikRef.current) {
           formikRef.current.setFieldValue('subCategory', newSubcategoryId);
         }
-        Alert.alert('Success', 'Subcategory created successfully');
+        modal.showSuccess('Subcategory created successfully');
       } else {
-        Alert.alert('Error', response.error || 'Failed to create subcategory');
+        modal.showError(response.error || 'Failed to create subcategory');
       }
     } catch (error) {
       console.error('Create subcategory error:', error);
-      Alert.alert('Error', 'Failed to create subcategory');
+      modal.showError('Failed to create subcategory');
     }
   };
 
   const handleSave = async (values: any, { setSubmitting }: any) => {
     if (images.length === 0) {
-      Alert.alert('Error', 'Please add at least one product image');
+      modal.showError('Please add at least one product image');
       setSubmitting(false);
       return;
     }
@@ -376,20 +379,18 @@ export default function AddProductScreen() {
       const response = isEditMode
         ? await apiService.updateProduct(id as string, productData)
         : await apiService.createProduct(productData);
-      
+
       if (!response.success) {
-        Alert.alert('Error', response.error || `Failed to ${isEditMode ? 'update' : 'add'} product`);
+        modal.showError(response.error || `Failed to ${isEditMode ? 'update' : 'add'} product`);
         return;
       }
-      
-      Alert.alert(
-        'Success',
-        `Product ${isEditMode ? 'updated' : 'added'} successfully!`,
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+
+      modal.showSuccess(`Product ${isEditMode ? 'updated' : 'added'} successfully!`, {
+        onClose: () => router.back()
+      });
     } catch (error) {
       console.error(`${isEditMode ? 'Update' : 'Add'} product error:`, error);
-      Alert.alert('Error', `Failed to ${isEditMode ? 'update' : 'add'} product. Please try again.`);
+      modal.showError(`Failed to ${isEditMode ? 'update' : 'add'} product. Please try again.`);
     } finally {
       setSubmitting(false);
     }
@@ -399,9 +400,11 @@ export default function AddProductScreen() {
     try {
       // Request permissions first
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please grant access to your photo library to select images.');
+        modal.showError('Please grant access to your photo library to select images.', {
+          title: 'Permission Required'
+        });
         return;
       }
 
@@ -417,7 +420,7 @@ export default function AddProductScreen() {
       }
     } catch (error) {
       console.error('Image picker error:', error);
-      Alert.alert('Error', `Failed to pick images: ${error.message || 'Unknown error'}`);
+      modal.showError(`Failed to pick images: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -432,7 +435,7 @@ export default function AddProductScreen() {
         setVideo(result.assets[0].uri);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to pick video');
+      modal.showError('Failed to pick video');
     }
   };
 
@@ -475,7 +478,7 @@ export default function AddProductScreen() {
       >
         {({ handleChange, handleBlur, handleSubmit, values, errors, touched, setFieldValue, isSubmitting }) => (
           <>
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            <KeyboardAwareScrollView style={styles.content} showsVerticalScrollIndicator={false}>
               {/* Product Form */}
               <View style={styles.section}>
                 <View style={styles.inputGroup}>
@@ -688,7 +691,7 @@ export default function AddProductScreen() {
                   )}
                 </TouchableOpacity>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
 
             {/* Add Category Modal */}
             <Modal
@@ -774,6 +777,20 @@ export default function AddProductScreen() {
           </>
         )}
       </Formik>
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
+      />
     </SafeAreaView>
   );
 }

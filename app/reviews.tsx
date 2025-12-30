@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   StatusBar,
   TextInput,
-  Alert,
   Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -19,6 +18,9 @@ import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Typography, Spacing, BorderRadius } from '../constants/Colors';
 import apiService from '../services/apiService';
+import KeyboardAwareScrollView from '../components/KeyboardAwareScrollView';
+import CustomModal from '../components/CustomModal';
+import { useCustomModal } from '../hooks/useCustomModal';
 
 interface Review {
   id: string;
@@ -60,6 +62,7 @@ interface ReviewStats {
 
 export default function ReviewsScreen() {
   const router = useRouter();
+  const modal = useCustomModal();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState('All');
@@ -67,7 +70,7 @@ export default function ReviewsScreen() {
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  
+
   // Reply modal state
   const [replyModalVisible, setReplyModalVisible] = useState(false);
   const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
@@ -142,7 +145,7 @@ export default function ReviewsScreen() {
 
     } catch (error) {
       console.error('Error loading reviews data:', error);
-      Alert.alert('Error', 'Failed to load reviews. Please try again.');
+      modal.showError('Failed to load reviews. Please try again.');
     } finally {
       if (isRefresh) {
         setRefreshing(false);
@@ -171,26 +174,26 @@ export default function ReviewsScreen() {
 
   const handleSubmitReply = async () => {
     if (!selectedReviewId || !replyText.trim()) {
-      Alert.alert('Error', 'Please enter a reply');
+      modal.showError('Please enter a reply');
       return;
     }
 
     setReplySubmitting(true);
     try {
       const response = await apiService.createReviewReply(selectedReviewId, replyText.trim());
-      
+
       if (response.success) {
-        Alert.alert('Success', 'Reply submitted successfully');
+        modal.showSuccess('Reply submitted successfully');
         setReplyModalVisible(false);
         setReplyText('');
         setSelectedReviewId(null);
         // Refresh reviews to show the new reply
         loadReviewsData(true);
       } else {
-        Alert.alert('Error', response.error || 'Failed to submit reply');
+        modal.showError(response.error || 'Failed to submit reply');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to submit reply. Please try again.');
+      modal.showError('Failed to submit reply. Please try again.');
     } finally {
       setReplySubmitting(false);
     }
@@ -523,51 +526,67 @@ export default function ReviewsScreen() {
         onRequestClose={() => setReplyModalVisible(false)}
       >
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Reply to Review</Text>
-              <TouchableOpacity 
-                style={styles.modalCloseButton}
-                onPress={() => setReplyModalVisible(false)}
-              >
-                <Ionicons name="close" size={24} color={Colors.textPrimary} />
-              </TouchableOpacity>
-            </View>
+          <KeyboardAwareScrollView>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Reply to Review</Text>
+                <TouchableOpacity
+                  style={styles.modalCloseButton}
+                  onPress={() => setReplyModalVisible(false)}
+                >
+                  <Ionicons name="close" size={24} color={Colors.textPrimary} />
+                </TouchableOpacity>
+              </View>
 
-            <TextInput
-              style={styles.replyTextInput}
-              value={replyText}
-              onChangeText={setReplyText}
-              placeholder="Write your professional response to this review..."
-              multiline
-              numberOfLines={6}
-              textAlignVertical="top"
-              maxLength={500}
-            />
-            <Text style={styles.characterCount}>{replyText.length}/500</Text>
+              <TextInput
+                style={styles.replyTextInput}
+                value={replyText}
+                onChangeText={setReplyText}
+                placeholder="Write your professional response to this review..."
+                multiline
+                numberOfLines={6}
+                textAlignVertical="top"
+                maxLength={500}
+              />
+              <Text style={styles.characterCount}>{replyText.length}/500</Text>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={styles.modalCancelButton}
-                onPress={() => setReplyModalVisible(false)}
-              >
-                <Text style={styles.modalCancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalSubmitButton, (!replyText.trim() || replySubmitting) && styles.modalSubmitButtonDisabled]}
-                onPress={handleSubmitReply}
-                disabled={!replyText.trim() || replySubmitting}
-              >
-                {replySubmitting ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.modalSubmitButtonText}>Submit Reply</Text>
-                )}
-              </TouchableOpacity>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => setReplyModalVisible(false)}
+                >
+                  <Text style={styles.modalCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSubmitButton, (!replyText.trim() || replySubmitting) && styles.modalSubmitButtonDisabled]}
+                  onPress={handleSubmitReply}
+                  disabled={!replyText.trim() || replySubmitting}
+                >
+                  {replySubmitting ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.modalSubmitButtonText}>Submit Reply</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </KeyboardAwareScrollView>
         </View>
       </Modal>
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
+      />
     </SafeAreaView>
   );
 }

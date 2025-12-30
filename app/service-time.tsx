@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Switch,
   Platform,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -17,11 +16,14 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import RNPickerSelect from 'react-native-picker-select';
 import AppHeader from '../components/AppHeader';
 import SuccessModal from '../components/SuccessModal';
+import CustomModal from '../components/CustomModal';
+import { useCustomModal } from '../hooks/useCustomModal';
 import { Colors, Typography, Spacing, BorderRadius } from '../constants/Colors';
 import apiService from '../services/apiService';
 
 export default function ServiceTimeScreen() {
   const router = useRouter();
+  const modal = useCustomModal();
   const { prefillDate, prefillStartTime, prefillEndTime, prefillDuration } = useLocalSearchParams();
 
   // Debug logging for prefill params
@@ -150,11 +152,11 @@ export default function ServiceTimeScreen() {
         );
         setShowSuccessModal(true);
       } else {
-        Alert.alert('Error', response.error || 'Failed to update status');
+        modal.showError(response.error || 'Failed to update status');
       }
     } catch (error) {
       console.error('Toggle active online error:', error);
-      Alert.alert('Error', 'Failed to update status');
+      modal.showError('Failed to update status');
     }
   };
 
@@ -242,7 +244,7 @@ export default function ServiceTimeScreen() {
   const validateInputs = () => {
     // Check if partner is active online
     if (!isActiveOnline) {
-      Alert.alert('Offline', 'Please set yourself as "Active Online" to generate slots');
+      modal.showError('Please set yourself as "Active Online" to generate slots', { title: 'Offline' });
       return false;
     }
 
@@ -253,13 +255,13 @@ export default function ServiceTimeScreen() {
     selectedStart.setHours(0, 0, 0, 0);
 
     if (selectedStart < today) {
-      Alert.alert('Invalid Date', 'Start date cannot be in the past');
+      modal.showError('Start date cannot be in the past', { title: 'Invalid Date' });
       return false;
     }
 
     // Check if end date is not before start date (allow same day for single-day slots)
     if (endDate < startDate) {
-      Alert.alert('Invalid Date Range', 'End date cannot be before start date');
+      modal.showError('End date cannot be before start date', { title: 'Invalid Date Range' });
       return false;
     }
 
@@ -268,16 +270,16 @@ export default function ServiceTimeScreen() {
     const endMinutes = endTime.getHours() * 60 + endTime.getMinutes();
 
     if (endMinutes <= startMinutes) {
-      Alert.alert('Invalid Time Range', 'End time must be after start time');
+      modal.showError('End time must be after start time', { title: 'Invalid Time Range' });
       return false;
     }
 
     // Check if time range is sufficient for at least one slot
     const totalMinutes = endMinutes - startMinutes;
     if (totalMinutes < slotDuration) {
-      Alert.alert(
-        'Invalid Time Range',
-        `Time range must be at least ${slotDuration} minutes to create a slot`
+      modal.showError(
+        `Time range must be at least ${slotDuration} minutes to create a slot`,
+        { title: 'Invalid Time Range' }
       );
       return false;
     }
@@ -293,19 +295,19 @@ export default function ServiceTimeScreen() {
     const { days, slotsPerDay, totalSlots } = calculateTotalSlots();
 
     // Confirm before generating
-    Alert.alert(
-      'Generate Slots',
+    modal.showWarning(
       `This will create ${totalSlots} slots:\n\n` +
       `• ${days} days (${formatDate(startDate)} to ${formatDate(endDate)})\n` +
       `• ${slotsPerDay} slots per day\n` +
       `• Time: ${formatTime(startTime)} to ${formatTime(endTime)}\n` +
       `• Duration: ${slotDuration} minutes each\n\n` +
       'Do you want to continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Generate',
-          onPress: async () => {
+      {
+        title: 'Generate Slots',
+        primaryButtonText: 'Generate',
+        secondaryButtonText: 'Cancel',
+        onPrimaryPress: async () => {
+          modal.hideModal();
             setLoading(true);
             try {
               const payload = {
@@ -358,17 +360,17 @@ export default function ServiceTimeScreen() {
                 setSuccessMessage(message);
                 setShowSuccessModal(true);
               } else {
-                Alert.alert('Error', response.error || 'Failed to generate slots');
+                modal.showError(response.error || 'Failed to generate slots');
               }
             } catch (error: any) {
               console.error('Generate slots error:', error);
-              Alert.alert('Error', error.message || 'Failed to generate slots');
+              modal.showError(error.message || 'Failed to generate slots');
             } finally {
               setLoading(false);
             }
           },
-        },
-      ]
+        onSecondaryPress: modal.hideModal
+      }
     );
   };
 
@@ -557,6 +559,20 @@ export default function ServiceTimeScreen() {
         visible={showSuccessModal}
         onClose={() => setShowSuccessModal(false)}
         message={successMessage}
+      />
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
       />
     </SafeAreaView>
   );

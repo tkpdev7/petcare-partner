@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -23,6 +22,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 
 // Validation schema (removed discount field)
 const serviceValidationSchema = Yup.object().shape({
@@ -44,6 +45,7 @@ const serviceValidationSchema = Yup.object().shape({
 });
 
 export default function AddServiceScreen() {
+  const modal = useCustomModal();
   const router = useRouter();
   const { id, mode } = useLocalSearchParams();
   const isEditMode = mode === 'edit' && id;
@@ -243,7 +245,7 @@ export default function AddServiceScreen() {
       }
     } catch (error) {
       console.error('Error loading service:', error);
-      Alert.alert('Error', 'Failed to load service data');
+      modal.showError('Failed to load service data');
       router.back();
     } finally {
       setLoading(false);
@@ -289,7 +291,9 @@ export default function AddServiceScreen() {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please grant access to your photo library to select images.');
+        modal.showError('Please grant access to your photo library to select images.', {
+          title: 'Permission Required'
+        });
         return;
       }
 
@@ -305,7 +309,7 @@ export default function AddServiceScreen() {
       }
     } catch (error) {
       console.error('Image picker error:', error);
-      Alert.alert('Error', `Failed to pick images: ${error.message || 'Unknown error'}`);
+      modal.showError(`Failed to pick images: ${error.message || 'Unknown error'}`);
     }
   };
 
@@ -322,7 +326,7 @@ export default function AddServiceScreen() {
       }
     } catch (error) {
       console.error('Video picker error:', error);
-      Alert.alert('Error', 'Failed to pick video');
+      modal.showError('Failed to pick video');
     }
   };
 
@@ -345,7 +349,7 @@ export default function AddServiceScreen() {
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) {
-      Alert.alert('Error', 'Please enter category name');
+      modal.showError('Please enter category name');
       return;
     }
 
@@ -367,24 +371,24 @@ export default function AddServiceScreen() {
           // Load subcategories for the new category
           loadSubcategories(newCategoryId);
         }
-        Alert.alert('Success', 'Category created successfully');
+        modal.showSuccess('Category created successfully');
       } else {
-        Alert.alert('Error', response.error || 'Failed to create category');
+        modal.showError(response.error || 'Failed to create category');
       }
     } catch (error) {
       console.error('Create category error:', error);
-      Alert.alert('Error', 'Failed to create category');
+      modal.showError('Failed to create category');
     }
   };
 
   const handleCreateSubcategory = async () => {
     if (!newSubcategoryName.trim()) {
-      Alert.alert('Error', 'Please enter subcategory name');
+      modal.showError('Please enter subcategory name');
       return;
     }
 
     if (!selectedCategoryForSubcat) {
-      Alert.alert('Error', 'Please select a category first');
+      modal.showError('Please select a category first');
       return;
     }
 
@@ -404,20 +408,20 @@ export default function AddServiceScreen() {
         if (newSubcategoryId && formikRef.current) {
           formikRef.current.setFieldValue('subCategory', newSubcategoryId);
         }
-        Alert.alert('Success', 'Subcategory created successfully');
+        modal.showSuccess('Subcategory created successfully');
       } else {
-        Alert.alert('Error', response.error || 'Failed to create subcategory');
+        modal.showError(response.error || 'Failed to create subcategory');
       }
     } catch (error) {
       console.error('Create subcategory error:', error);
-      Alert.alert('Error', 'Failed to create subcategory');
+      modal.showError('Failed to create subcategory');
     }
   };
 
   const handleSubmit = async (values: any) => {
     // Validate at least one image
     if (images.length === 0) {
-      Alert.alert('Error', 'Please add at least one service image');
+      modal.showError('Please add at least one service image');
       return;
     }
 
@@ -451,22 +455,15 @@ export default function AddServiceScreen() {
           ? 'Service updated successfully'
           : 'Service created successfully';
 
-        Alert.alert(
-          'Success',
-          message,
-          [{
-            text: 'OK',
-            onPress: () => {
-              router.back();
-            }
-          }]
-        );
+        modal.showSuccess(message, {
+          onClose: () => router.back()
+        });
       } else {
-        Alert.alert('Error', response.error || 'Failed to save service');
+        modal.showError(response.error || 'Failed to save service');
       }
     } catch (error) {
       console.error('Submit error:', error);
-      Alert.alert('Error', 'Failed to save service');
+      modal.showError('Failed to save service');
     } finally {
       setLoading(false);
     }
@@ -824,6 +821,20 @@ export default function AddServiceScreen() {
           </View>
         </Modal>
       </KeyboardAvoidingView>
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
+      />
     </SafeAreaView>
   );
 }

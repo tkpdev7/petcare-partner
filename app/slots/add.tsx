@@ -8,18 +8,20 @@ import {
   TouchableOpacity,
   Switch,
   Platform,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AppHeader from '../../components/AppHeader';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
 
 export default function AddSlotScreen() {
   const router = useRouter();
+  const modal = useCustomModal();
   const [isActiveOnline, setIsActiveOnline] = useState(true);
 
   // Date range
@@ -103,7 +105,7 @@ export default function AddSlotScreen() {
     setShowToDatePicker(false);
     if (selectedDate) {
       if (selectedDate < fromDate) {
-        Alert.alert('Invalid Date', 'End date must be after start date');
+        modal.showError('End date must be after start date', { title: 'Invalid Date' });
         return;
       }
       setToDate(selectedDate);
@@ -127,13 +129,13 @@ export default function AddSlotScreen() {
   const validateInputs = () => {
     // Check if end time is after start time
     if (endTime <= startTime) {
-      Alert.alert('Invalid Time', 'End time must be after start time');
+      modal.showError('End time must be after start time', { title: 'Invalid Time' });
       return false;
     }
 
     // Check if date range is valid
     if (toDate < fromDate) {
-      Alert.alert('Invalid Date Range', 'End date must be after start date');
+      modal.showError('End date must be after start date', { title: 'Invalid Date Range' });
       return false;
     }
 
@@ -142,12 +144,12 @@ export default function AddSlotScreen() {
     const hoursDiff = timeDiff / (1000 * 60 * 60);
 
     if (hoursDiff < 1) {
-      Alert.alert('Invalid Duration', 'Service hours must be at least 1 hour');
+      modal.showError('Service hours must be at least 1 hour', { title: 'Invalid Duration' });
       return false;
     }
 
     if (hoursDiff > 24) {
-      Alert.alert('Invalid Duration', 'Service hours cannot exceed 24 hours');
+      modal.showError('Service hours cannot exceed 24 hours', { title: 'Invalid Duration' });
       return false;
     }
 
@@ -169,23 +171,19 @@ export default function AddSlotScreen() {
       });
 
       if (!response.success) {
-        Alert.alert('Error', response.error || 'Failed to update service time');
+        modal.showError(response.error || 'Failed to update service time');
         return;
       }
 
-      Alert.alert(
-        'Success',
-        'Slot configuration saved successfully',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back()
-          }
-        ]
-      );
+      modal.showSuccess('Slot configuration saved successfully', {
+        onPrimaryPress: () => {
+          modal.hideModal();
+          router.back();
+        }
+      });
     } catch (error) {
       console.error('Add slot error:', error);
-      Alert.alert('Error', 'Failed to save slot configuration');
+      modal.showError('Failed to save slot configuration');
     } finally {
       setLoading(false);
     }
@@ -196,13 +194,18 @@ export default function AddSlotScreen() {
       return;
     }
 
-    Alert.alert(
-      'Confirm Slot Configuration',
+    modal.showWarning(
       `Service will be available from ${formatDate(fromDate)} to ${formatDate(toDate)}, between ${formatTime(startTime)} and ${formatTime(endTime)} daily.\n\nDo you want to proceed?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Proceed', onPress: handleAddSlot }
-      ]
+      {
+        title: 'Confirm Slot Configuration',
+        primaryButtonText: 'Proceed',
+        secondaryButtonText: 'Cancel',
+        onPrimaryPress: () => {
+          modal.hideModal();
+          handleAddSlot();
+        },
+        onSecondaryPress: modal.hideModal
+      }
     );
   };
 
@@ -378,6 +381,20 @@ export default function AddSlotScreen() {
           onChange={onEndTimeChange}
         />
       )}
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
+      />
     </SafeAreaView>
   );
 }

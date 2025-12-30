@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Switch,
   Platform,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -16,11 +15,14 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import RNPickerSelect from 'react-native-picker-select';
 import AppHeader from '../../components/AppHeader';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
 
 export default function ManageSlotsScreen() {
   const router = useRouter();
+  const modal = useCustomModal();
   const [isActiveOnline, setIsActiveOnline] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -71,16 +73,16 @@ export default function ManageSlotsScreen() {
       const response = await apiService.toggleActiveOnline(value);
       if (response.success) {
         setIsActiveOnline(value);
-        Alert.alert(
-          'Status Updated',
-          value ? 'You are now online. Customers can book your slots.' : 'You are now offline. Customers cannot see your slots.'
+        modal.showSuccess(
+          value ? 'You are now online. Customers can book your slots.' : 'You are now offline. Customers cannot see your slots.',
+          { title: 'Status Updated' }
         );
       } else {
-        Alert.alert('Error', response.error || 'Failed to update status');
+        modal.showError(response.error || 'Failed to update status');
       }
     } catch (error) {
       console.error('Toggle active online error:', error);
-      Alert.alert('Error', 'Failed to update status');
+      modal.showError('Failed to update status');
     }
   };
 
@@ -130,7 +132,7 @@ export default function ManageSlotsScreen() {
   const validateInputs = () => {
     // Check if partner is active online
     if (!isActiveOnline) {
-      Alert.alert('Offline', 'Please set yourself as "Active Online" to create slots');
+      modal.showError('Please set yourself as "Active Online" to create slots', { title: 'Offline' });
       return false;
     }
 
@@ -141,7 +143,7 @@ export default function ManageSlotsScreen() {
     selected.setHours(0, 0, 0, 0);
 
     if (selected < today) {
-      Alert.alert('Invalid Date', 'Cannot create slots for past dates');
+      modal.showError('Cannot create slots for past dates', { title: 'Invalid Date' });
       return false;
     }
 
@@ -173,44 +175,34 @@ export default function ManageSlotsScreen() {
       console.log('Create slot response:', JSON.stringify(response, null, 2));
 
       if (response.success) {
-        Alert.alert(
-          'Success',
-          'Slot created successfully',
-          [
-            {
-              text: 'Create Another',
-              onPress: () => {
-                // Keep the form, just reset to next time slot
-                const nextTime = new Date(endTime.getTime());
-                setSelectedTime(nextTime);
-              },
-            },
-            {
-              text: 'View My Slots',
-              onPress: () => router.push('/slots/mySlots'),
-            },
-          ]
-        );
+        modal.showSuccess('Slot created successfully', {
+          primaryButtonText: 'View My Slots',
+          secondaryButtonText: 'Create Another',
+          onPrimaryPress: () => {
+            modal.hideModal();
+            router.push('/slots/mySlots');
+          },
+          onSecondaryPress: () => {
+            modal.hideModal();
+            // Keep the form, just reset to next time slot
+            const nextTime = new Date(endTime.getTime());
+            setSelectedTime(nextTime);
+          }
+        });
       } else {
         // Show specific message for duplicate slots
         if (response.duplicateSlots) {
-          Alert.alert(
-            'Duplicate Slots',
+          modal.showWarning(
             response.error || 'You already have slots in the selected date and time. Please select different date or timings',
-            [
-              {
-                text: 'OK',
-                style: 'default',
-              },
-            ]
+            { title: 'Duplicate Slots' }
           );
         } else {
-          Alert.alert('Error', response.error || 'Failed to create slot');
+          modal.showError(response.error || 'Failed to create slot');
         }
       }
     } catch (error: any) {
       console.error('Create slot error:', error);
-      Alert.alert('Error', error.message || 'Failed to create slot');
+      modal.showError(error.message || 'Failed to create slot');
     } finally {
       setLoading(false);
     }
@@ -351,6 +343,20 @@ export default function ManageSlotsScreen() {
           onChange={onTimeChange}
         />
       )}
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
+      />
     </SafeAreaView>
   );
 }

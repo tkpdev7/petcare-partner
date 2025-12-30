@@ -7,7 +7,6 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Modal,
   Dimensions,
@@ -25,6 +24,8 @@ import * as Yup from 'yup';
 import MapView, { Marker } from 'react-native-maps';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 
 // Validation schema
 const registrationValidationSchema = Yup.object().shape({
@@ -55,11 +56,16 @@ const registrationValidationSchema = Yup.object().shape({
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const modal = useCustomModal();
   // Non-form data that doesn't need validation
   const [storeLocation, setStoreLocation] = useState({ latitude: 0, longitude: 0, address: '' });
   const [showMapModal, setShowMapModal] = useState(false);
   const [mapLoading, setMapLoading] = useState(true);
   const [mapError, setMapError] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchLoading, setSearchLoading] = useState(false);
+  const formikRef = React.useRef<any>(null);
+  const mapRef = React.useRef<MapView>(null);
   
   // Initialize with default business hours
   const defaultOpeningTime = new Date();
@@ -70,7 +76,10 @@ export default function RegisterScreen() {
   const [openingTime, setOpeningTime] = useState(defaultOpeningTime);
   const [closingTime, setClosingTime] = useState(defaultClosingTime);
   const [timeUpdateTrigger, setTimeUpdateTrigger] = useState(0); // Force re-render trigger
-  const [registrationDocument, setRegistrationDocument] = useState(null as any);
+  const [document1, setDocument1] = useState(null as any);
+  const [document2, setDocument2] = useState(null as any);
+  const [document3, setDocument3] = useState(null as any);
+  const [document4, setDocument4] = useState(null as any);
   
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -97,24 +106,32 @@ export default function RegisterScreen() {
 
   const validateAdditionalFields = () => {
     if (!storeLocation.address) {
-      Alert.alert('Error', 'Please pin your store location on the map');
+      modal.showError('Please pin your store location on the map');
       return false;
     }
 
     // Validate that actual coordinates are set (not default 0,0)
     if (!storeLocation.latitude || !storeLocation.longitude ||
         (storeLocation.latitude === 0 && storeLocation.longitude === 0)) {
-      Alert.alert(
-        'Location Required',
-        'Please use "Pick Current Location" button or tap on the map to pin your exact store location. This is required for customers to find you.'
-      );
+      modal.showError('Please use "Pick Current Location" button or tap on the map to pin your exact store location. This is required for customers to find you.', { title: 'Location Required' });
+      return false;
+    }
+
+    // Validate mandatory documents
+    if (!document1) {
+      modal.showError('Document 1 is required', { title: 'Required' });
+      return false;
+    }
+
+    if (!document2) {
+      modal.showError('Document 2 is required', { title: 'Required' });
       return false;
     }
 
     return true;
   };
 
-  const pickDocument = async () => {
+  const pickDocument = async (setDocument: React.Dispatch<React.SetStateAction<any>>) => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'image/*'],
@@ -122,10 +139,50 @@ export default function RegisterScreen() {
       });
 
       if (!result.canceled) {
-        setRegistrationDocument(result.assets[0]);
+        setDocument(result.assets[0]);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to pick document');
+      modal.showError('Failed to pick document');
+    }
+  };
+
+  const searchLocation = async () => {
+    if (!searchQuery.trim()) {
+      modal.showWarning('Please enter a location to search', { title: 'Empty Search' });
+      return;
+    }
+
+    try {
+      setSearchLoading(true);
+      const results = await Location.geocodeAsync(searchQuery);
+
+      if (results.length > 0) {
+        const { latitude, longitude } = results[0];
+        setStoreLocation({
+          latitude,
+          longitude,
+          address: searchQuery,
+        });
+
+        // Animate map to searched location
+        if (mapRef.current) {
+          mapRef.current.animateToRegion({
+            latitude,
+            longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }, 1000);
+        }
+
+        modal.showSuccess('Tap "Done" to confirm this location', { title: 'Location Found' });
+      } else {
+        modal.showWarning('Could not find this location. Please try a different search term.', { title: 'Not Found' });
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      modal.showError('Failed to search location. Please try again.', { title: 'Search Error' });
+    } finally {
+      setSearchLoading(false);
     }
   };
 
@@ -133,7 +190,7 @@ export default function RegisterScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to select store location');
+        modal.showError('Location permission is required to select store location', { title: 'Permission Denied' });
         return;
       }
 
@@ -144,7 +201,7 @@ export default function RegisterScreen() {
       });
 
       const addressString = `${address[0]?.street || 'Unnamed Road'}, ${address[0]?.city || 'Unknown City'}, ${address[0]?.region || 'Unknown Region'}`;
-      
+
       setStoreLocation({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
@@ -152,14 +209,10 @@ export default function RegisterScreen() {
       });
 
       // Show success message
-      Alert.alert(
-        'Location Set',
-        `Store location set to:\n${addressString.trim()}`,
-        [{ text: 'OK' }]
-      );
+      modal.showSuccess(`Store location set to:\n${addressString.trim()}`, { title: 'Location Set' });
     } catch (error) {
       console.error('Location error:', error);
-      Alert.alert('Error', 'Failed to get location. Please try again.');
+      modal.showError('Failed to get location. Please try again.');
     }
   };
 
@@ -195,45 +248,42 @@ export default function RegisterScreen() {
         storeLocation: storeLocation,
         openingTime: formatTimeForAPI(openingTime),
         closingTime: formatTimeForAPI(closingTime),
-        registrationDocument: registrationDocument?.uri || null
+        document1: document1?.uri || null,
+        document2: document2?.uri || null,
+        document3: document3?.uri || null,
+        document4: document4?.uri || null,
       };
 
       const response = await apiService.register(registrationData);
 
       if (!response.success) {
-        Alert.alert('Registration Failed', response.error || 'Please try again');
+        modal.showError(response.error || 'Please try again', { title: 'Registration Failed' });
         return;
       }
 
       // Registration successful
       if (response.bypass) {
         // Email verification bypassed - account is auto-verified
-        Alert.alert(
-          'Registration Successful',
+        modal.showSuccess(
           'Your account has been created and verified! You can now sign in.',
-          [
-            {
-              text: 'Sign In',
-              onPress: () => router.push('/auth/login')
-            }
-          ]
+          {
+            title: 'Registration Successful',
+            onClose: () => router.push('/auth/login')
+          }
         );
       } else {
         // Normal flow - redirect to verification
-        Alert.alert(
-          'Registration Successful',
+        modal.showSuccess(
           'Your account has been created successfully! Please check your email for the verification code.',
-          [
-            {
-              text: 'Verify Email',
-              onPress: () => router.push(`/auth/verify?email=${encodeURIComponent(values.email)}`)
-            }
-          ]
+          {
+            title: 'Registration Successful',
+            onClose: () => router.push(`/auth/verify?email=${encodeURIComponent(values.email)}`)
+          }
         );
       }
     } catch (error) {
       console.error('Registration error:', error);
-      Alert.alert('Error', 'Registration failed. Please try again.');
+      modal.showError('Registration failed. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -245,7 +295,13 @@ export default function RegisterScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/auth/login');
+            }
+          }}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
@@ -267,6 +323,7 @@ export default function RegisterScreen() {
       >
 
         <Formik
+          innerRef={formikRef}
           initialValues={{
             businessName: '',
             email: '',
@@ -409,26 +466,6 @@ export default function RegisterScreen() {
                 </View>
               )}
 
-              <View style={[styles.inputContainer, styles.textAreaContainer]}>
-                <View style={[styles.iconContainer, styles.iconContainerTop]}>
-                  <Ionicons name="location-outline" size={20} color="#666" />
-                </View>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Enter building name and street address"
-                  placeholderTextColor="#999"
-                  value={values.address}
-                  onChangeText={handleChange('address')}
-                  onBlur={handleBlur('address')}
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
-              </View>
-              {touched.address && errors.address && (
-                <Text style={styles.errorText}>{errors.address}</Text>
-              )}
-          
               <TouchableOpacity style={styles.locationButton} onPress={async () => {
                 // Get current location when opening map
                 try {
@@ -456,46 +493,105 @@ export default function RegisterScreen() {
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color={Colors.primary} />
               </TouchableOpacity>
-              
+
               {storeLocation.address && (
                 <View style={styles.selectedLocation}>
                   <Ionicons name="location" size={16} color={Colors.primary} />
                   <Text style={styles.selectedLocationText}>{storeLocation.address}</Text>
                 </View>
               )}
+
+              <View style={[styles.inputContainer, styles.textAreaContainer]}>
+                <View style={[styles.iconContainer, styles.iconContainerTop]}>
+                  <Ionicons name="location-outline" size={20} color="#666" />
+                </View>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Enter building name and street address"
+                  placeholderTextColor="#999"
+                  value={values.address}
+                  onChangeText={handleChange('address')}
+                  onBlur={handleBlur('address')}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+              </View>
+              {touched.address && errors.address && (
+                <Text style={styles.errorText}>{errors.address}</Text>
+              )}
           
               <View style={styles.timeContainer} key={`times-${timeUpdateTrigger}`}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.timeButton}
                   onPress={() => setShowOpeningTimePicker(true)}
                 >
-                  <Ionicons name="time-outline" size={20} color={Colors.primary} />
-                  <Text style={styles.timeButtonText}>
-                    <Text style={styles.timeLabel}>Opening: </Text>
-                    <Text style={styles.timeValue}>{formatTime(openingTime)}</Text>
-                  </Text>
+                  <Ionicons name="time-outline" size={18} color={Colors.primary} />
+                  <View style={styles.timeTextContainer}>
+                    <Text style={styles.timeLabel}>Opening</Text>
+                    <Text style={styles.timeValue} numberOfLines={1} ellipsizeMode="tail">{formatTime(openingTime)}</Text>
+                  </View>
                 </TouchableOpacity>
-                
-                <TouchableOpacity 
+
+                <TouchableOpacity
                   style={styles.timeButton}
                   onPress={() => setShowClosingTimePicker(true)}
                 >
-                  <Ionicons name="time-outline" size={20} color={Colors.primary} />
-                  <Text style={styles.timeButtonText}>
-                    <Text style={styles.timeLabel}>Closing: </Text>
-                    <Text style={styles.timeValue}>{formatTime(closingTime)}</Text>
-                  </Text>
+                  <Ionicons name="time-outline" size={18} color={Colors.primary} />
+                  <View style={styles.timeTextContainer}>
+                    <Text style={styles.timeLabel}>Closing</Text>
+                    <Text style={styles.timeValue} numberOfLines={1} ellipsizeMode="tail">{formatTime(closingTime)}</Text>
+                  </View>
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity style={styles.documentPicker} onPress={pickDocument}>
+              <TouchableOpacity style={styles.documentPicker} onPress={() => pickDocument(setDocument1)}>
                 <View style={styles.iconContainer}>
                   <Ionicons name="document-attach-outline" size={20} color="#666" />
                 </View>
                 <Text style={styles.documentText}>
-                  {registrationDocument 
-                    ? registrationDocument.name 
-                    : 'Upload Registration Document'
+                  {document1
+                    ? document1.name
+                    : 'Document 1 *'
+                  }
+                </Text>
+                <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.documentPicker} onPress={() => pickDocument(setDocument2)}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="document-attach-outline" size={20} color="#666" />
+                </View>
+                <Text style={styles.documentText}>
+                  {document2
+                    ? document2.name
+                    : 'Document 2 *'
+                  }
+                </Text>
+                <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.documentPicker} onPress={() => pickDocument(setDocument3)}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="document-attach-outline" size={20} color="#666" />
+                </View>
+                <Text style={styles.documentText}>
+                  {document3
+                    ? document3.name
+                    : 'Document 3 (Optional)'
+                  }
+                </Text>
+                <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.documentPicker} onPress={() => pickDocument(setDocument4)}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="document-attach-outline" size={20} color="#666" />
+                </View>
+                <Text style={styles.documentText}>
+                  {document4
+                    ? document4.name
+                    : 'Document 4 (Optional)'
                   }
                 </Text>
                 <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
@@ -565,7 +661,7 @@ export default function RegisterScreen() {
                 {isSubmitting ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.registerButtonText}>Register</Text>
+                  <Text style={styles.registerButtonText}>Submit for Verification</Text>
                 )}
               </TouchableOpacity>
 
@@ -608,21 +704,57 @@ export default function RegisterScreen() {
                         ...prev,
                         address: addressString.trim(),
                       }));
+                      // Auto-populate the manual address field
+                      if (formikRef.current) {
+                        formikRef.current.setFieldValue('address', addressString.trim());
+                      }
                       setShowMapModal(false);
-                      Alert.alert('Location Set ✅', `Store location pinned at:\n${addressString.trim()}`);
+                      modal.showSuccess(`Store location pinned at:\n${addressString.trim()}`, { title: 'Location Set' });
                     } catch (error) {
                       setShowMapModal(false);
-                      Alert.alert('Location Set ✅', 'Store location has been pinned successfully!');
+                      modal.showSuccess('Store location has been pinned successfully!', { title: 'Location Set' });
                     }
                   } else {
-                    Alert.alert('No Location Selected', 'Please tap on the map to pin your store location');
+                    modal.showWarning('Please tap on the map to pin your store location', { title: 'No Location Selected' });
                   }
                 }}
               >
                 <Text style={styles.modalDoneText}>Done</Text>
               </TouchableOpacity>
             </View>
-            
+
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+              <View style={styles.searchInputContainer}>
+                <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search for a location..."
+                  placeholderTextColor="#999"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  onSubmitEditing={searchLocation}
+                  returnKeyType="search"
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')}>
+                    <Ionicons name="close-circle" size={20} color="#999" />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <TouchableOpacity
+                style={styles.searchButton}
+                onPress={searchLocation}
+                disabled={searchLoading}
+              >
+                {searchLoading ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Text style={styles.searchButtonText}>Search</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
             {mapLoading && (
               <View style={styles.mapLoadingContainer}>
                 <ActivityIndicator size="large" color={Colors.primary} />
@@ -646,6 +778,7 @@ export default function RegisterScreen() {
             )}
 
             <MapView
+              ref={mapRef}
               style={[styles.map, (mapLoading || mapError) && styles.mapHidden]}
               initialRegion={{
                 latitude: storeLocation.latitude || 37.78825,
@@ -736,6 +869,7 @@ export default function RegisterScreen() {
         )}
       </ScrollView>
       </KeyboardAvoidingView>
+      <CustomModal {...modal.modalProps} />
     </SafeAreaView>
   );
 }
@@ -911,23 +1045,28 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.lg,
     gap: Spacing.sm,
+    minHeight: 64,
   },
-  timeButtonText: {
-    fontSize: Typography.fontSizes.sm,
-    color: Colors.textPrimary,
-    fontWeight: Typography.fontWeights.medium,
+  timeTextContainer: {
+    flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'center',
+    flexShrink: 1,
   },
   timeLabel: {
-    fontSize: Typography.fontSizes.sm,
+    fontSize: Typography.fontSizes.xs,
     color: Colors.textSecondary,
     fontWeight: Typography.fontWeights.medium,
+    marginBottom: 4,
+    flexShrink: 1,
   },
   timeValue: {
     fontSize: Typography.fontSizes.sm,
     color: Colors.primary,
     fontWeight: Typography.fontWeights.bold,
+    lineHeight: 18,
   },
   documentPicker: {
     flexDirection: 'row',
@@ -1018,6 +1157,46 @@ const styles = StyleSheet.create({
   },
   modalDoneText: {
     color: Colors.primary,
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.bold,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  searchInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  searchIcon: {
+    marginRight: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+  },
+  searchButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  searchButtonText: {
+    color: Colors.white,
     fontSize: Typography.fontSizes.base,
     fontWeight: Typography.fontWeights.bold,
   },

@@ -4,11 +4,9 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
   TextInput,
   Modal,
 } from 'react-native';
@@ -16,6 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
+import KeyboardAwareScrollView from '../../components/KeyboardAwareScrollView';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 
 interface Category {
   id: string;
@@ -26,6 +27,7 @@ interface Category {
 
 export default function CategoryListScreen() {
   const router = useRouter();
+  const modal = useCustomModal();
   const [categories, setCategories] = useState<Category[]>([
     { id: '1', name: 'Category 2', item_count: 24 },
     { id: '2', name: 'Category 2', item_count: 5 },
@@ -93,7 +95,7 @@ export default function CategoryListScreen() {
 
   const handleAddCategory = async () => {
     if (!newCategoryName.trim()) {
-      Alert.alert('Error', 'Please enter a category name');
+      modal.showError('Please enter a category name');
       return;
     }
 
@@ -111,33 +113,32 @@ export default function CategoryListScreen() {
       setCategories([...categories, newCategory]);
       setShowAddModal(false);
       setNewCategoryName('');
-      Alert.alert('Success', 'Category added successfully');
+      modal.showSuccess('Category added successfully');
     } catch (error) {
       console.error('Error adding category:', error);
-      Alert.alert('Error', 'Failed to add category');
+      modal.showError('Failed to add category');
     }
   };
 
   const handleEditCategory = (category: Category) => {
     // TODO: Navigate to edit screen
-    Alert.alert('Edit Category', `Edit ${category.name}`);
+    modal.showInfo(`Edit ${category.name}`, { title: 'Edit Category' });
   };
 
   const handleDeleteCategory = (category: Category) => {
-    Alert.alert(
-      'Delete Category',
+    modal.showWarning(
       `Are you sure you want to delete "${category.name}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            setCategories(categories.filter(c => c.id !== category.id));
-            Alert.alert('Success', 'Category deleted successfully');
-          },
+      {
+        title: 'Delete Category',
+        primaryButtonText: 'Delete',
+        secondaryButtonText: 'Cancel',
+        onPrimaryPress: () => {
+          modal.hideModal();
+          setCategories(categories.filter(c => c.id !== category.id));
+          modal.showSuccess('Category deleted successfully');
         },
-      ]
+        onSecondaryPress: modal.hideModal
+      }
     );
   };
 
@@ -173,7 +174,7 @@ export default function CategoryListScreen() {
         <Ionicons name="notifications-outline" size={24} color="#fff" />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.scrollView}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -264,7 +265,7 @@ export default function CategoryListScreen() {
         )}
 
         <View style={{ height: 80 }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Floating Add Button */}
       <TouchableOpacity
@@ -323,6 +324,20 @@ export default function CategoryListScreen() {
           </View>
         </View>
       </Modal>
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
+      />
     </SafeAreaView>
   );
 }

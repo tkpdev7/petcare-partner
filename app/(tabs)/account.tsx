@@ -4,11 +4,9 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
-  ScrollView,
   TouchableOpacity,
   TextInput,
   Image,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -17,6 +15,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import AppHeader from '../../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
+import KeyboardAwareScrollView from '../../components/KeyboardAwareScrollView';
 
 interface PartnerData {
   id: string;
@@ -34,6 +35,7 @@ interface PartnerData {
 
 export default function AccountScreen() {
   const router = useRouter();
+  const modal = useCustomModal();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -126,16 +128,16 @@ export default function AccountScreen() {
       if (response.success) {
         // Update local storage
         await AsyncStorage.setItem('partnerData', JSON.stringify(partnerData));
-        Alert.alert('Success', 'Profile updated successfully');
+        modal.showSuccess('Profile updated successfully');
         setIsEditing(false);
         // Reload fresh data
         await loadPartnerData();
       } else {
-        Alert.alert('Error', response.error || 'Failed to update profile');
+        modal.showError(response.error || 'Failed to update profile');
       }
     } catch (error) {
       console.error('Update profile error:', error);
-      Alert.alert('Error', 'Failed to update profile');
+      modal.showError('Failed to update profile');
     } finally {
       setLoading(false);
     }
@@ -147,7 +149,7 @@ export default function AccountScreen() {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please grant access to your photo library to select images.');
+        modal.showWarning('Please grant access to your photo library to select images.', { title: 'Permission Required' });
         return;
       }
 
@@ -188,41 +190,36 @@ export default function AccountScreen() {
               const updatedData = { ...partnerData, profilePhoto: photoUrl };
               await AsyncStorage.setItem('partnerData', JSON.stringify(updatedData));
 
-              Alert.alert('Success', 'Profile photo updated successfully!');
+              modal.showSuccess('Profile photo updated successfully!');
             } else {
-              Alert.alert('Error', updateResponse.error || 'Failed to update profile photo');
+              modal.showError(updateResponse.error || 'Failed to update profile photo');
             }
           } else {
-            Alert.alert('Error', uploadResponse.error || 'Failed to upload image');
+            modal.showError(uploadResponse.error || 'Failed to upload image');
           }
         } catch (uploadError) {
           console.error('Upload error:', uploadError);
-          Alert.alert('Error', 'Failed to upload image');
+          modal.showError('Failed to upload image');
         } finally {
           setUploadingImage(false);
         }
       }
     } catch (error) {
       console.error('Image picker error:', error);
-      Alert.alert('Error', `Failed to pick image: ${error.message || 'Unknown error'}`);
+      modal.showError(`Failed to pick image: ${error.message || 'Unknown error'}`);
     }
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
+    modal.showInfo(
       'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await AsyncStorage.multiRemove(['partnerToken', 'partnerData']);
-            router.replace('/auth/login');
-          },
-        },
-      ]
+      {
+        title: 'Logout',
+        onClose: async () => {
+          await AsyncStorage.multiRemove(['partnerToken', 'partnerData']);
+          router.replace('/auth/login');
+        }
+      }
     );
   };
 
@@ -259,7 +256,7 @@ export default function AccountScreen() {
         }
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.profileSection}>
           <TouchableOpacity
             style={styles.profileImageContainer}
@@ -415,7 +412,8 @@ export default function AccountScreen() {
             <Text style={styles.logoutButtonText}>Logout</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
+      <CustomModal {...modal.modalProps} />
     </SafeAreaView>
   );
 }

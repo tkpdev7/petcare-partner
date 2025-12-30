@@ -6,12 +6,13 @@ import {
   SafeAreaView,
   FlatList,
   TouchableOpacity,
-  Alert,
   TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 
 interface Category {
   id: string;
@@ -23,6 +24,7 @@ interface Category {
 }
 
 export default function CategoriesScreen() {
+  const modal = useCustomModal();
   const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,20 +104,17 @@ export default function CategoriesScreen() {
   };
 
   const deleteCategory = (categoryId: string) => {
-    Alert.alert(
-      'Delete Category',
-      'Are you sure you want to delete this category? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            setCategories(prev => prev.filter(category => category.id !== categoryId));
-          },
-        },
-      ]
-    );
+    modal.showWarning('Are you sure you want to delete this category? This action cannot be undone.', {
+      title: 'Delete Category',
+      primaryButtonText: 'Delete',
+      secondaryButtonText: 'Cancel',
+      hideSecondaryButton: false,
+      onPrimaryPress: () => {
+        setCategories(prev => prev.filter(category => category.id !== categoryId));
+        modal.hideModal();
+      },
+      onSecondaryPress: () => modal.hideModal()
+    });
   };
 
   const renderCategoryCard = ({ item }: { item: Category }) => (
@@ -222,6 +221,20 @@ export default function CategoriesScreen() {
           />
         )}
       </View>
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
+      />
     </SafeAreaView>
   );
 }

@@ -4,11 +4,9 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +15,9 @@ import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
+import KeyboardAwareScrollView from '../../components/KeyboardAwareScrollView';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 
 interface Service {
   id: string;
@@ -32,6 +33,7 @@ interface Service {
 }
 
 export default function ServicesManagementScreen() {
+  const modal = useCustomModal();
   const router = useRouter();
   const [services, setServices] = useState<Service[]>([]);
   const [filteredServices, setFilteredServices] = useState<Service[]>([]);
@@ -115,7 +117,7 @@ export default function ServicesManagementScreen() {
       }
     } catch (error) {
       console.error('❌ Error fetching services:', error);
-      Alert.alert('Error', 'Failed to load services');
+      modal.showError('Failed to load services');
       setServices([]);
     } finally {
       setLoading(false);
@@ -162,29 +164,28 @@ export default function ServicesManagementScreen() {
   };
 
   const handleDeleteService = (service: Service) => {
-    Alert.alert(
-      'Delete Service',
+    modal.showWarning(
       `Are you sure you want to delete "${service.name}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const response = await apiService.deleteService(service.id);
-              if (response.success) {
-                Alert.alert('Success', 'Service deleted successfully');
-                fetchServices();
-              } else {
-                Alert.alert('Error', response.message || 'Failed to delete service');
-              }
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to delete service');
+      {
+        title: 'Delete Service',
+        primaryButtonText: 'Delete',
+        secondaryButtonText: 'Cancel',
+        onPrimaryPress: async () => {
+          modal.hideModal();
+          try {
+            const response = await apiService.deleteService(service.id);
+            if (response.success) {
+              modal.showSuccess('Service deleted successfully');
+              fetchServices();
+            } else {
+              modal.showError(response.message || 'Failed to delete service');
             }
-          },
+          } catch (error: any) {
+            modal.showError(error.message || 'Failed to delete service');
+          }
         },
-      ]
+        onSecondaryPress: modal.hideModal
+      }
     );
   };
 
@@ -225,7 +226,7 @@ export default function ServicesManagementScreen() {
         <Ionicons name="notifications-outline" size={24} color="#fff" />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.scrollView}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -349,7 +350,7 @@ export default function ServicesManagementScreen() {
         )}
 
         <View style={{ height: 80 }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Floating Add Button */}
       <TouchableOpacity
@@ -359,6 +360,20 @@ export default function ServicesManagementScreen() {
       >
         <Ionicons name="add" size={32} color="#FFFFFF" />
       </TouchableOpacity>
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
+      />
     </SafeAreaView>
   );
 }

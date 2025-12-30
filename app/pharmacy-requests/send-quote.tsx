@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +15,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from '../../services/apiService';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 
 interface MedicineQuote {
   name: string;
@@ -28,6 +29,7 @@ interface MedicineQuote {
 export default function SendQuoteScreen() {
   const router = useRouter();
   const { requestId, requestTitle } = useLocalSearchParams();
+  const modal = useCustomModal();
 
   const [partnerId, setPartnerId] = useState<string>('');
   const [medicineQuotes, setMedicineQuotes] = useState<MedicineQuote[]>([
@@ -47,12 +49,12 @@ export default function SendQuoteScreen() {
         const partnerData = JSON.parse(partnerDataStr);
         setPartnerId(partnerData.id);
       } else {
-        Alert.alert('Error', 'Partner information not found');
+        modal.showError('Partner information not found');
         router.back();
       }
     } catch (error) {
       console.error('Error loading partner data:', error);
-      Alert.alert('Error', 'Failed to load partner information');
+      modal.showError('Failed to load partner information');
       router.back();
     }
   };
@@ -72,7 +74,7 @@ export default function SendQuoteScreen() {
 
   const removeMedicine = (index: number) => {
     if (medicineQuotes.length === 1) {
-      Alert.alert('Error', 'You must have at least one medicine in the quote');
+      modal.showError('You must have at least one medicine in the quote');
       return;
     }
     const updated = medicineQuotes.filter((_, i) => i !== index);
@@ -92,7 +94,7 @@ export default function SendQuoteScreen() {
     // Check if all medicines have names
     const hasEmptyName = medicineQuotes.some(quote => !quote.name.trim());
     if (hasEmptyName) {
-      Alert.alert('Validation Error', 'Please enter medicine names for all items');
+      modal.showError('Please enter medicine names for all items', { title: 'Validation Error' });
       return false;
     }
 
@@ -102,7 +104,7 @@ export default function SendQuoteScreen() {
     );
 
     if (!hasAvailableMedicine) {
-      Alert.alert('Validation Error', 'Please provide price for at least one available medicine');
+      modal.showError('Please provide price for at least one available medicine', { title: 'Validation Error' });
       return false;
     }
 
@@ -154,25 +156,29 @@ export default function SendQuoteScreen() {
           }
         });
       } else {
-        Alert.alert('Error', response.error || 'Failed to submit quote');
+        modal.showError(response.error || 'Failed to submit quote');
       }
     } catch (error) {
       console.error('Error submitting quote:', error);
-      Alert.alert('Error', 'Failed to submit quote. Please try again.');
+      modal.showError('Failed to submit quote. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleCancel = () => {
-    Alert.alert(
-      'Cancel Quote',
-      'Are you sure you want to cancel? All entered information will be lost.',
-      [
-        { text: 'No', style: 'cancel' },
-        { text: 'Yes', onPress: () => router.back() },
-      ]
-    );
+    modal.showWarning('Are you sure you want to cancel? All entered information will be lost.', {
+      title: 'Cancel Quote',
+      primaryButtonText: 'Yes',
+      secondaryButtonText: 'No',
+      onPrimaryPress: () => {
+        modal.hideModal();
+        router.back();
+      },
+      onSecondaryPress: () => {
+        modal.hideModal();
+      }
+    });
   };
 
   const totalAmount = calculateTotalAmount();
@@ -386,6 +392,20 @@ export default function SendQuoteScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
+      />
     </SafeAreaView>
   );
 }

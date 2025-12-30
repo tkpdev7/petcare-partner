@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -17,6 +16,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from '../../services/apiService';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 
 interface Medicine {
   name: string;
@@ -69,6 +70,7 @@ const urgencyLabels = {
 export default function SendQuoteScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const modal = useCustomModal();
 
   const [requestDetails, setRequestDetails] = useState<RequestDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,12 +93,12 @@ export default function SendQuoteScreen() {
         const partnerData = JSON.parse(partnerDataStr);
         setPartnerId(partnerData.id);
       } else {
-        Alert.alert('Error', 'Partner information not found');
+        modal.showError('Partner information not found');
         router.back();
       }
     } catch (error) {
       console.error('Error loading partner data:', error);
-      Alert.alert('Error', 'Failed to load partner information');
+      modal.showError('Failed to load partner information');
       router.back();
     }
   };
@@ -136,12 +138,12 @@ export default function SendQuoteScreen() {
 
         setRequestDetails(requestData);
       } else {
-        Alert.alert('Error', response.error || 'Failed to load request details');
+        modal.showError(response.error || 'Failed to load request details');
         router.back();
       }
     } catch (error) {
       console.error('Error loading request details:', error);
-      Alert.alert('Error', 'Failed to load request details');
+      modal.showError('Failed to load request details');
       router.back();
     } finally {
       setLoading(false);
@@ -152,7 +154,7 @@ export default function SendQuoteScreen() {
     if (requestDetails?.user_phone) {
       Linking.openURL(`tel:${requestDetails.user_phone}`);
     } else {
-      Alert.alert('Error', 'Phone number not available');
+      modal.showError('Phone number not available');
     }
   };
 
@@ -163,14 +165,14 @@ export default function SendQuoteScreen() {
         if (canOpen) {
           await Linking.openURL(requestDetails.prescription_file_url);
         } else {
-          Alert.alert('Error', 'Cannot open prescription file');
+          modal.showError('Cannot open prescription file');
         }
       } catch (error) {
         console.error('Error opening prescription:', error);
-        Alert.alert('Error', 'Failed to open prescription file');
+        modal.showError('Failed to open prescription file');
       }
     } else {
-      Alert.alert('Info', 'No prescription attached');
+      modal.showError('No prescription attached', { title: 'Info' });
     }
   };
 
@@ -189,7 +191,7 @@ export default function SendQuoteScreen() {
 
   const removeMedicine = (index: number) => {
     if (medicineQuotes.length === 1) {
-      Alert.alert('Error', 'You must have at least one medicine in the quote');
+      modal.showError('You must have at least one medicine in the quote');
       return;
     }
     const updated = medicineQuotes.filter((_, i) => i !== index);
@@ -209,7 +211,7 @@ export default function SendQuoteScreen() {
     // Check if all medicines have names
     const hasEmptyName = medicineQuotes.some(quote => !quote.name.trim());
     if (hasEmptyName) {
-      Alert.alert('Validation Error', 'Please enter medicine names for all items');
+      modal.showError('Please enter medicine names for all items', { title: 'Validation Error' });
       return false;
     }
 
@@ -219,7 +221,7 @@ export default function SendQuoteScreen() {
     );
 
     if (!hasAvailableMedicine) {
-      Alert.alert('Validation Error', 'Please provide price for at least one available medicine');
+      modal.showError('Please provide price for at least one available medicine', { title: 'Validation Error' });
       return false;
     }
 
@@ -263,22 +265,18 @@ export default function SendQuoteScreen() {
       const response = await apiService.makeRequest('POST', '/quote', quoteData);
 
       if (response.success) {
-        Alert.alert(
-          'Success',
-          'Quote submitted successfully! The customer will be notified.',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.push('/pharmacy-requests'),
-            },
-          ]
-        );
+        modal.showSuccess('Quote submitted successfully! The customer will be notified.', {
+          onPrimaryPress: () => {
+            modal.hideModal();
+            router.push('/pharmacy-requests');
+          }
+        });
       } else {
-        Alert.alert('Error', response.error || 'Failed to submit quote');
+        modal.showError(response.error || 'Failed to submit quote');
       }
     } catch (error) {
       console.error('Error submitting quote:', error);
-      Alert.alert('Error', 'Failed to submit quote. Please try again.');
+      modal.showError('Failed to submit quote. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -625,6 +623,20 @@ export default function SendQuoteScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
+      />
     </SafeAreaView>
   );
 }

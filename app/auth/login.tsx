@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -16,6 +15,9 @@ import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
+import KeyboardAwareScrollView from '../../components/KeyboardAwareScrollView';
 
 // Validation schema
 const loginValidationSchema = Yup.object().shape({
@@ -29,19 +31,20 @@ const loginValidationSchema = Yup.object().shape({
 
 export default function LoginScreen() {
   const router = useRouter();
+  const modal = useCustomModal();
   const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (values: { email: string; password: string }, { setSubmitting }: any) => {
     try {
       const response = await apiService.login(values.email, values.password);
-      
+
       if (!response.success) {
-        Alert.alert('Login Failed', response.error || 'Invalid credentials');
+        modal.showError(response.error || 'Invalid credentials', { title: 'Login Failed' });
         return;
       }
 
       const { token, partner } = response.data.data;
-      
+
       if (token && typeof token === 'string') {
         await AsyncStorage.setItem('partnerToken', token);
         if (partner) {
@@ -50,11 +53,11 @@ export default function LoginScreen() {
       } else {
         throw new Error('No valid token received from server');
       }
-      
+
       router.replace('/(tabs)');
     } catch (error) {
       console.error('Login error:', error);
-      Alert.alert('Error', 'Login failed. Please try again.');
+      modal.showError('Login failed. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -62,7 +65,8 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <KeyboardAwareScrollView>
+        <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <Ionicons name="medical" size={40} color={Colors.white} />
@@ -142,7 +146,9 @@ export default function LoginScreen() {
             </View>
           )}
         </Formik>
-      </View>
+        </View>
+      </KeyboardAwareScrollView>
+      <CustomModal {...modal.modalProps} />
     </SafeAreaView>
   );
 }

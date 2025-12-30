@@ -7,13 +7,14 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   RefreshControl,
   TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import apiService from '../../services/apiService';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 
 interface MedicineRequest {
   id: string;
@@ -51,6 +52,7 @@ const urgencyLabels = {
 
 export default function MyRequestsScreen() {
   const router = useRouter();
+  const modal = useCustomModal();
   const [requests, setRequests] = useState<MedicineRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -72,11 +74,11 @@ export default function MyRequestsScreen() {
         const requestsData = response.data.requests || [];
         setRequests(requestsData);
       } else {
-        Alert.alert('Error', response.error || 'Failed to load requests');
+        modal.showError(response.error || 'Failed to load requests');
       }
     } catch (error) {
       console.error('Error loading requests:', error);
-      Alert.alert('Error', 'Failed to load requests');
+      modal.showError('Failed to load requests');
     } finally {
       setLoading(false);
     }
@@ -293,6 +295,20 @@ export default function MyRequestsScreen() {
           />
         }
         ListEmptyComponent={renderEmptyState}
+      />
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
       />
     </SafeAreaView>
   );

@@ -7,12 +7,13 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   RefreshControl,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AppHeader from '../../components/AppHeader';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
 
@@ -30,6 +31,7 @@ interface Slot {
 
 export default function MySlotsScreen() {
   const router = useRouter();
+  const modal = useCustomModal();
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -81,7 +83,7 @@ export default function MySlotsScreen() {
       }
     } catch (error) {
       console.error('Load slots error:', error);
-      Alert.alert('Error', 'Failed to load slots');
+      modal.showError('Failed to load slots');
       setSlots([]);
     } finally {
       setLoading(false);
@@ -119,15 +121,14 @@ export default function MySlotsScreen() {
   };
 
   const handleDeleteSlot = async (date: string, dateSlots: Slot[]) => {
-    Alert.alert(
-      'Delete Slots',
+    modal.showWarning(
       `Are you sure you want to delete all ${dateSlots.length} slot(s) for ${formatDate(date)}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
+      {
+        title: 'Delete Slots',
+        primaryButtonText: 'Delete',
+        secondaryButtonText: 'Cancel',
+        onPrimaryPress: async () => {
+          modal.hideModal();
             try {
               let deletedCount = 0;
               let notFoundCount = 0;
@@ -156,22 +157,24 @@ export default function MySlotsScreen() {
 
               if (failedCount === 0) {
                 if (notFoundCount > 0) {
-                  Alert.alert('Success', `${deletedCount} slot(s) deleted. ${notFoundCount} were already removed.`);
+                  modal.showSuccess(`${deletedCount} slot(s) deleted. ${notFoundCount} were already removed.`);
                 } else {
-                  Alert.alert('Success', `All ${deletedCount} slot(s) deleted successfully`);
+                  modal.showSuccess(`All ${deletedCount} slot(s) deleted successfully`);
                 }
               } else {
-                Alert.alert('Partial Success', `${deletedCount} deleted, ${notFoundCount} already removed, ${failedCount} failed`);
+                modal.showWarning(`${deletedCount} deleted, ${notFoundCount} already removed, ${failedCount} failed`, {
+                  title: 'Partial Success'
+                });
               }
 
               loadSlots();
             } catch (error) {
               console.error('Delete slots error:', error);
-              Alert.alert('Error', 'Failed to delete slots');
+              modal.showError('Failed to delete slots');
             }
           },
-        },
-      ]
+        onSecondaryPress: modal.hideModal
+      }
     );
   };
 
@@ -346,6 +349,20 @@ export default function MySlotsScreen() {
           </TouchableOpacity>
         </>
       )}
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
+      />
     </SafeAreaView>
   );
 }

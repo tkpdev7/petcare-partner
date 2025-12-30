@@ -7,7 +7,6 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
-  Alert,
   TextInput,
   ScrollView,
   ActivityIndicator,
@@ -19,6 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppHeader from '../../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 
 interface Product {
   id: string;
@@ -44,6 +45,7 @@ interface Service {
 }
 
 export default function ProductsScreen() {
+  const modal = useCustomModal();
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -158,20 +160,17 @@ export default function ProductsScreen() {
   };
 
   const deleteProduct = (productId: string) => {
-    Alert.alert(
-      'Delete Product',
-      'Are you sure you want to delete this product?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            setProducts(prev => prev.filter(product => product.id !== productId));
-          },
-        },
-      ]
-    );
+    modal.showWarning('Are you sure you want to delete this product?', {
+      title: 'Delete Product',
+      primaryButtonText: 'Delete',
+      secondaryButtonText: 'Cancel',
+      hideSecondaryButton: false,
+      onPrimaryPress: () => {
+        setProducts(prev => prev.filter(product => product.id !== productId));
+        modal.hideModal();
+      },
+      onSecondaryPress: () => modal.hideModal()
+    });
   };
 
   const renderProductCard = ({ item }: { item: Product }) => (
@@ -347,6 +346,20 @@ export default function ProductsScreen() {
           />
         )}
       </View>
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
+      />
     </SafeAreaView>
   );
 }

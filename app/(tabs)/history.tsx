@@ -10,7 +10,6 @@ import {
   TextInput,
   ActivityIndicator,
   Modal,
-  Alert,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
@@ -23,6 +22,8 @@ import * as ImagePicker from 'expo-image-picker';
 import AppHeader from '../../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 
 interface HistoryItem {
   id: string;
@@ -45,6 +46,7 @@ interface HistoryItem {
 }
 
 export default function HistoryScreen() {
+  const modal = useCustomModal();
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [partnerData, setPartnerData] = useState<any>(null);
@@ -291,21 +293,19 @@ export default function HistoryScreen() {
         setAvailableSlots(slotsArray);
 
         if (slotsArray.length === 0) {
-          Alert.alert(
-            'No Slots Available',
-            response.message || 'No time slots are available for the selected date. Please choose a different date or check your slot settings.',
-            [{ text: 'OK' }]
-          );
+          modal.showWarning(response.message || 'No time slots are available for the selected date. Please choose a different date or check your slot settings.', {
+            title: 'No Slots Available'
+          });
         }
       } else {
         console.error('Slots API Error:', response);
         setAvailableSlots([]);
-        Alert.alert('Error', response.message || 'Failed to load available time slots');
+        modal.showError(response.message || 'Failed to load available time slots');
       }
     } catch (error) {
       console.error('Error loading slots:', error);
       setAvailableSlots([]);
-      Alert.alert('Error', 'Failed to load available time slots. Please try again.');
+      modal.showError('Failed to load available time slots. Please try again.');
     } finally {
       setLoadingSlots(false);
     }
@@ -313,72 +313,27 @@ export default function HistoryScreen() {
 
   const pickPrescriptionFile = async () => {
     try {
-      Alert.alert(
-        'Choose Upload Method',
-        'Would you like to upload a photo or a document?',
-        [
-          {
-            text: 'Take Photo',
-            onPress: async () => {
-              const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-              if (!permissionResult.granted) {
-                Alert.alert('Permission Required', 'Camera permission is required to take photos');
-                return;
-              }
+      // For now, directly open gallery picker - we can enhance this with a custom modal later if needed
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        modal.showError('Gallery permission is required to select photos', {
+          title: 'Permission Required'
+        });
+        return;
+      }
 
-              const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                quality: 0.8,
-              });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
 
-              if (!result.canceled && result.assets[0]) {
-                setPrescriptionFile(result.assets[0]);
-              }
-            },
-          },
-          {
-            text: 'Choose from Gallery',
-            onPress: async () => {
-              const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-              if (!permissionResult.granted) {
-                Alert.alert('Permission Required', 'Gallery permission is required to select photos');
-                return;
-              }
-
-              const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                quality: 0.8,
-              });
-
-              if (!result.canceled && result.assets[0]) {
-                setPrescriptionFile(result.assets[0]);
-              }
-            },
-          },
-          {
-            text: 'Upload Document (PDF)',
-            onPress: async () => {
-              const result = await DocumentPicker.getDocumentAsync({
-                type: ['application/pdf', 'image/*'],
-                copyToCacheDirectory: true,
-              });
-
-              if (!result.canceled && result.assets[0]) {
-                setPrescriptionFile(result.assets[0]);
-              }
-            },
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-        ]
-      );
+      if (!result.canceled && result.assets[0]) {
+        setPrescriptionFile(result.assets[0]);
+      }
     } catch (error) {
       console.error('Error picking prescription file:', error);
-      Alert.alert('Error', 'Failed to select file. Please try again.');
+      modal.showError('Failed to select file. Please try again.');
     }
   };
 
@@ -387,7 +342,7 @@ export default function HistoryScreen() {
 
     // Validate OTP for appointments
     if (!showOrders && !otpCode.trim()) {
-      Alert.alert('Error', 'Please enter the OTP code provided by the customer');
+      modal.showError('Please enter the OTP code provided by the customer');
       return;
     }
 
@@ -421,13 +376,13 @@ export default function HistoryScreen() {
               console.log('✅ Prescription uploaded:', prescriptionFileUrl);
             } else {
               setUploadingPrescription(false);
-              Alert.alert('Error', 'Failed to upload prescription. Please try again.');
+              modal.showError('Failed to upload prescription. Please try again.');
               return;
             }
           } catch (error) {
             setUploadingPrescription(false);
             console.error('Prescription upload error:', error);
-            Alert.alert('Error', 'Failed to upload prescription. Please try again.');
+            modal.showError('Failed to upload prescription. Please try again.');
             return;
           } finally {
             setUploadingPrescription(false);
@@ -489,8 +444,7 @@ export default function HistoryScreen() {
         // Refresh the appointments list to show new follow-up appointment
         await loadHistory();
 
-        Alert.alert(
-          'Success',
+        modal.showSuccess(
           isFollowUpSelected
             ? `${showOrders ? 'Order' : 'Appointment'} completed and follow-up appointment scheduled successfully!`
             : `${showOrders ? 'Order' : 'Appointment'} marked as ${showOrders ? 'delivered' : 'completed'} successfully!`
@@ -501,33 +455,24 @@ export default function HistoryScreen() {
 
         // Special handling for OTP errors
         if (errorMessage.toLowerCase().includes('invalid otp')) {
-          Alert.alert(
-            'Invalid OTP',
-            'The OTP you entered does not match. Please verify the 4-digit code shown on the customer\'s app and try again.',
-            [
-              { text: 'OK', onPress: () => setOtpCode('') } // Clear OTP field on dismiss
-            ]
-          );
+          modal.showError('The OTP you entered does not match. Please verify the 4-digit code shown on the customer\'s app and try again.', {
+            title: 'Invalid OTP',
+            onClose: () => setOtpCode('')
+          });
         } else if (errorMessage.toLowerCase().includes('otp expired')) {
-          Alert.alert(
-            'OTP Expired',
-            'The OTP has expired. The appointment time has passed. Please contact support if you need to complete this appointment.',
-            [{ text: 'OK' }]
-          );
+          modal.showError('The OTP has expired. The appointment time has passed. Please contact support if you need to complete this appointment.', {
+            title: 'OTP Expired'
+          });
         } else if (errorMessage.toLowerCase().includes('otp not generated')) {
-          Alert.alert(
-            'OTP Not Available',
-            'No OTP has been generated for this appointment. Please ask the customer to generate an OTP from their app.',
-            [{ text: 'OK' }]
-          );
+          modal.showError('No OTP has been generated for this appointment. Please ask the customer to generate an OTP from their app.', {
+            title: 'OTP Not Available'
+          });
         } else if (errorMessage.toLowerCase().includes('slot') && errorMessage.toLowerCase().includes('not available')) {
-          Alert.alert(
-            'Time Slot Unavailable',
-            'The selected follow-up time slot is no longer available. Please choose a different time.',
-            [{ text: 'OK' }]
-          );
+          modal.showError('The selected follow-up time slot is no longer available. Please choose a different time.', {
+            title: 'Time Slot Unavailable'
+          });
         } else {
-          Alert.alert('Error', errorMessage);
+          modal.showError(errorMessage);
         }
       }
     } catch (error: any) {
@@ -538,40 +483,31 @@ export default function HistoryScreen() {
 
       // Special handling for OTP errors
       if (errorMessage.toLowerCase().includes('invalid otp')) {
-        Alert.alert(
-          'Invalid OTP',
-          'The OTP you entered does not match. Please verify the 4-digit code shown on the customer\'s app and try again.',
-          [
-            { text: 'OK', onPress: () => setOtpCode('') } // Clear OTP field on dismiss
-          ]
-        );
+        modal.showError('The OTP you entered does not match. Please verify the 4-digit code shown on the customer\'s app and try again.', {
+          title: 'Invalid OTP',
+          onClose: () => setOtpCode('')
+        });
       } else if (errorMessage.toLowerCase().includes('otp expired')) {
-        Alert.alert(
-          'OTP Expired',
-          'The OTP has expired. The appointment time has passed. Please contact support if you need to complete this appointment.',
-          [{ text: 'OK' }]
-        );
+        modal.showError('The OTP has expired. The appointment time has passed. Please contact support if you need to complete this appointment.', {
+          title: 'OTP Expired'
+        });
       } else if (errorMessage.toLowerCase().includes('otp already verified')) {
-        Alert.alert(
-          'Already Verified',
-          'This appointment has already been verified and completed.',
-          [{ text: 'OK' }]
-        );
+        modal.showError('This appointment has already been verified and completed.', {
+          title: 'Already Verified'
+        });
       } else if (errorMessage.toLowerCase().includes('otp not generated')) {
-        Alert.alert(
-          'OTP Not Available',
-          'No OTP has been generated for this appointment. Please ask the customer to generate an OTP from their app.',
-          [{ text: 'OK' }]
-        );
+        modal.showError('No OTP has been generated for this appointment. Please ask the customer to generate an OTP from their app.', {
+          title: 'OTP Not Available'
+        });
       } else {
-        Alert.alert('Error', errorMessage);
+        modal.showError(errorMessage);
       }
     }
   };
 
   const cancelAppointment = async () => {
     if (!appointmentToCancel || !cancelReason.trim()) {
-      Alert.alert('Error', 'Please provide a cancellation reason');
+      modal.showError('Please provide a cancellation reason');
       return;
     }
 
@@ -595,13 +531,13 @@ export default function HistoryScreen() {
         setAppointmentToCancel(null);
         setCancelReason('');
 
-        Alert.alert('Success', 'Appointment cancelled successfully!');
+        modal.showSuccess('Appointment cancelled successfully!');
       } else {
-        Alert.alert('Error', response.message || 'Failed to cancel appointment');
+        modal.showError(response.message || 'Failed to cancel appointment');
       }
     } catch (error) {
       console.error('Error cancelling appointment:', error);
-      Alert.alert('Error', 'An error occurred while cancelling the appointment');
+      modal.showError('An error occurred while cancelling the appointment');
     }
   };
 
@@ -1369,6 +1305,20 @@ export default function HistoryScreen() {
           </View>
         </View>
       </Modal>
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
+      />
     </SafeAreaView>
   );
 }

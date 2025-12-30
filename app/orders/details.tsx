@@ -6,11 +6,12 @@ import {
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import CustomModal from '../../components/CustomModal';
+import { useCustomModal } from '../../hooks/useCustomModal';
 
 interface OrderDetails {
   id: string;
@@ -39,6 +40,7 @@ const statusOptions = [
 
 export default function OrderDetailsScreen() {
   const router = useRouter();
+  const modal = useCustomModal();
   const { id } = useLocalSearchParams();
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,7 +76,7 @@ export default function OrderDetailsScreen() {
       setOrderDetails(mockOrder);
     } catch (error) {
       console.error('Error loading order details:', error);
-      Alert.alert('Error', 'Failed to load order details');
+      modal.showError('Failed to load order details');
     } finally {
       setLoading(false);
     }
@@ -94,11 +96,11 @@ export default function OrderDetailsScreen() {
       
       // Mock update
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       setOrderDetails(prev => prev ? { ...prev, status: newStatus } : null);
-      Alert.alert('Success', 'Order status updated successfully');
+      modal.showSuccess('Order status updated successfully');
     } catch (error) {
-      Alert.alert('Error', 'Failed to update order status');
+      modal.showError('Failed to update order status');
     } finally {
       setUpdating(false);
     }
@@ -106,25 +108,30 @@ export default function OrderDetailsScreen() {
 
   const handleStatusUpdate = (newStatus: OrderDetails['status']) => {
     const statusLabel = statusOptions.find(s => s.value === newStatus)?.label;
-    
-    Alert.alert(
-      'Update Status',
+
+    modal.showWarning(
       `Are you sure you want to update the status to "${statusLabel}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Update', onPress: () => updateOrderStatus(newStatus) },
-      ]
+      {
+        title: 'Update Status',
+        primaryButtonText: 'Update',
+        secondaryButtonText: 'Cancel',
+        onPrimaryPress: () => {
+          modal.hideModal();
+          updateOrderStatus(newStatus);
+        },
+        onSecondaryPress: modal.hideModal
+      }
     );
   };
 
   const handleCall = () => {
     // TODO: Implement call functionality
-    Alert.alert('Call Customer', 'Calling feature will be implemented here');
+    modal.showInfo('Calling feature will be implemented here', { title: 'Call Customer' });
   };
 
   const handleMessage = () => {
     // TODO: Implement message functionality
-    Alert.alert('Message Customer', 'Messaging feature will be implemented here');
+    modal.showInfo('Messaging feature will be implemented here', { title: 'Message Customer' });
   };
 
   if (loading) {
@@ -283,6 +290,20 @@ export default function OrderDetailsScreen() {
           </View>
         )}
       </ScrollView>
+
+      <CustomModal
+        visible={modal.visible}
+        type={modal.config.type}
+        title={modal.config.title}
+        message={modal.config.message}
+        primaryButtonText={modal.config.primaryButtonText}
+        secondaryButtonText={modal.config.secondaryButtonText}
+        onPrimaryPress={modal.config.onPrimaryPress}
+        onSecondaryPress={modal.config.onSecondaryPress}
+        hidePrimaryButton={modal.config.hidePrimaryButton}
+        hideSecondaryButton={modal.config.hideSecondaryButton}
+        onClose={modal.hideModal}
+      />
     </SafeAreaView>
   );
 }
