@@ -70,6 +70,20 @@ export const useCustomModal = () => {
     });
   }, [showModal]);
 
+  const modalProps = {
+    visible,
+    type: config.type,
+    title: config.title,
+    message: config.message,
+    primaryButtonText: config.primaryButtonText,
+    secondaryButtonText: config.secondaryButtonText,
+    onPrimaryPress: config.onPrimaryPress,
+    onSecondaryPress: config.onSecondaryPress,
+    onClose: hideModal,
+    hidePrimaryButton: config.hidePrimaryButton,
+    hideSecondaryButton: config.hideSecondaryButton,
+  };
+
   return {
     visible,
     config,
@@ -80,5 +94,6 @@ export const useCustomModal = () => {
     showWarning,
     showInfo,
     showLoading,
+    modalProps,
   };
 };

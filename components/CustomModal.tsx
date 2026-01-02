@@ -109,45 +109,64 @@ const CustomModal: React.FC<CustomModalProps> = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.content}>
-          {/* Icon or Loading Spinner */}
-          {type === 'loading' ? (
-            <View style={styles.iconContainer}>
-              <ActivityIndicator size="large" color="#ED6D4E" />
-            </View>
-          ) : iconConfig ? (
-            <View style={styles.iconContainer}>
-              <Ionicons name={iconConfig.name as any} size={80} color={iconConfig.color} />
-            </View>
-          ) : null}
+      <TouchableOpacity
+        style={styles.overlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={(e) => e.stopPropagation()}
+        >
+          <View style={styles.content}>
+            {/* Close Button (X icon) */}
+            {type !== 'loading' && onClose && (
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={onClose}
+              >
+                <Ionicons name="close" size={24} color="#999" />
+              </TouchableOpacity>
+            )}
 
-          {/* Title */}
-          <Text style={styles.title}>{getDefaultTitle()}</Text>
+            {/* Icon or Loading Spinner */}
+            {type === 'loading' ? (
+              <View style={styles.iconContainer}>
+                <ActivityIndicator size="large" color="#ED6D4E" />
+              </View>
+            ) : iconConfig ? (
+              <View style={styles.iconContainer}>
+                <Ionicons name={iconConfig.name as any} size={80} color={iconConfig.color} />
+              </View>
+            ) : null}
 
-          {/* Message */}
-          <Text style={styles.message}>{message}</Text>
+            {/* Title */}
+            <Text style={styles.title}>{getDefaultTitle()}</Text>
 
-          {/* Buttons */}
-          {!hidePrimaryButton && type !== 'loading' && (
-            <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: getPrimaryButtonColor() }]}
-              onPress={handlePrimaryPress}
-            >
-              <Text style={styles.primaryButtonText}>{primaryButtonText}</Text>
-            </TouchableOpacity>
-          )}
+            {/* Message */}
+            <Text style={styles.message}>{message}</Text>
 
-          {!hideSecondaryButton && type !== 'loading' && (
-            <TouchableOpacity
-              style={styles.secondaryButton}
-              onPress={handleSecondaryPress}
-            >
-              <Text style={styles.secondaryButtonText}>{secondaryButtonText}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
+            {/* Buttons */}
+            {!hidePrimaryButton && type !== 'loading' && (
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: getPrimaryButtonColor() }]}
+                onPress={handlePrimaryPress}
+              >
+                <Text style={styles.primaryButtonText}>{primaryButtonText}</Text>
+              </TouchableOpacity>
+            )}
+
+            {!hideSecondaryButton && type !== 'loading' && (
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={handleSecondaryPress}
+              >
+                <Text style={styles.secondaryButtonText}>{secondaryButtonText}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
     </Modal>
   );
 };
@@ -172,6 +191,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 10,
+    padding: 5,
   },
   iconContainer: {
     marginBottom: 20,
