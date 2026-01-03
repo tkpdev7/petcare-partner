@@ -73,9 +73,18 @@ export default function HistoryScreen() {
   const [showSlotPicker, setShowSlotPicker] = useState(false);
 
   // Prescription and clinical notes states (for vet appointments)
-  const [prescriptionFile, setPrescriptionFile] = useState<any>(null);
   const [clinicalNotes, setClinicalNotes] = useState('');
-  const [uploadingPrescription, setUploadingPrescription] = useState(false);
+  const [prescriptions, setPrescriptions] = useState<Array<{
+    drug_name: string;
+    dosage: string;
+    frequency: string;
+    duration: string;
+  }>>([{ drug_name: '', dosage: '', frequency: '', duration: '' }]);
+  const [showFrequencyPicker, setShowFrequencyPicker] = useState<number | null>(null);
+  const [showDurationPicker, setShowDurationPicker] = useState<number | null>(null);
+
+  const frequencyOptions = ['Once daily', 'Twice daily', 'Three times daily', 'Four times daily', 'As needed', 'Every 6 hours', 'Every 8 hours', 'Every 12 hours'];
+  const durationOptions = ['1 day', '3 days', '5 days', '7 days', '10 days', '14 days', '21 days', '30 days', 'Until finished'];
 
   // Determine if this partner type should show orders (pharmacy & essentials) or appointments (vet & grooming)
   const showOrders = partnerData?.serviceType === 'pharmacy' || partnerData?.serviceType === 'essentials';
@@ -258,6 +267,8 @@ export default function HistoryScreen() {
     setTreatmentSummary('');
     setOtpCode('');
     setIsFollowUpSelected(false);
+    setPrescriptions([{ drug_name: '', dosage: '', frequency: '', duration: '' }]);
+    setClinicalNotes('');
     setFollowUpDate('');
     setFollowUpTime('');
     setAvailableSlots([]);
@@ -332,31 +343,6 @@ export default function HistoryScreen() {
     }
   };
 
-  const pickPrescriptionFile = async () => {
-    try {
-      // For now, directly open gallery picker - we can enhance this with a custom modal later if needed
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {
-        modal.showError('Gallery permission is required to select photos', {
-          title: 'Permission Required'
-        });
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        setPrescriptionFile(result.assets[0]);
-      }
-    } catch (error) {
-      console.error('Error picking prescription file:', error);
-      modal.showError('Failed to select file. Please try again.');
-    }
-  };
 
   const markAsCompleted = async () => {
     if (!selectedAppointment) return;
@@ -379,47 +365,23 @@ export default function HistoryScreen() {
         );
       } else {
         // Complete appointment with OTP verification and optional follow-up
-        let prescriptionFileUrl = null;
-
-        // Upload prescription if provided (for vet appointments)
-        if (isVetAppointment && prescriptionFile) {
-          setUploadingPrescription(true);
-          console.log('📤 Uploading prescription file...');
-
-          try {
-            const uploadResponse = await apiService.uploadPrescription(
-              prescriptionFile.uri,
-              selectedAppointment.id
-            );
-
-            if (uploadResponse.success && uploadResponse.data?.url) {
-              prescriptionFileUrl = uploadResponse.data.url;
-              console.log('✅ Prescription uploaded:', prescriptionFileUrl);
-            } else {
-              setUploadingPrescription(false);
-              modal.showError('Failed to upload prescription. Please try again.');
-              return;
-            }
-          } catch (error) {
-            setUploadingPrescription(false);
-            console.error('Prescription upload error:', error);
-            modal.showError('Failed to upload prescription. Please try again.');
-            return;
-          } finally {
-            setUploadingPrescription(false);
-          }
-        }
-
         const completionData: any = {
           otp_code: otpCode.trim(),
           notes: treatmentSummary || 'Appointment completed'
         };
 
-        // Add prescription and clinical notes for vet appointments
+        // Add prescription data and clinical notes for vet appointments
         if (isVetAppointment) {
-          if (prescriptionFileUrl) {
-            completionData.prescription_file_url = prescriptionFileUrl;
+          // Filter out empty prescriptions
+          const validPrescriptions = prescriptions.filter(p =>
+            p.drug_name.trim() || p.dosage.trim() || p.frequency || p.duration
+          );
+
+          if (validPrescriptions.length > 0) {
+            completionData.prescription_data = validPrescriptions;
+            console.log('📋 Including prescription data:', validPrescriptions);
           }
+
           if (clinicalNotes.trim()) {
             completionData.clinical_notes = clinicalNotes.trim();
           }
@@ -622,6 +584,24 @@ export default function HistoryScreen() {
     }
   };
 
+  // Prescription management functions
+  const addPrescription = () => {
+    setPrescriptions([...prescriptions, { drug_name: '', dosage: '', frequency: '', duration: '' }]);
+  };
+
+  const removePrescription = (index: number) => {
+    if (prescriptions.length > 1) {
+      const updated = prescriptions.filter((_, i) => i !== index);
+      setPrescriptions(updated);
+    }
+  };
+
+  const updatePrescription = (index: number, field: keyof typeof prescriptions[0], value: string) => {
+    const updated = [...prescriptions];
+    updated[index][field] = value;
+    setPrescriptions(updated);
+  };
+
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, index) => (
       <Ionicons
@@ -635,10 +615,20 @@ export default function HistoryScreen() {
 
   const renderHistoryCard = ({ item }: { item: HistoryItem }) => {
     const isExpanded = expandedItems.has(item.id);
+    const isPending = !['completed', 'delivered', 'cancelled', 'returned', 'no_show'].includes(item.status);
+
     return (
       <TouchableOpacity
         style={styles.historyCard}
-        onPress={() => openDetailsModal(item)}
+        onPress={() => {
+          // For pending appointments, open completion modal
+          // For completed appointments, open details modal
+          if (isPending && !showOrders) {
+            openCompletionModal(item);
+          } else {
+            openDetailsModal(item);
+          }
+        }}
         activeOpacity={0.7}
       >
         <View style={styles.orderHeader}>
@@ -675,26 +665,19 @@ export default function HistoryScreen() {
             Status: {getStatusText(item.status)}
           </Text>
           <View style={styles.actionButtons}>
-            {/* Hide action buttons for completed/cancelled orders */}
-            {!['completed', 'delivered', 'cancelled', 'returned', 'no_show'].includes(item.status) && (
-              <>
-                <TouchableOpacity
-                  style={styles.completeButton}
-                  onPress={() => openCompletionModal(item)}
-                >
-                  <Text style={styles.completeButtonText}>Mark Complete</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => {
-                    setAppointmentToCancel(item);
-                    setCancelReason('');
-                    setShowCancelModal(true);
-                  }}
-                >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </>
+            {/* Show only cancel button for pending appointments */}
+            {isPending && (
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={(e) => {
+                  e.stopPropagation(); // Prevent card click
+                  setAppointmentToCancel(item);
+                  setCancelReason('');
+                  setShowCancelModal(true);
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
             )}
           </View>
         </View>
@@ -1018,16 +1001,11 @@ export default function HistoryScreen() {
                       <TouchableOpacity
                         style={styles.dateSelector}
                         onPress={() => {
-                          // Generate dates from tomorrow until Jan 3, 2026 (or next 30 days, whichever is less)
+                          // Generate next 30 days from tomorrow
                           const dates = [];
-                          const today = new Date();
-                          const endDate = new Date('2026-01-03');
-                          const maxDays = 30; // Fallback limit
+                          const maxDays = 30;
 
-                          let daysToShow = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                          daysToShow = Math.min(daysToShow, maxDays); // Cap at 30 days
-
-                          for (let i = 1; i <= daysToShow; i++) {
+                          for (let i = 1; i <= maxDays; i++) {
                             const date = new Date();
                             date.setDate(date.getDate() + i);
                             dates.push(date.toISOString().split('T')[0]);
@@ -1124,46 +1102,109 @@ export default function HistoryScreen() {
                 </>
               )}
 
-              {/* Prescription Upload and Clinical Notes (Only for Vet Appointments) */}
+              {/* Prescription Form and Clinical Notes (Only for Vet Appointments) */}
               {!showOrders && isVetAppointment && (
                 <>
                   <View style={styles.vetSectionDivider} />
 
                   <Text style={styles.vetSectionTitle}>Medical Documentation</Text>
 
-                  {/* Prescription Upload */}
+                  {/* Prescription Form */}
                   <Text style={styles.modalDescription}>
-                    Upload Prescription (Optional):
+                    Prescription Details (Optional):
                   </Text>
-                  <TouchableOpacity
-                    style={styles.prescriptionUploadButton}
-                    onPress={pickPrescriptionFile}
-                    disabled={uploadingPrescription}
-                  >
-                    <Ionicons name="document-attach-outline" size={24} color={Colors.primary} />
-                    <Text style={styles.prescriptionUploadText}>
-                      {prescriptionFile ? 'Change File' : 'Upload Prescription'}
-                    </Text>
-                  </TouchableOpacity>
 
-                  {prescriptionFile && (
-                    <View style={styles.selectedFileContainer}>
-                      <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
-                      <Text style={styles.selectedFileName} numberOfLines={1}>
-                        {prescriptionFile.name || prescriptionFile.uri.split('/').pop()}
-                      </Text>
-                      <TouchableOpacity onPress={() => setPrescriptionFile(null)}>
-                        <Ionicons name="close-circle" size={20} color={Colors.error} />
+                  {prescriptions.map((prescription, index) => (
+                    <View key={index} style={styles.prescriptionItem}>
+                      <View style={styles.prescriptionHeader}>
+                        <Text style={styles.prescriptionNumber}>Medicine {index + 1}</Text>
+                        {prescriptions.length > 1 && (
+                          <TouchableOpacity onPress={() => removePrescription(index)}>
+                            <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+
+                      {/* Drug Name */}
+                      <TextInput
+                        style={styles.prescriptionInput}
+                        placeholder="Drug Name"
+                        value={prescription.drug_name}
+                        onChangeText={(text) => updatePrescription(index, 'drug_name', text)}
+                      />
+
+                      {/* Dosage */}
+                      <TextInput
+                        style={styles.prescriptionInput}
+                        placeholder="Dosage (e.g., 10mg, 1 tablet)"
+                        value={prescription.dosage}
+                        onChangeText={(text) => updatePrescription(index, 'dosage', text)}
+                      />
+
+                      {/* Frequency Dropdown */}
+                      <TouchableOpacity
+                        style={styles.dropdownButton}
+                        onPress={() => setShowFrequencyPicker(showFrequencyPicker === index ? null : index)}
+                      >
+                        <Text style={prescription.frequency ? styles.dropdownButtonTextSelected : styles.dropdownButtonText}>
+                          {prescription.frequency || 'Select Frequency'}
+                        </Text>
+                        <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />
                       </TouchableOpacity>
-                    </View>
-                  )}
+                      {showFrequencyPicker === index && (
+                        <View style={styles.dropdownList}>
+                          {frequencyOptions.map((option) => (
+                            <TouchableOpacity
+                              key={option}
+                              style={styles.dropdownOption}
+                              onPress={() => {
+                                updatePrescription(index, 'frequency', option);
+                                setShowFrequencyPicker(null);
+                              }}
+                            >
+                              <Text style={styles.dropdownOptionText}>{option}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
 
-                  {uploadingPrescription && (
-                    <View style={styles.uploadingContainer}>
-                      <ActivityIndicator size="small" color={Colors.primary} />
-                      <Text style={styles.uploadingText}>Uploading prescription...</Text>
+                      {/* Duration Dropdown */}
+                      <TouchableOpacity
+                        style={styles.dropdownButton}
+                        onPress={() => setShowDurationPicker(showDurationPicker === index ? null : index)}
+                      >
+                        <Text style={prescription.duration ? styles.dropdownButtonTextSelected : styles.dropdownButtonText}>
+                          {prescription.duration || 'Select Duration'}
+                        </Text>
+                        <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />
+                      </TouchableOpacity>
+                      {showDurationPicker === index && (
+                        <View style={styles.dropdownList}>
+                          {durationOptions.map((option) => (
+                            <TouchableOpacity
+                              key={option}
+                              style={styles.dropdownOption}
+                              onPress={() => {
+                                updatePrescription(index, 'duration', option);
+                                setShowDurationPicker(null);
+                              }}
+                            >
+                              <Text style={styles.dropdownOptionText}>{option}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
                     </View>
-                  )}
+                  ))}
+
+                  {/* Add More Button */}
+                  <TouchableOpacity
+                    style={styles.addMoreButton}
+                    onPress={addPrescription}
+                  >
+                    <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+                    <Text style={styles.addMoreButtonText}>Add More Medicine</Text>
+                  </TouchableOpacity>
 
                   {/* Clinical Notes */}
                   <Text style={[styles.modalDescription, { marginTop: Spacing.lg }]}>
@@ -1987,5 +2028,88 @@ const styles = StyleSheet.create({
   dateOptionTextSelected: {
     color: Colors.white,
     fontWeight: Typography.fontWeights.semibold,
+  },
+  // Prescription form styles
+  prescriptionItem: {
+    backgroundColor: Colors.backgroundSecondary || '#F8F7FB',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  prescriptionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  prescriptionNumber: {
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.semibold,
+    color: Colors.textPrimary,
+  },
+  prescriptionInput: {
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+    backgroundColor: Colors.white,
+    marginBottom: Spacing.sm,
+  },
+  dropdownButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.md,
+    backgroundColor: Colors.white,
+    marginBottom: Spacing.sm,
+  },
+  dropdownButtonText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textSecondary,
+  },
+  dropdownButtonTextSelected: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+  },
+  dropdownList: {
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.white,
+    marginBottom: Spacing.sm,
+    maxHeight: 200,
+  },
+  dropdownOption: {
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  dropdownOptionText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+  },
+  addMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderRadius: BorderRadius.sm,
+    borderStyle: 'dashed',
+    marginBottom: Spacing.md,
+  },
+  addMoreButtonText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.primary,
+    marginLeft: Spacing.sm,
+    fontWeight: Typography.fontWeights.medium,
   },
 });
