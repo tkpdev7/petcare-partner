@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppHeader from '../../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
@@ -35,6 +36,7 @@ interface StatsItem {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const [partnerData, setPartnerData] = useState<any>(null);
   const [greetingName, setGreetingName] = useState('Partner');
 
@@ -42,18 +44,28 @@ export default function HomeScreen() {
     loadPartnerData();
   }, []);
 
-  // Prevent going back to auth screens
+  // Prevent going back to auth screens - only on home tab
   useEffect(() => {
     const backHandler = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
-        // Return true to prevent default back behavior
-        return true;
+        // Only prevent back on the home tab itself, not on other screens
+        // Check if we're on the tabs route (home screen)
+        const state = navigation.getState();
+        const currentRoute = state?.routes[state.index];
+
+        // If we're on the tabs home, prevent going back to auth
+        if (currentRoute?.name === 'index' || currentRoute?.name === '(tabs)') {
+          return true; // Prevent back
+        }
+
+        // Allow normal back navigation for other screens
+        return false;
       }
     );
 
     return () => backHandler.remove();
-  }, []);
+  }, [navigation]);
 
   const loadPartnerData = async () => {
     try {
