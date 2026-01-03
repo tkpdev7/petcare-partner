@@ -2,6 +2,7 @@
   "expo": {
     "name": "Gogol Partner",
     "slug": "petcare-partner",
+    "owner": "kavitha612",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/gogol-icon.png",
@@ -86,7 +87,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "85d5185c-5289-4bdd-b58b-75f1f180eeea"
+        "projectId": "57ebafdd-73ab-42b8-96be-b34f83a12ec8"
       }
     }
   }
