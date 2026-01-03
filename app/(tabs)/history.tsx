@@ -24,6 +24,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Color
 import apiService from '../../services/apiService';
 import CustomModal from '../../components/CustomModal';
 import { useCustomModal } from '../../hooks/useCustomModal';
+import { viewPDF } from '../../utils/pdfViewer';
 
 interface HistoryItem {
   id: string;
@@ -43,6 +44,7 @@ interface HistoryItem {
   cancellationReason?: string;
   cancelledBy?: string;
   cancelledAt?: string;
+  prescription_pdf_base64?: string;
 }
 
 export default function HistoryScreen() {
@@ -602,6 +604,24 @@ export default function HistoryScreen() {
     setPrescriptions(updated);
   };
 
+  // PDF viewing function
+  const handleViewPDF = async () => {
+    if (!selectedAppointment?.prescription_pdf_base64) {
+      modal.showError('No prescription PDF available');
+      return;
+    }
+
+    try {
+      await viewPDF(
+        selectedAppointment.prescription_pdf_base64,
+        `prescription_${selectedAppointment.id}.pdf`
+      );
+    } catch (error) {
+      console.error('Error viewing PDF:', error);
+      modal.showError('Failed to open prescription PDF. Please try again.');
+    }
+  };
+
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, index) => (
       <Ionicons
@@ -920,7 +940,19 @@ export default function HistoryScreen() {
             )}
 
             <View style={styles.modalFooter}>
-              <TouchableOpacity 
+              {/* View PDF button for completed appointments with prescription */}
+              {selectedAppointment?.status === 'completed' &&
+               selectedAppointment?.prescription_pdf_base64 &&
+               isVetAppointment && (
+                <TouchableOpacity
+                  style={styles.viewPdfButton}
+                  onPress={handleViewPDF}
+                >
+                  <Ionicons name="document-text-outline" size={20} color={Colors.white} />
+                  <Text style={styles.viewPdfButtonText}>View Prescription PDF</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
                 style={styles.modalCloseButton}
                 onPress={() => setShowDetailsModal(false)}
               >
@@ -2111,5 +2143,21 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     marginLeft: Spacing.sm,
     fontWeight: Typography.fontWeights.medium,
+  },
+  viewPdfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  viewPdfButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.semibold,
   },
 });
