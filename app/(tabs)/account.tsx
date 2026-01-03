@@ -211,13 +211,20 @@ export default function AccountScreen() {
   };
 
   const handleLogout = () => {
-    modal.showInfo(
+    modal.showWarning(
       'Are you sure you want to logout?',
       {
         title: 'Logout',
-        onClose: async () => {
+        primaryButtonText: 'Logout',
+        secondaryButtonText: 'Cancel',
+        hideSecondaryButton: false,
+        onPrimaryPress: async () => {
+          modal.hideModal();
           await AsyncStorage.multiRemove(['partnerToken', 'partnerData']);
           router.replace('/auth/login');
+        },
+        onSecondaryPress: () => {
+          modal.hideModal();
         }
       }
     );

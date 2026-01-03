@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -6,9 +6,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export default function IndexScreen() {
   const router = useRouter();
   const [isChecking, setIsChecking] = useState(true);
+  const hasNavigated = useRef(false);
 
   useEffect(() => {
-    checkAuthStatus();
+    if (!hasNavigated.current) {
+      checkAuthStatus();
+    }
   }, []);
 
   const checkAuthStatus = async () => {
@@ -19,18 +22,26 @@ export default function IndexScreen() {
 
       if (token && partnerData) {
         console.log('User is logged in, redirecting to home...');
+        hasNavigated.current = true;
         router.replace('/(tabs)');
       } else {
         console.log('No auth found, redirecting to login...');
+        hasNavigated.current = true;
         router.replace('/auth/login');
       }
     } catch (error) {
       console.error('Error checking auth status:', error);
+      hasNavigated.current = true;
       router.replace('/auth/login');
     } finally {
       setIsChecking(false);
     }
   };
+
+  // Return null if already navigated to prevent re-rendering
+  if (hasNavigated.current) {
+    return null;
+  }
 
   return (
     <View style={styles.container}>

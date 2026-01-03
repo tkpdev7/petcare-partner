@@ -268,6 +268,26 @@ export default function HistoryScreen() {
     setUploadingPrescription(false);
   };
 
+  // Check if a slot is in the past
+  const isSlotInPast = (slotStartTime: string, selectedDate: string): boolean => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const selected = new Date(selectedDate);
+    selected.setHours(0, 0, 0, 0);
+
+    // Only filter for today's date
+    if (selected.getTime() !== today.getTime()) {
+      return false;
+    }
+
+    // Parse the slot time (format: "HH:MM:SS" or "HH:MM")
+    const [hours, minutes] = slotStartTime.split(':').map(Number);
+    const slotTime = new Date();
+    slotTime.setHours(hours, minutes, 0, 0);
+
+    return slotTime <= now;
+  };
+
   const loadAvailableSlots = async (date: string) => {
     if (!selectedAppointment || !partnerData) return;
 
@@ -289,6 +309,7 @@ export default function HistoryScreen() {
       if (response.success) {
         // Handle nested data structure (response.data.data)
         const slotsArray = response.data?.data || response.data || [];
+
         console.log(`Found ${slotsArray.length} available slots`);
         setAvailableSlots(slotsArray);
 
@@ -1059,29 +1080,37 @@ export default function HistoryScreen() {
                               {/* Expandable slots list */}
                               {showSlotPicker && (
                                 <ScrollView style={styles.slotsDropdown} nestedScrollEnabled={true}>
-                                  {availableSlots.map((slot: any, index: number) => (
-                                    <TouchableOpacity
-                                      key={index}
-                                      style={[
-                                        styles.slotOption,
-                                        followUpTime === slot.start_time && styles.selectedSlotOption
-                                      ]}
-                                      onPress={() => {
-                                        setFollowUpTime(slot.start_time);
-                                        setShowSlotPicker(false);
-                                      }}
-                                    >
-                                      <Text style={[
-                                        styles.slotOptionText,
-                                        followUpTime === slot.start_time && styles.selectedSlotOptionText
-                                      ]}>
-                                        {slot.start_time} - {slot.end_time}
-                                      </Text>
-                                      {followUpTime === slot.start_time && (
-                                        <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />
-                                      )}
-                                    </TouchableOpacity>
-                                  ))}
+                                  {availableSlots.map((slot: any, index: number) => {
+                                    const isPast = isSlotInPast(slot.start_time, followUpDate);
+                                    return (
+                                      <TouchableOpacity
+                                        key={index}
+                                        style={[
+                                          styles.slotOption,
+                                          followUpTime === slot.start_time && styles.selectedSlotOption,
+                                          isPast && styles.disabledSlotOption
+                                        ]}
+                                        onPress={() => {
+                                          if (!isPast) {
+                                            setFollowUpTime(slot.start_time);
+                                            setShowSlotPicker(false);
+                                          }
+                                        }}
+                                        disabled={isPast}
+                                      >
+                                        <Text style={[
+                                          styles.slotOptionText,
+                                          followUpTime === slot.start_time && styles.selectedSlotOptionText,
+                                          isPast && styles.disabledSlotOptionText
+                                        ]}>
+                                          {slot.start_time} - {slot.end_time}
+                                        </Text>
+                                        {followUpTime === slot.start_time && !isPast && (
+                                          <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />
+                                        )}
+                                      </TouchableOpacity>
+                                    );
+                                  })}
                                 </ScrollView>
                               )}
                             </View>
@@ -1850,6 +1879,10 @@ const styles = StyleSheet.create({
   selectedSlotOption: {
     backgroundColor: Colors.primaryLight || '#FFE5E0',
   },
+  disabledSlotOption: {
+    backgroundColor: '#e0e0e0',
+    opacity: 0.5,
+  },
   slotOptionText: {
     fontSize: Typography.fontSizes.base,
     color: Colors.textPrimary,
@@ -1858,6 +1891,9 @@ const styles = StyleSheet.create({
   selectedSlotOptionText: {
     color: Colors.primary,
     fontWeight: Typography.fontWeights.semibold,
+  },
+  disabledSlotOptionText: {
+    color: '#999',
   },
   slotsContainer: {
     flexDirection: 'row',

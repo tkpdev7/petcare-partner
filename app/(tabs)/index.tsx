@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  BackHandler,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -39,6 +40,19 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadPartnerData();
+  }, []);
+
+  // Prevent going back to auth screens
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        // Return true to prevent default back behavior
+        return true;
+      }
+    );
+
+    return () => backHandler.remove();
   }, []);
 
   const loadPartnerData = async () => {
