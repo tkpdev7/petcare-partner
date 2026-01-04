@@ -445,21 +445,19 @@ export default function HistoryScreen() {
           notes: treatmentSummary || 'Appointment completed'
         };
 
-        // Add prescription data and clinical notes for vet appointments
-        if (isVetAppointment) {
-          // Filter out empty prescriptions
-          const validPrescriptions = prescriptions.filter(p =>
-            p.drug_name.trim() || p.dosage.trim() || p.frequency || p.duration
-          );
+        // Add prescription data and clinical notes (for all service appointments)
+        // Filter out empty prescriptions
+        const validPrescriptions = prescriptions.filter(p =>
+          p.drug_name.trim() || p.dosage.trim() || p.frequency || p.duration
+        );
 
-          if (validPrescriptions.length > 0) {
-            completionData.prescription_data = validPrescriptions;
-            console.log('📋 Including prescription data:', validPrescriptions);
-          }
+        if (validPrescriptions.length > 0) {
+          completionData.prescription_data = validPrescriptions;
+          console.log('📋 Including prescription data:', validPrescriptions);
+        }
 
-          if (clinicalNotes.trim()) {
-            completionData.clinical_notes = clinicalNotes.trim();
-          }
+        if (clinicalNotes.trim()) {
+          completionData.clinical_notes = clinicalNotes.trim();
         }
 
         if (isFollowUpSelected && followUpDate && followUpTime) {
@@ -1047,9 +1045,6 @@ export default function HistoryScreen() {
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
-                  <Text style={styles.otpHintText}>
-                    ℹ️ Once verified, the appointment will be marked as "In Progress" and the timestamp will be recorded.
-                  </Text>
                 </>
               )}
 
@@ -1186,8 +1181,8 @@ export default function HistoryScreen() {
                 </>
               )}
 
-              {/* Prescription Form and Clinical Notes (Only for Vet Appointments) */}
-              {!showOrders && isVetAppointment && (
+              {/* Prescription Form and Clinical Notes (For All Service Appointments) */}
+              {!showOrders && otpVerifiedInSession && (
                 <>
                   <View style={styles.vetSectionDivider} />
 
