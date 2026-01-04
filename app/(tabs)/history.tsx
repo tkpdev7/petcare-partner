@@ -65,6 +65,7 @@ export default function HistoryScreen() {
 
   // OTP and follow-up states
   const [otpCode, setOtpCode] = useState('');
+  const [otpVerifiedInSession, setOtpVerifiedInSession] = useState(false);
   const [isFollowUpSelected, setIsFollowUpSelected] = useState(false);
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpTime, setFollowUpTime] = useState('');
@@ -266,8 +267,8 @@ export default function HistoryScreen() {
   const openCompletionModal = (appointment: HistoryItem) => {
     setSelectedAppointment(appointment);
     setShowCompletionModal(true);
-    setTreatmentSummary('');
     setOtpCode('');
+    setTreatmentSummary('');
     setIsFollowUpSelected(false);
     setPrescriptions([{ drug_name: '', dosage: '', frequency: '', duration: '' }]);
     setClinicalNotes('');
@@ -275,10 +276,8 @@ export default function HistoryScreen() {
     setFollowUpTime('');
     setAvailableSlots([]);
     setShowSlotPicker(false);
-    // Reset prescription and clinical notes
-    setPrescriptionFile(null);
-    setClinicalNotes('');
-    setUploadingPrescription(false);
+    // Check if appointment is already in_progress (OTP already verified)
+    setOtpVerifiedInSession(appointment.status === 'in_progress');
   };
 
   // Check if a slot is in the past
@@ -299,6 +298,87 @@ export default function HistoryScreen() {
     slotTime.setHours(hours, minutes, 0, 0);
 
     return slotTime <= now;
+  };
+
+  const verifyOtp = async () => {
+    if (!selectedAppointment || !otpCode.trim()) {
+      modal.showError('Please enter the 4-digit OTP code');
+      return;
+    }
+
+    try {
+      console.log('=== VERIFYING OTP ===');
+      console.log('Appointment ID:', selectedAppointment.id);
+      console.log('OTP Code:', otpCode.trim());
+
+      const response = await apiService.verifyOTP(selectedAppointment.id, otpCode.trim());
+
+      console.log('OTP Verification Response:', JSON.stringify(response, null, 2));
+
+      if (response.success) {
+        // Update local state to mark appointment as in_progress
+        setHistory(prevHistory =>
+          prevHistory.map(item =>
+            item.id === selectedAppointment.id
+              ? { ...item, status: 'in_progress' as const }
+              : item
+          )
+        );
+
+        // Mark OTP as verified in this session and show completion form
+        setOtpVerifiedInSession(true);
+
+        // Update selected appointment status
+        setSelectedAppointment({...selectedAppointment, status: 'in_progress'});
+
+        modal.showSuccess('OTP verified successfully! Appointment started. Please complete the appointment details below.');
+      } else {
+        const errorMessage = response.error || response.message || 'Failed to verify OTP';
+
+        if (errorMessage.toLowerCase().includes('invalid otp')) {
+          modal.showError('The OTP you entered does not match. Please verify the 4-digit code shown on the customer\'s app and try again.', {
+            title: 'Invalid OTP',
+            onClose: () => setOtpCode('')
+          });
+        } else if (errorMessage.toLowerCase().includes('otp expired')) {
+          modal.showError('The OTP has expired. Please ask the customer to generate a new OTP.', {
+            title: 'OTP Expired'
+          });
+        } else if (errorMessage.toLowerCase().includes('otp not generated')) {
+          modal.showError('No OTP has been generated for this appointment. Please ask the customer to generate an OTP from their app.', {
+            title: 'OTP Not Available'
+          });
+        } else {
+          modal.showError(errorMessage);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error verifying OTP:', error);
+      console.error('Error response:', JSON.stringify(error.response?.data, null, 2));
+
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'An error occurred while verifying OTP';
+
+      if (errorMessage.toLowerCase().includes('invalid otp')) {
+        modal.showError('The OTP you entered does not match. Please verify the 4-digit code shown on the customer\'s app and try again.', {
+          title: 'Invalid OTP',
+          onClose: () => setOtpCode('')
+        });
+      } else if (errorMessage.toLowerCase().includes('otp expired')) {
+        modal.showError('The OTP has expired. Please ask the customer to generate a new OTP.', {
+          title: 'OTP Expired'
+        });
+      } else if (errorMessage.toLowerCase().includes('otp already verified')) {
+        modal.showError('This appointment has already been verified. You can proceed to complete it.', {
+          title: 'Already Verified'
+        });
+      } else if (errorMessage.toLowerCase().includes('otp not generated')) {
+        modal.showError('No OTP has been generated for this appointment. Please ask the customer to generate an OTP from their app.', {
+          title: 'OTP Not Available'
+        });
+      } else {
+        modal.showError(errorMessage);
+      }
+    }
   };
 
   const loadAvailableSlots = async (date: string) => {
@@ -349,12 +429,6 @@ export default function HistoryScreen() {
   const markAsCompleted = async () => {
     if (!selectedAppointment) return;
 
-    // Validate OTP for appointments
-    if (!showOrders && !otpCode.trim()) {
-      modal.showError('Please enter the OTP code provided by the customer');
-      return;
-    }
-
     try {
       let response;
       if (showOrders) {
@@ -366,9 +440,8 @@ export default function HistoryScreen() {
           treatmentSummary
         );
       } else {
-        // Complete appointment with OTP verification and optional follow-up
+        // Complete appointment (OTP already verified in previous step)
         const completionData: any = {
-          otp_code: otpCode.trim(),
           notes: treatmentSummary || 'Appointment completed'
         };
 
@@ -419,7 +492,6 @@ export default function HistoryScreen() {
         setShowCompletionModal(false);
         setSelectedAppointment(null);
         setTreatmentSummary('');
-        setOtpCode('');
         setIsFollowUpSelected(false);
         setFollowUpDate('');
         setFollowUpTime('');
@@ -438,21 +510,7 @@ export default function HistoryScreen() {
         // Handle failed response (success: false)
         const errorMessage = response.error || response.message || response.data?.error || `Failed to update ${showOrders ? 'order' : 'appointment'} status`;
 
-        // Special handling for OTP errors
-        if (errorMessage.toLowerCase().includes('invalid otp')) {
-          modal.showError('The OTP you entered does not match. Please verify the 4-digit code shown on the customer\'s app and try again.', {
-            title: 'Invalid OTP',
-            onClose: () => setOtpCode('')
-          });
-        } else if (errorMessage.toLowerCase().includes('otp expired')) {
-          modal.showError('The OTP has expired. The appointment time has passed. Please contact support if you need to complete this appointment.', {
-            title: 'OTP Expired'
-          });
-        } else if (errorMessage.toLowerCase().includes('otp not generated')) {
-          modal.showError('No OTP has been generated for this appointment. Please ask the customer to generate an OTP from their app.', {
-            title: 'OTP Not Available'
-          });
-        } else if (errorMessage.toLowerCase().includes('slot') && errorMessage.toLowerCase().includes('not available')) {
+        if (errorMessage.toLowerCase().includes('slot') && errorMessage.toLowerCase().includes('not available')) {
           modal.showError('The selected follow-up time slot is no longer available. Please choose a different time.', {
             title: 'Time Slot Unavailable'
           });
@@ -465,28 +523,7 @@ export default function HistoryScreen() {
       console.error('Error response:', JSON.stringify(error.response?.data, null, 2));
 
       const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || `An error occurred while updating ${showOrders ? 'order' : 'appointment'} status`;
-
-      // Special handling for OTP errors
-      if (errorMessage.toLowerCase().includes('invalid otp')) {
-        modal.showError('The OTP you entered does not match. Please verify the 4-digit code shown on the customer\'s app and try again.', {
-          title: 'Invalid OTP',
-          onClose: () => setOtpCode('')
-        });
-      } else if (errorMessage.toLowerCase().includes('otp expired')) {
-        modal.showError('The OTP has expired. The appointment time has passed. Please contact support if you need to complete this appointment.', {
-          title: 'OTP Expired'
-        });
-      } else if (errorMessage.toLowerCase().includes('otp already verified')) {
-        modal.showError('This appointment has already been verified and completed.', {
-          title: 'Already Verified'
-        });
-      } else if (errorMessage.toLowerCase().includes('otp not generated')) {
-        modal.showError('No OTP has been generated for this appointment. Please ask the customer to generate an OTP from their app.', {
-          title: 'OTP Not Available'
-        });
-      } else {
-        modal.showError(errorMessage);
-      }
+      modal.showError(errorMessage);
     }
   };
 
@@ -641,11 +678,14 @@ export default function HistoryScreen() {
       <TouchableOpacity
         style={styles.historyCard}
         onPress={() => {
-          // For pending appointments, open completion modal
-          // For completed appointments, open details modal
-          if (isPending && !showOrders) {
+          if (showOrders) {
+            // For product orders, always open details modal
+            openDetailsModal(item);
+          } else if (isPending) {
+            // For pending/in_progress appointments, open completion modal (handles OTP + completion)
             openCompletionModal(item);
           } else {
+            // For completed/cancelled appointments, open details modal
             openDetailsModal(item);
           }
         }}
@@ -963,7 +1003,7 @@ export default function HistoryScreen() {
         </View>
       </Modal>
 
-      {/* Completion Modal */}
+      {/* Completion Modal (with OTP verification step) */}
       <Modal
         visible={showCompletionModal}
         transparent={true}
@@ -977,7 +1017,10 @@ export default function HistoryScreen() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{showOrders ? 'Complete Order' : 'Complete Appointment'}</Text>
+                <Text style={styles.modalTitle}>
+                  {showOrders ? 'Complete Order' :
+                   !otpVerifiedInSession ? 'Verify OTP to Start' : 'Complete Appointment'}
+                </Text>
                 <TouchableOpacity
                   onPress={() => setShowCompletionModal(false)}
                   style={styles.closeButton}
@@ -988,10 +1031,11 @@ export default function HistoryScreen() {
 
               <ScrollView style={styles.modalScrollView}>
                 <View style={styles.modalBody}>
-              {!showOrders && (
+              {/* Step 1: OTP Verification (only if not yet verified) */}
+              {!showOrders && !otpVerifiedInSession && (
                 <>
                   <Text style={styles.modalDescription}>
-                    Please enter the OTP code provided by the customer:
+                    Please ask the customer to share the 4-digit OTP displayed on their app to verify and start the appointment:
                   </Text>
                   <TextInput
                     style={styles.otpInput}
@@ -1003,7 +1047,15 @@ export default function HistoryScreen() {
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
+                  <Text style={styles.otpHintText}>
+                    ℹ️ Once verified, the appointment will be marked as "In Progress" and the timestamp will be recorded.
+                  </Text>
+                </>
+              )}
 
+              {/* Step 2: Completion Form (only if OTP verified) */}
+              {!showOrders && otpVerifiedInSession && (
+                <>
                   <View style={styles.checkboxContainer}>
                     <TouchableOpacity
                       style={styles.checkbox}
@@ -1282,16 +1334,29 @@ export default function HistoryScreen() {
                 >
                   <Text style={styles.modalCancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.modalCompleteButton,
-                    (!showOrders && (!otpCode.trim() || (isFollowUpSelected && (!followUpDate || !followUpTime)))) && styles.disabledButton
-                  ]}
-                  onPress={markAsCompleted}
-                  disabled={!showOrders && (!otpCode.trim() || (isFollowUpSelected && (!followUpDate || !followUpTime)))}
-                >
-                  <Text style={styles.modalCompleteButtonText}>Confirm Completion</Text>
-                </TouchableOpacity>
+                {!showOrders && !otpVerifiedInSession ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.modalCompleteButton,
+                      !otpCode.trim() && styles.disabledButton
+                    ]}
+                    onPress={verifyOtp}
+                    disabled={!otpCode.trim()}
+                  >
+                    <Text style={styles.modalCompleteButtonText}>Verify & Start</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[
+                      styles.modalCompleteButton,
+                      (!showOrders && isFollowUpSelected && (!followUpDate || !followUpTime)) && styles.disabledButton
+                    ]}
+                    onPress={markAsCompleted}
+                    disabled={!showOrders && isFollowUpSelected && (!followUpDate || !followUpTime)}
+                  >
+                    <Text style={styles.modalCompleteButtonText}>Confirm Completion</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           </View>
@@ -2159,5 +2224,12 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: Typography.fontSizes.base,
     fontWeight: Typography.fontWeights.semibold,
+  },
+  otpHintText: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textSecondary,
+    marginTop: Spacing.md,
+    lineHeight: Typography.lineHeights.relaxed * Typography.fontSizes.sm,
+    fontStyle: 'italic',
   },
 });

@@ -229,11 +229,16 @@ class ApiService {
     return this.makeRequest('PUT', `/partner-appointments/${id}/cancel`, { reason });
   }
 
+  async verifyOTP(appointmentId: string, otpCode: string): Promise<ApiResponse> {
+    return this.makeRequest('POST', `appointment/appointments/${appointmentId}/verify-otp`, { otp_code: otpCode });
+  }
+
   async completeAppointmentWithFollowup(id: string, data: {
-    otp_code: string;
+    otp_code?: string;
     follow_up_date?: string;
     follow_up_time?: string;
     notes?: string;
+    prescription_data?: any[];
     prescription_file_url?: string;
     clinical_notes?: string;
   }): Promise<ApiResponse> {
