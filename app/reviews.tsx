@@ -106,7 +106,9 @@ export default function ReviewsScreen() {
 
       if (reviewsResponse.success && reviewsResponse.data) {
         console.log('ReviewsScreen: API response successful');
-        const reviewsData = reviewsResponse.data.reviews || [];
+        // The actual data is nested in data.data
+        const actualData = reviewsResponse.data.data || reviewsResponse.data;
+        const reviewsData = actualData.reviews || [];
         console.log('ReviewsScreen: Raw reviews data count:', reviewsData.length);
         const formattedReviews: Review[] = reviewsData.map((review: any) => ({
           id: review.id,
@@ -134,7 +136,7 @@ export default function ReviewsScreen() {
         setReviews(formattedReviews);
 
         // Extract stats from the response
-        const statistics = reviewsResponse.data.statistics;
+        const statistics = actualData.statistics;
         console.log('ReviewsScreen: Statistics from response:', statistics);
         if (statistics) {
           const transformedStats = {
