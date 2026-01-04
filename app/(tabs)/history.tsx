@@ -44,7 +44,14 @@ interface HistoryItem {
   cancellationReason?: string;
   cancelledBy?: string;
   cancelledAt?: string;
-  prescription_pdf_base64?: string;
+  prescription_data?: Array<{
+    drug_name: string;
+    dosage: string;
+    frequency: string;
+    duration: string;
+  }> | null;
+  clinical_notes?: string | null;
+  prescription_pdf_base64?: string | null;
 }
 
 export default function HistoryScreen() {
@@ -208,7 +215,11 @@ export default function HistoryScreen() {
             customerPhone: item.customer_phone || item.customerPhone || item.customer?.phone,
             cancellationReason: item.cancellationReason || item.cancellation_reason,
             cancelledBy: item.cancelledBy || item.cancelled_by,
-            cancelledAt: item.cancelledAt || item.cancelled_at
+            cancelledAt: item.cancelledAt || item.cancelled_at,
+            // Prescription and clinical data
+            prescription_data: item.prescription_data || null,
+            clinical_notes: item.clinical_notes || null,
+            prescription_pdf_base64: item.prescription_pdf_base64 || null,
           };
         });
 
@@ -971,14 +982,36 @@ export default function HistoryScreen() {
                     <Text style={styles.detailValue}>{selectedAppointment.notes}</Text>
                   </View>
                 )}
+
+                {/* Prescription Data - Show for completed appointments */}
+                {selectedAppointment.status === 'completed' && selectedAppointment.prescription_data && (
+                  <View style={styles.detailColumn}>
+                    <Text style={styles.detailLabel}>Prescription ({selectedAppointment.prescription_data.length} medicine{selectedAppointment.prescription_data.length !== 1 ? 's' : ''}):</Text>
+                    {selectedAppointment.prescription_data.map((med: any, index: number) => (
+                      <View key={index} style={styles.prescriptionDetailCard}>
+                        <Text style={styles.prescriptionDetailNumber}>{index + 1}. {med.drug_name}</Text>
+                        <Text style={styles.prescriptionDetailText}>Dosage: {med.dosage}</Text>
+                        <Text style={styles.prescriptionDetailText}>Frequency: {med.frequency}</Text>
+                        <Text style={styles.prescriptionDetailText}>Duration: {med.duration}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Clinical Notes - Show for completed appointments */}
+                {selectedAppointment.status === 'completed' && selectedAppointment.clinical_notes && (
+                  <View style={styles.detailColumn}>
+                    <Text style={styles.detailLabel}>Clinical Notes:</Text>
+                    <Text style={styles.detailValue}>{selectedAppointment.clinical_notes}</Text>
+                  </View>
+                )}
               </View>
             )}
 
             <View style={styles.modalFooter}>
               {/* View PDF button for completed appointments with prescription */}
               {selectedAppointment?.status === 'completed' &&
-               selectedAppointment?.prescription_pdf_base64 &&
-               isVetAppointment && (
+               selectedAppointment?.prescription_pdf_base64 && (
                 <TouchableOpacity
                   style={styles.viewPdfButton}
                   onPress={handleViewPDF}
@@ -2204,5 +2237,24 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     lineHeight: Typography.lineHeights.relaxed * Typography.fontSizes.sm,
     fontStyle: 'italic',
+  },
+  prescriptionDetailCard: {
+    backgroundColor: Colors.background,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.primary,
+  },
+  prescriptionDetailNumber: {
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.semibold,
+    color: Colors.text,
+    marginBottom: Spacing.xs,
+  },
+  prescriptionDetailText: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
   },
 });
