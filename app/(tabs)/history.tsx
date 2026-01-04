@@ -57,7 +57,6 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<HistoryItem | null>(null);
-  const [treatmentSummary, setTreatmentSummary] = useState('');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -268,7 +267,6 @@ export default function HistoryScreen() {
     setSelectedAppointment(appointment);
     setShowCompletionModal(true);
     setOtpCode('');
-    setTreatmentSummary('');
     setIsFollowUpSelected(false);
     setPrescriptions([{ drug_name: '', dosage: '', frequency: '', duration: '' }]);
     setClinicalNotes('');
@@ -437,12 +435,12 @@ export default function HistoryScreen() {
           selectedAppointment.id,
           'product', // Assuming product order for essentials partners
           'delivered', // Mark as delivered for product orders
-          treatmentSummary
+          ''
         );
       } else {
         // Complete appointment (OTP already verified in previous step)
         const completionData: any = {
-          notes: treatmentSummary || 'Appointment completed'
+          notes: 'Appointment completed'
         };
 
         // Add prescription data and clinical notes (for all service appointments)
@@ -482,14 +480,13 @@ export default function HistoryScreen() {
         setHistory(prevHistory =>
           prevHistory.map(item =>
             item.id === selectedAppointment.id
-              ? { ...item, status: showOrders ? 'delivered' as const : 'completed' as const, notes: treatmentSummary }
+              ? { ...item, status: showOrders ? 'delivered' as const : 'completed' as const }
               : item
           )
         );
 
         setShowCompletionModal(false);
         setSelectedAppointment(null);
-        setTreatmentSummary('');
         setIsFollowUpSelected(false);
         setFollowUpDate('');
         setFollowUpTime('');
@@ -1184,8 +1181,6 @@ export default function HistoryScreen() {
               {/* Prescription Form and Clinical Notes (For All Service Appointments) */}
               {!showOrders && otpVerifiedInSession && (
                 <>
-                  <View style={styles.vetSectionDivider} />
-
                   <Text style={styles.vetSectionTitle}>Medical Documentation</Text>
 
                   {/* Prescription Form */}
@@ -1302,23 +1297,6 @@ export default function HistoryScreen() {
                   <Text style={styles.characterCount}>{clinicalNotes.length}/500</Text>
                 </>
               )}
-
-              <Text style={styles.modalDescription}>
-                {showOrders
-                  ? 'Please provide any notes about order completion (optional):'
-                  : 'Please provide a summary of the treatment or service provided:'}
-              </Text>
-              <TextInput
-                style={styles.treatmentInput}
-                placeholder="Enter treatment summary, diagnosis, recommendations, etc."
-                value={treatmentSummary}
-                onChangeText={setTreatmentSummary}
-                multiline
-                numberOfLines={4}
-                maxLength={500}
-                textAlignVertical="top"
-              />
-              <Text style={styles.characterCount}>{treatmentSummary.length}/500</Text>
                 </View>
               </ScrollView>
 
