@@ -78,10 +78,12 @@ export default function ReviewsScreen() {
   const [replySubmitting, setReplySubmitting] = useState(false);
 
   useEffect(() => {
+    console.log('ReviewsScreen: Component mounted, loading initial data');
     loadReviewsData();
   }, []);
 
   const loadReviewsData = async (isRefresh: boolean = false) => {
+    console.log('ReviewsScreen: loadReviewsData called', { isRefresh, selectedFilter });
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -90,14 +92,22 @@ export default function ReviewsScreen() {
       }
 
       // Load reviews (stats are included in the response)
+      console.log('ReviewsScreen: Calling apiService.getPartnerReviews with params:', {
+        page: 1,
+        limit: 50,
+        rating: selectedFilter === 'All' ? undefined : parseInt(selectedFilter),
+      });
       const reviewsResponse = await apiService.getPartnerReviews({
         page: 1,
         limit: 50,
         rating: selectedFilter === 'All' ? undefined : parseInt(selectedFilter),
       });
+      console.log('ReviewsScreen: getPartnerReviews response:', reviewsResponse);
 
       if (reviewsResponse.success && reviewsResponse.data) {
+        console.log('ReviewsScreen: API response successful');
         const reviewsData = reviewsResponse.data.reviews || [];
+        console.log('ReviewsScreen: Raw reviews data count:', reviewsData.length);
         const formattedReviews: Review[] = reviewsData.map((review: any) => ({
           id: review.id,
           customerName: review.user_name || 'Anonymous User',
@@ -120,10 +130,12 @@ export default function ReviewsScreen() {
           reply_date: review.reply_date,
         }));
 
+        console.log('ReviewsScreen: Formatted reviews count:', formattedReviews.length);
         setReviews(formattedReviews);
 
         // Extract stats from the response
         const statistics = reviewsResponse.data.statistics;
+        console.log('ReviewsScreen: Statistics from response:', statistics);
         if (statistics) {
           const transformedStats = {
             average_rating: parseFloat(statistics.average_rating || 0),
@@ -135,12 +147,13 @@ export default function ReviewsScreen() {
             one_star_count: statistics.rating_distribution?.['1'] || 0,
           };
 
+          console.log('ReviewsScreen: Transformed stats:', transformedStats);
           setReviewStats(transformedStats);
         }
       }
 
     } catch (error) {
-      console.error('Error loading reviews data:', error);
+      console.error('ReviewsScreen: Error loading reviews data:', error);
       modal.showError('Failed to load reviews. Please try again.');
     } finally {
       if (isRefresh) {
@@ -152,33 +165,42 @@ export default function ReviewsScreen() {
   };
 
   const toggleReviewDetails = (reviewId: string) => {
-    setExpandedReview(
-      expandedReview === reviewId ? null : reviewId
-    );
+    const newExpanded = expandedReview === reviewId ? null : reviewId;
+    console.log('ReviewsScreen: Toggled review details for', reviewId, 'expanded:', newExpanded !== null);
+    setExpandedReview(newExpanded);
   };
 
   const handleReplyPress = (reviewId: string) => {
+    console.log('ReviewsScreen: Reply button pressed for review', reviewId);
     const review = reviews.find(r => r.id === reviewId);
+    console.log('ReviewsScreen: Found review for reply:', review ? 'yes' : 'no');
     if (review && review.partner_reply) {
       setReplyText(review.partner_reply);
+      console.log('ReviewsScreen: Pre-filling existing reply');
     } else {
       setReplyText('');
+      console.log('ReviewsScreen: Creating new reply');
     }
     setSelectedReviewId(reviewId);
     setReplyModalVisible(true);
   };
 
   const handleSubmitReply = async () => {
+    console.log('ReviewsScreen: Submitting reply for review', selectedReviewId);
     if (!selectedReviewId || !replyText.trim()) {
+      console.log('ReviewsScreen: Validation failed - missing reviewId or reply text');
       modal.showError('Please enter a reply');
       return;
     }
 
     setReplySubmitting(true);
     try {
+      console.log('ReviewsScreen: Calling apiService.createReviewReply');
       const response = await apiService.createReviewReply(selectedReviewId, replyText.trim());
+      console.log('ReviewsScreen: createReviewReply response:', response);
 
       if (response.success) {
+        console.log('ReviewsScreen: Reply submitted successfully, refreshing data');
         modal.showSuccess('Reply submitted successfully');
         setReplyModalVisible(false);
         setReplyText('');
@@ -186,9 +208,11 @@ export default function ReviewsScreen() {
         // Refresh reviews to show the new reply
         loadReviewsData(true);
       } else {
+        console.log('ReviewsScreen: Reply submission failed:', response.error);
         modal.showError(response.error || 'Failed to submit reply');
       }
     } catch (error) {
+      console.error('ReviewsScreen: Error submitting reply:', error);
       modal.showError('Failed to submit reply. Please try again.');
     } finally {
       setReplySubmitting(false);
@@ -196,6 +220,7 @@ export default function ReviewsScreen() {
   };
 
   const handleFilterChange = (newFilter: string) => {
+    console.log('ReviewsScreen: Filter changed from', selectedFilter, 'to', newFilter);
     setSelectedFilter(newFilter);
     loadReviewsData();
   };
