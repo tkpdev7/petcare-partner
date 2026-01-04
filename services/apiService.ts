@@ -484,11 +484,11 @@ class ApiService {
     sortBy?: string;
   }): Promise<ApiResponse> {
     const config = params ? { params } : {};
-    return this.makeRequest('GET', '/reviews/partner/reviews', undefined, config);
+    return this.makeRequest('GET', '/partner-reviews/partner/my-reviews', undefined, config);
   }
 
   async getPartnerReviewStats(): Promise<ApiResponse> {
-    return this.makeRequest('GET', '/reviews/partner/stats');
+    return this.makeRequest('GET', '/partner-reviews/partner/stats');
   }
 
   async createReviewReply(reviewId: string, replyText: string): Promise<ApiResponse> {

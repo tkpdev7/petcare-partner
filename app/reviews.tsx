@@ -89,58 +89,54 @@ export default function ReviewsScreen() {
         setLoading(true);
       }
 
-      // Load reviews and stats in parallel
-      const [reviewsResponse, statsResponse] = await Promise.all([
-        apiService.getPartnerReviews({
-          page: 1,
-          limit: 50,
-          rating: selectedFilter === 'All' ? undefined : parseInt(selectedFilter),
-        }),
-        apiService.getPartnerReviewStats()
-      ]);
+      // Load reviews (stats are included in the response)
+      const reviewsResponse = await apiService.getPartnerReviews({
+        page: 1,
+        limit: 50,
+        rating: selectedFilter === 'All' ? undefined : parseInt(selectedFilter),
+      });
 
       if (reviewsResponse.success && reviewsResponse.data) {
-        const reviewsData = reviewsResponse.data.reviews || reviewsResponse.data.data?.reviews || [];
+        const reviewsData = reviewsResponse.data.reviews || [];
         const formattedReviews: Review[] = reviewsData.map((review: any) => ({
           id: review.id,
-          customerName: review.customer_name || 'Anonymous User',
+          customerName: review.user_name || 'Anonymous User',
           rating: review.rating,
-          review_text: review.comment || review.review_comment || review.review_text || '',
+          review_text: review.comment || '',
           service_quality_rating: review.service_quality_rating,
           cleanliness_rating: review.cleanliness_rating,
           staff_behavior_rating: review.staff_behavior_rating,
           value_for_money_rating: review.value_for_money_rating,
           would_recommend: review.would_recommend || true,
           is_anonymous: review.is_anonymous || false,
-          created_at: review.date || review.created_at,
-          appointment_date: review.appointment?.date || review.appointment_date,
-          appointment_time: review.appointment?.time || review.appointment_time || '10:00 AM',
+          created_at: review.created_at,
+          appointment_date: review.appointment_date,
+          appointment_time: review.appointment_time || '10:00 AM',
           service_name: review.service_name || 'Service',
           service_category: review.service_category,
-          pet_name: review.appointment?.petName || review.pet_name,
-          pet_species: review.appointment?.petType || review.pet_type,
+          pet_name: review.pet_name,
+          pet_species: review.pet_species,
           partner_reply: review.partner_reply,
           reply_date: review.reply_date,
         }));
-        
-        setReviews(formattedReviews);
-      }
 
-      if (statsResponse.success && statsResponse.data) {
-        const statsData = statsResponse.data.data || statsResponse.data;
-        
-        // Transform the stats to match our interface
-        const transformedStats = {
-          average_rating: parseFloat(statsData.averageRating || 0),
-          total_reviews: parseInt(statsData.totalReviews || 0),
-          five_star_count: statsData.ratingBreakdown?.[5] || 0,
-          four_star_count: statsData.ratingBreakdown?.[4] || 0,
-          three_star_count: statsData.ratingBreakdown?.[3] || 0,
-          two_star_count: statsData.ratingBreakdown?.[2] || 0,
-          one_star_count: statsData.ratingBreakdown?.[1] || 0,
-        };
-        
-        setReviewStats(transformedStats);
+        setReviews(formattedReviews);
+
+        // Extract stats from the response
+        const statistics = reviewsResponse.data.statistics;
+        if (statistics) {
+          const transformedStats = {
+            average_rating: parseFloat(statistics.average_rating || 0),
+            total_reviews: parseInt(statistics.review_count || 0),
+            five_star_count: statistics.rating_distribution?.['5'] || 0,
+            four_star_count: statistics.rating_distribution?.['4'] || 0,
+            three_star_count: statistics.rating_distribution?.['3'] || 0,
+            two_star_count: statistics.rating_distribution?.['2'] || 0,
+            one_star_count: statistics.rating_distribution?.['1'] || 0,
+          };
+
+          setReviewStats(transformedStats);
+        }
       }
 
     } catch (error) {
