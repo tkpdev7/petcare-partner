@@ -26,6 +26,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Color
 import apiService from '../../services/apiService';
 import CustomModal from '../../components/CustomModal';
 import { useCustomModal } from '../../hooks/useCustomModal';
+import StateDropdown from '../../components/StateDropdown';
 
 // Validation schema
 const registrationValidationSchema = Yup.object().shape({
@@ -49,9 +50,17 @@ const registrationValidationSchema = Yup.object().shape({
     .required('Please confirm your password'),
   partnerType: Yup.string()
     .required('Please select a partner type'),
-  address: Yup.string()
-    .min(10, 'Please provide a complete address')
-    .required('Address is required'),
+   building_flat: Yup.string()
+     .required('Building/Door no/Flat no is required'),
+   street_road: Yup.string()
+     .required('Road name/Street name is required'),
+   city: Yup.string()
+     .required('City is required'),
+   state: Yup.string()
+     .required('State is required'),
+   pincode: Yup.string()
+     .matches(/^[0-9]{6}$/, 'Pincode must be exactly 6 digits')
+     .required('Pincode is required'),
 });
 
 export default function RegisterScreen() {
@@ -244,7 +253,12 @@ export default function RegisterScreen() {
         phone: `${countryCode}${values.phone}`, // Combine country code with phone number
         password: values.password,
         partnerType: values.partnerType,
-        address: values.address,
+        building_flat: values.building_flat,
+        street_road: values.street_road,
+        locality: values.locality || null,
+        city: values.city,
+        state: values.state,
+        pincode: values.pincode,
         storeLocation: storeLocation,
         openingTime: formatTimeForAPI(openingTime),
         closingTime: formatTimeForAPI(closingTime),
@@ -324,15 +338,19 @@ export default function RegisterScreen() {
 
         <Formik
           innerRef={formikRef}
-          initialValues={{
-            businessName: '',
-            email: '',
-            phone: '',
-            password: '',
-            confirmPassword: '',
-            partnerType: '',
-            address: '',
-          }}
+           initialValues={{
+             businessName: '',
+             email: '',
+             phone: '',
+             password: '',
+             partnerType: '',
+             building_flat: '',
+             street_road: '',
+             locality: '',
+             city: '',
+             state: '',
+             pincode: '',
+           }}
           validationSchema={registrationValidationSchema}
           onSubmit={handleRegister}
         >
@@ -501,25 +519,108 @@ export default function RegisterScreen() {
                 </View>
               )}
 
-              <View style={[styles.inputContainer, styles.textAreaContainer]}>
-                <View style={[styles.iconContainer, styles.iconContainerTop]}>
-                  <Ionicons name="location-outline" size={20} color="#666" />
-                </View>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Enter building name and street address"
-                  placeholderTextColor="#999"
-                  value={values.address}
-                  onChangeText={handleChange('address')}
-                  onBlur={handleBlur('address')}
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
-              </View>
-              {touched.address && errors.address && (
-                <Text style={styles.errorText}>{errors.address}</Text>
-              )}
+               <View style={styles.inputContainer}>
+                 <View style={styles.iconContainer}>
+                   <Ionicons name="business-outline" size={20} color="#666" />
+                 </View>
+                 <TextInput
+                   style={styles.input}
+                   placeholder="Building/Door no/Flat no"
+                   placeholderTextColor="#999"
+                   value={values.building_flat}
+                   onChangeText={handleChange('building_flat')}
+                   onBlur={handleBlur('building_flat')}
+                 />
+               </View>
+               {touched.building_flat && errors.building_flat && (
+                 <Text style={styles.errorText}>{errors.building_flat}</Text>
+               )}
+
+               <View style={styles.inputContainer}>
+                 <View style={styles.iconContainer}>
+                   <Ionicons name="map-outline" size={20} color="#666" />
+                 </View>
+                 <TextInput
+                   style={styles.input}
+                   placeholder="Road name/Street name"
+                   placeholderTextColor="#999"
+                   value={values.street_road}
+                   onChangeText={handleChange('street_road')}
+                   onBlur={handleBlur('street_road')}
+                 />
+               </View>
+               {touched.street_road && errors.street_road && (
+                 <Text style={styles.errorText}>{errors.street_road}</Text>
+               )}
+
+               <View style={styles.inputContainer}>
+                 <View style={styles.iconContainer}>
+                   <Ionicons name="location-outline" size={20} color="#666" />
+                 </View>
+                 <TextInput
+                   style={styles.input}
+                   placeholder="Locality (optional)"
+                   placeholderTextColor="#999"
+                   value={values.locality}
+                   onChangeText={handleChange('locality')}
+                   onBlur={handleBlur('locality')}
+                 />
+               </View>
+
+               <View style={styles.inputContainer}>
+                 <View style={styles.iconContainer}>
+                   <Ionicons name="home-outline" size={20} color="#666" />
+                 </View>
+                 <TextInput
+                   style={styles.input}
+                   placeholder="City"
+                   placeholderTextColor="#999"
+                   value={values.city}
+                   onChangeText={handleChange('city')}
+                   onBlur={handleBlur('city')}
+                 />
+               </View>
+               {touched.city && errors.city && (
+                 <Text style={styles.errorText}>{errors.city}</Text>
+               )}
+
+               <StateDropdown
+                 label="State/UT"
+                 value={values.state}
+                 onChangeText={(v) => handleChange("state", v)}
+               />
+               {touched.state && errors.state && (
+                 <Text style={styles.errorText}>{errors.state}</Text>
+               )}
+
+               <View style={styles.inputContainer}>
+                 <View style={styles.iconContainer}>
+                   <Ionicons name="pin-outline" size={20} color="#666" />
+                 </View>
+                 <TextInput
+                   style={styles.input}
+                   placeholder="Pincode (6 digits)"
+                   placeholderTextColor="#999"
+                   value={values.pincode}
+                   onChangeText={(text) => {
+                     // Only allow digits and limit to 6 characters
+                     const digitsOnly = text.replace(/\D/g, '');
+                     if (digitsOnly.length <= 6) {
+                       handleChange('pincode')(digitsOnly);
+                       // Auto-fetch location when pincode is complete
+                       if (digitsOnly.length === 6) {
+                         // Add pincode auto-fetch logic here if needed
+                       }
+                     }
+                   }}
+                   onBlur={handleBlur('pincode')}
+                   keyboardType="number-pad"
+                   maxLength={6}
+                 />
+               </View>
+               {touched.pincode && errors.pincode && (
+                 <Text style={styles.errorText}>{errors.pincode}</Text>
+               )}
           
               <View style={styles.timeContainer} key={`times-${timeUpdateTrigger}`}>
                 <TouchableOpacity
