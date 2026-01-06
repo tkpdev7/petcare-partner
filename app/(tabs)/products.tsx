@@ -221,11 +221,11 @@ export default function ProductsScreen() {
               <ActivityIndicator size="large" color={Colors.primary} style={{ marginVertical: 20 }} />
             ) : services.length > 0 ? (
               services.map((service) => (
-                <TouchableOpacity 
-                  key={service.id} 
-                  style={styles.serviceCard}
-                  onPress={() => router.push(`/services/add?id=${service.id}&mode=edit`)}
-                >
+                 <TouchableOpacity
+                   key={service.id}
+                   style={styles.serviceCard}
+                   onPress={() => router.push(`/services/add?id=${service.id}&mode=view`)}
+                 >
                   <View style={[styles.serviceIcon, { backgroundColor: Colors.primary }]}>
                     <Ionicons name="medical-outline" size={24} color={Colors.white} />
                   </View>

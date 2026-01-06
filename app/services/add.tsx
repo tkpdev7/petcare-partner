@@ -49,7 +49,9 @@ export default function AddServiceScreen() {
   const router = useRouter();
   const { id, mode } = useLocalSearchParams();
   const isEditMode = mode === 'edit' && id;
+  const isViewMode = mode === 'view' && id;
   const [loading, setLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(isEditMode); // Track if we're currently editing in view mode
   const [initialValues, setInitialValues] = useState({
     name: '',
     description: '',
@@ -73,6 +75,38 @@ export default function AddServiceScreen() {
   const [newSubcategoryName, setNewSubcategoryName] = useState('');
   const [selectedCategoryForSubcat, setSelectedCategoryForSubcat] = useState('');
   const formikRef = React.useRef<any>(null);
+
+  const handleDeleteService = async () => {
+    modal.showConfirm(
+      'Delete Service',
+      'Are you sure you want to delete this service? This action cannot be undone.',
+      async () => {
+        try {
+          setLoading(true);
+          const response = await apiService.deleteService(id as string);
+          if (response.success) {
+            modal.showSuccess('Service deleted successfully');
+            router.replace('/(tabs)/products'); // Go back to services list
+          } else {
+            modal.showError(response.error || 'Failed to delete service');
+          }
+        } catch (error) {
+          console.error('Delete service error:', error);
+          modal.showError('Failed to delete service');
+        } finally {
+          setLoading(false);
+        }
+      }
+    );
+  };
+
+  const handleEditService = () => {
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -492,9 +526,25 @@ export default function AddServiceScreen() {
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {isEditMode ? 'Edit Service' : 'Add Service'}
+            {isViewMode ? 'View Service' : isEditMode ? 'Edit Service' : 'Add Service'}
           </Text>
-          <View style={{ width: 24 }} />
+          {isViewMode && (
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={handleEditService}
+              >
+                <Ionicons name="create-outline" size={20} color={Colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.headerButton, { marginLeft: 10 }]}
+                onPress={handleDeleteService}
+              >
+                <Ionicons name="trash-outline" size={20} color="#F44336" />
+              </TouchableOpacity>
+            </View>
+          )}
+          {!isViewMode && <View style={{ width: 24 }} />}
         </View>
 
         <Formik
@@ -521,12 +571,13 @@ export default function AddServiceScreen() {
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>Service Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, isViewMode && !isEditing && styles.readOnlyInput]}
                   placeholder="Enter service name"
                   placeholderTextColor="#999"
                   value={values.name}
                   onChangeText={handleChange('name')}
                   onBlur={handleBlur('name')}
+                  editable={!(isViewMode && !isEditing)}
                 />
                 {touched.name && errors.name && (
                   <Text style={styles.errorText}>{errors.name}</Text>
@@ -537,7 +588,7 @@ export default function AddServiceScreen() {
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>Description</Text>
                 <TextInput
-                  style={[styles.input, styles.textArea]}
+                  style={[styles.input, styles.textArea, isViewMode && !isEditing && styles.readOnlyInput]}
                   placeholder="Enter service description"
                   placeholderTextColor="#999"
                   value={values.description}
@@ -546,15 +597,17 @@ export default function AddServiceScreen() {
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
+                  editable={!(isViewMode && !isEditing)}
                 />
                 {touched.description && errors.description && (
                   <Text style={styles.errorText}>{errors.description}</Text>
                 )}
               </View>
 
-              {/* Service Images */}
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Service Images (Max 5) *</Text>
+              {/* Service Images - Only show in edit/add mode */}
+              {!(isViewMode && !isEditing) && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Service Images (Max 5) *</Text>
                 <View style={styles.imageGrid}>
                   {images.map((image, index) => (
                     <View key={index} style={styles.imageItem}>
@@ -574,12 +627,14 @@ export default function AddServiceScreen() {
                       <Text style={styles.addImageText}>Add Photo</Text>
                     </TouchableOpacity>
                   )}
+                 </View>
                 </View>
-              </View>
+              )}
 
-              {/* Service Video */}
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Service Video (Optional)</Text>
+              {/* Service Video - Only show in edit/add mode */}
+              {!(isViewMode && !isEditing) && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Service Video (Optional)</Text>
                 {video ? (
                   <View style={styles.videoContainer}>
                     <View style={styles.videoPlaceholder}>
@@ -598,8 +653,9 @@ export default function AddServiceScreen() {
                     <Ionicons name="videocam-outline" size={32} color={Colors.textSecondary} />
                     <Text style={styles.addVideoText}>Add Video</Text>
                   </TouchableOpacity>
-                )}
-              </View>
+                 )}
+                </View>
+              )}
 
               {/* Category */}
               <View style={styles.section}>
@@ -609,6 +665,7 @@ export default function AddServiceScreen() {
                     selectedValue={values.category}
                     onValueChange={(value) => handleCategoryChange(value, setFieldValue)}
                     style={styles.picker}
+                    enabled={!(isViewMode && !isEditing)}
                   >
                     <Picker.Item label="Select Category" value="" />
                     {categories.map((cat: any) => (
@@ -640,7 +697,7 @@ export default function AddServiceScreen() {
                     selectedValue={values.subCategory}
                     onValueChange={(value) => setFieldValue('subCategory', value)}
                     style={styles.picker}
-                    enabled={!!values.category}
+                    enabled={!(isViewMode && !isEditing) && !!values.category}
                   >
                     <Picker.Item label="Select Sub Category" value="" />
                     {subcategories.map((subcat: any) => (
@@ -685,13 +742,14 @@ export default function AddServiceScreen() {
                   <View style={styles.halfInput}>
                     <Text style={styles.inputLabel}>Duration (mins)</Text>
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, isViewMode && !isEditing && styles.readOnlyInput]}
                       placeholder="30"
                       placeholderTextColor="#999"
                       value={values.duration}
                       onChangeText={handleChange('duration')}
                       onBlur={handleBlur('duration')}
                       keyboardType="numeric"
+                      editable={!(isViewMode && !isEditing)}
                     />
                     {touched.duration && errors.duration && (
                       <Text style={styles.errorText}>{errors.duration}</Text>
@@ -703,13 +761,14 @@ export default function AddServiceScreen() {
                     <View style={styles.priceInputContainer}>
                       <Text style={styles.currencySymbol}>₹</Text>
                       <TextInput
-                        style={[styles.input, styles.priceInput]}
+                        style={[styles.input, styles.priceInput, isViewMode && !isEditing && styles.readOnlyInput]}
                         placeholder="500"
                         placeholderTextColor="#999"
                         value={values.price}
                         onChangeText={handleChange('price')}
-                        onBlur={handleBlur('price')}
+                        onBlur={handleBlur('handleBlur')}
                         keyboardType="decimal-pad"
+                        editable={!(isViewMode && !isEditing)}
                       />
                     </View>
                     {touched.price && errors.price && (
@@ -719,20 +778,53 @@ export default function AddServiceScreen() {
                 </View>
               </View>
 
-              {/* Submit Button */}
-              <TouchableOpacity
-                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-                onPress={() => handleSubmit()}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.submitButtonText}>
-                    {isEditMode ? 'Update Service' : 'Create Service'}
-                  </Text>
-                )}
-              </TouchableOpacity>
+              {/* Action Buttons */}
+              {isViewMode && !isEditing ? (
+                // View Mode Buttons
+                <View style={styles.viewModeActions}>
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.editButton]}
+                    onPress={handleEditService}
+                  >
+                    <Ionicons name="create-outline" size={20} color={Colors.white} />
+                    <Text style={styles.actionButtonText}>Edit Service</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.deleteButton]}
+                    onPress={handleDeleteService}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={Colors.white} />
+                    <Text style={styles.actionButtonText}>Delete Service</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                // Edit/Add Mode Buttons
+                <View style={styles.editModeActions}>
+                  <TouchableOpacity
+                    style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                    onPress={() => handleSubmit()}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.submitButtonText}>
+                        {isEditMode ? 'Update Service' : 'Create Service'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+
+                  {isViewMode && isEditing && (
+                    <TouchableOpacity
+                      style={[styles.cancelButton]}
+                      onPress={handleCancelEdit}
+                      disabled={loading}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel Edit</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
 
               <View style={{ height: 40 }} />
             </ScrollView>
@@ -969,150 +1061,72 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   errorText: {
-    color: Colors.error || '#EF4444',
-    fontSize: 12,
-    marginTop: 4,
+    color: Colors.error,
+    fontSize: Typography.fontSizes.sm,
+    marginTop: Spacing.xs,
+    marginLeft: Spacing.md,
+    marginBottom: Spacing.sm,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#666',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 24,
-    width: '85%',
-    maxWidth: 400,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-    color: '#333',
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 15,
-    marginBottom: 20,
-    color: '#333',
-  },
-  modalButtons: {
+
+  // View Mode Styles
+  viewModeActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: Spacing.md,
   },
-  modalButton: {
+  editModeActions: {
+    gap: Spacing.md,
+  },
+  actionButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
   },
-  modalButtonCancel: {
-    backgroundColor: '#F5F5F5',
-  },
-  modalButtonSave: {
+  editButton: {
     backgroundColor: Colors.primary,
   },
-  modalButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#666',
+  deleteButton: {
+    backgroundColor: '#F44336',
   },
-  modalButtonTextSave: {
-    color: '#fff',
+  actionButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.bold,
   },
-  imageGrid: {
+
+  // Header Styles
+  headerActions: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  imageItem: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  serviceImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  removeImageButton: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 12,
-  },
-  addImageButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-    borderStyle: 'dashed',
-    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9F9F9',
   },
-  addImageText: {
-    fontSize: 12,
-    color: Colors.textSecondary || '#666',
-    marginTop: 4,
+  headerButton: {
+    padding: Spacing.xs,
   },
-  videoContainer: {
-    position: 'relative',
-  },
-  videoPlaceholder: {
-    height: 120,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9F9F9',
-  },
-  videoText: {
-    fontSize: 14,
+
+  // Read-only Input Style
+  readOnlyInput: {
+    backgroundColor: '#f5f5f5',
     color: '#666',
-    marginTop: 8,
   },
-  removeVideoButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 12,
-  },
-  addVideoButton: {
-    height: 120,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-    borderStyle: 'dashed',
-    justifyContent: 'center',
+
+  // Cancel Button
+  cancelButton: {
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
-    backgroundColor: '#F9F9F9',
+    marginTop: Spacing.md,
   },
-  addVideoText: {
-    fontSize: 14,
-    color: Colors.textSecondary || '#666',
-    marginTop: 8,
+  cancelButtonText: {
+    color: Colors.primary,
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.bold,
   },
 });
