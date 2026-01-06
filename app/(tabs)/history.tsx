@@ -850,26 +850,26 @@ export default function HistoryScreen() {
       </View>
 
       {/* Status Filter Tabs */}
-      <View style={styles.statusTabsContainer}>
+      <View style={styles.toggleContainer}>
         <TouchableOpacity
-          style={[styles.statusTab, filter === 'pending' && styles.activeStatusTab]}
+          style={[styles.toggleButton, filter === 'pending' && styles.toggleButtonActive]}
           onPress={() => setFilter('pending')}
         >
-          <Text style={[styles.statusTabText, filter === 'pending' && styles.activeStatusTabText]}>
+          <Text style={[styles.toggleText, filter === 'pending' && styles.toggleTextActive]}>
             {showOrders ? 'New' : 'Upcoming'}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.statusTab, filter === 'completed' && styles.activeStatusTab]}
+          style={[styles.toggleButton, filter === 'completed' && styles.toggleButtonActive]}
           onPress={() => setFilter('completed')}
         >
-          <Text style={[styles.statusTabText, filter === 'completed' && styles.activeStatusTabText]}>Completed</Text>
+          <Text style={[styles.toggleText, filter === 'completed' && styles.toggleTextActive]}>Completed</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.statusTab, filter === 'cancelled' && styles.activeStatusTab]}
+          style={[styles.toggleButton, filter === 'cancelled' && styles.toggleButtonActive]}
           onPress={() => setFilter('cancelled')}
         >
-          <Text style={[styles.statusTabText, filter === 'cancelled' && styles.activeStatusTabText]}>Cancelled</Text>
+          <Text style={[styles.toggleText, filter === 'cancelled' && styles.toggleTextActive]}>Cancelled</Text>
         </TouchableOpacity>
       </View>
 
@@ -1571,31 +1571,41 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
-  statusTabsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
-    overflow: 'hidden',
+  toggleContainer: {
+    flexDirection: "row",
+    height: 44,
+    borderRadius: 26,
+    backgroundColor: "#F5F5F5",
+    marginTop: 12,
+    marginHorizontal: 8,
+    padding: 3,
   },
-  statusTab: {
+  toggleButton: {
     flex: 1,
-    paddingVertical: Spacing.md,
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundSecondary,
+    height: 38,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 22,
+    paddingHorizontal: 0,
   },
-  activeStatusTab: {
-    backgroundColor: Colors.primary,
+  toggleButtonActive: {
+    backgroundColor: "#ED6D4E",
+    shadowColor: "rgba(237, 109, 78, 0.3)",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  statusTabText: {
-    fontSize: Typography.fontSizes.sm,
-    fontWeight: Typography.fontWeights.medium,
-    color: Colors.textSecondary,
+  toggleText: {
+    color: "#666666",
+    fontWeight: "600",
+    fontSize: 14,
+    textAlign: "center",
+    letterSpacing: -0.3,
   },
-  activeStatusTabText: {
-    color: Colors.white,
+  toggleTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   content: {
     flex: 1,
