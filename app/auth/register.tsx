@@ -33,6 +33,14 @@ const registrationValidationSchema = Yup.object().shape({
   businessName: Yup.string()
     .min(2, 'Business name must be at least 2 characters')
     .required('Business name is required'),
+  ownerNamePrefix: Yup.string()
+    .required('Owner name prefix is required'),
+  ownerFirstName: Yup.string()
+    .min(2, 'Owner first name must be at least 2 characters')
+    .required('Owner first name is required'),
+  ownerLastName: Yup.string()
+    .min(2, 'Owner last name must be at least 2 characters')
+    .required('Owner last name is required'),
   email: Yup.string()
     .email('Please enter a valid email address')
     .required('Email is required'),
@@ -249,6 +257,9 @@ export default function RegisterScreen() {
     try {
       const registrationData = {
         businessName: values.businessName,
+        ownerNamePrefix: values.ownerNamePrefix,
+        ownerFirstName: values.ownerFirstName,
+        ownerLastName: values.ownerLastName,
         email: values.email,
         phone: `${countryCode}${values.phone}`, // Combine country code with phone number
         password: values.password,
@@ -338,19 +349,22 @@ export default function RegisterScreen() {
 
         <Formik
           innerRef={formikRef}
-           initialValues={{
-             businessName: '',
-             email: '',
-             phone: '',
-             password: '',
-             partnerType: '',
-             building_flat: '',
-             street_road: '',
-             locality: '',
-             city: '',
-             state: '',
-             pincode: '',
-           }}
+            initialValues={{
+              businessName: '',
+              ownerNamePrefix: '',
+              ownerFirstName: '',
+              ownerLastName: '',
+              email: '',
+              phone: '',
+              password: '',
+              partnerType: '',
+              building_flat: '',
+              street_road: '',
+              locality: '',
+              city: '',
+              state: '',
+              pincode: '',
+            }}
           validationSchema={registrationValidationSchema}
           onSubmit={handleRegister}
         >
@@ -369,14 +383,65 @@ export default function RegisterScreen() {
                   onBlur={handleBlur('businessName')}
                 />
               </View>
-              {touched.businessName && errors.businessName && (
-                <Text style={styles.errorText}>{errors.businessName}</Text>
-              )}
+               {touched.businessName && errors.businessName && (
+                 <Text style={styles.errorText}>{errors.businessName}</Text>
+               )}
 
-              <View style={styles.inputContainer}>
-                <View style={styles.iconContainer}>
-                  <Ionicons name="mail-outline" size={20} color="#666" />
-                </View>
+               {/* Owner Name Fields */}
+               <View style={styles.ownerNameRow}>
+                 <View style={styles.prefixContainer}>
+                   <TextInput
+                     style={styles.prefixInput}
+                     placeholder="Prefix"
+                     placeholderTextColor="#999"
+                     value={values.ownerNamePrefix}
+                     onChangeText={handleChange('ownerNamePrefix')}
+                     onBlur={handleBlur('ownerNamePrefix')}
+                     maxLength={10}
+                   />
+                 </View>
+                 <View style={[styles.inputContainer, styles.ownerNameInput]}>
+                   <View style={styles.iconContainer}>
+                     <Ionicons name="person-outline" size={20} color="#666" />
+                   </View>
+                   <TextInput
+                     style={styles.input}
+                     placeholder="Owner first name"
+                     placeholderTextColor="#999"
+                     value={values.ownerFirstName}
+                     onChangeText={handleChange('ownerFirstName')}
+                     onBlur={handleBlur('ownerFirstName')}
+                   />
+                 </View>
+               </View>
+               {touched.ownerNamePrefix && errors.ownerNamePrefix && (
+                 <Text style={styles.errorText}>{errors.ownerNamePrefix}</Text>
+               )}
+               {touched.ownerFirstName && errors.ownerFirstName && (
+                 <Text style={styles.errorText}>{errors.ownerFirstName}</Text>
+               )}
+
+               <View style={styles.inputContainer}>
+                 <View style={styles.iconContainer}>
+                   <Ionicons name="person-outline" size={20} color="#666" />
+                 </View>
+                 <TextInput
+                   style={styles.input}
+                   placeholder="Owner last name"
+                   placeholderTextColor="#999"
+                   value={values.ownerLastName}
+                   onChangeText={handleChange('ownerLastName')}
+                   onBlur={handleBlur('ownerLastName')}
+                 />
+               </View>
+               {touched.ownerLastName && errors.ownerLastName && (
+                 <Text style={styles.errorText}>{errors.ownerLastName}</Text>
+               )}
+
+               <View style={styles.inputContainer}>
+                 <View style={styles.iconContainer}>
+                   <Ionicons name="mail-outline" size={20} color="#666" />
+                 </View>
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your business email"
@@ -1228,248 +1293,32 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.md,
     marginBottom: Spacing.sm,
   },
-  // Location Modal Styles
-  mapModalContainer: {
-    flex: 1,
-    backgroundColor: Colors.white,
-  },
-  mapModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-    backgroundColor: Colors.white,
-  },
-  modalCloseButton: {
-    padding: Spacing.sm,
-  },
-  mapModalTitle: {
-    fontSize: Typography.fontSizes.lg,
-    fontWeight: Typography.fontWeights.bold,
-    color: Colors.textPrimary,
-    flex: 1,
-    textAlign: 'center',
-  },
-  modalDoneButton: {
-    paddingHorizontal: Spacing.sm,
-  },
-  modalDoneText: {
-    color: Colors.primary,
-    fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.bold,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  searchInputContainer: {
-    flex: 1,
+
+  // Owner Name Styles
+  ownerNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.backgroundSecondary,
+    marginBottom: Spacing.sm,
+  },
+  prefixContainer: {
+    width: 80,
+    height: 56,
+    borderWidth: 1,
+    borderColor: Colors.border,
     borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  searchIcon: {
     marginRight: Spacing.sm,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: Typography.fontSizes.base,
-    color: Colors.textPrimary,
-  },
-  searchButton: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minWidth: 80,
-  },
-  searchButtonText: {
-    color: Colors.white,
-    fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.bold,
-  },
-  map: {
-    flex: 1,
-  },
-  mapHidden: {
-    opacity: 0,
-  },
-  mapLoadingContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 100,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: Colors.white,
-    zIndex: 1,
   },
-  mapLoadingText: {
-    marginTop: Spacing.md,
-    fontSize: Typography.fontSizes.base,
-    color: Colors.textSecondary,
-  },
-  mapErrorContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    zIndex: 1,
-    padding: Spacing.lg,
-  },
-  mapErrorText: {
-    fontSize: Typography.fontSizes.base,
-    color: Colors.error,
-    textAlign: 'center',
-    marginBottom: Spacing.md,
-  },
-  retryButton: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-  },
-  retryButtonText: {
-    color: Colors.white,
-    fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.bold,
-  },
-  mapInstructions: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: Colors.white,
-    padding: Spacing.lg,
-    borderTopLeftRadius: BorderRadius.lg,
-    borderTopRightRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-  instructionText: {
-    fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.medium,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: Spacing.sm,
-  },
-  instructionSubtext: {
-    fontSize: Typography.fontSizes.sm,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  coordinateDisplay: {
-    marginTop: Spacing.md,
-    padding: Spacing.md,
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: BorderRadius.sm,
-  },
-  coordinateText: {
-    fontSize: Typography.fontSizes.sm,
-    color: Colors.textPrimary,
-    fontWeight: Typography.fontWeights.medium,
-    textAlign: 'center',
-  },
-  locationOptions: {
-    flex: 1,
-  },
-  locationContent: {
-    padding: Spacing.lg,
-    gap: Spacing.xl,
-  },
-  currentLocationSection: {
-    alignItems: 'center',
-    backgroundColor: Colors.backgroundSecondary,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.xl,
-  },
-  manualLocationSection: {
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.xl,
-  },
-  locationSectionTitle: {
-    fontSize: Typography.fontSizes.lg,
-    fontWeight: Typography.fontWeights.bold,
-    color: Colors.textPrimary,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  locationSectionDesc: {
-    fontSize: Typography.fontSizes.sm,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: Spacing.lg,
-  },
-  useCurrentLocationButton: {
-    backgroundColor: Colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
-  },
-  useCurrentLocationText: {
-    color: Colors.white,
-    fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.bold,
-  },
-  coordinateInputs: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing.lg,
+  prefixInput: {
     width: '100%',
+    textAlign: 'center',
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+    fontWeight: Typography.fontWeights.normal,
   },
-  coordinateInput: {
+  ownerNameInput: {
     flex: 1,
-  },
-  coordinateLabel: {
-    fontSize: Typography.fontSizes.sm,
-    fontWeight: Typography.fontWeights.medium,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-  },
-  coordinateField: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    fontSize: Typography.fontSizes.base,
-    color: Colors.textPrimary,
-    backgroundColor: Colors.white,
-  },
-  setManualLocationButton: {
-    backgroundColor: Colors.textSecondary,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-  },
-  setManualLocationText: {
-    color: Colors.white,
-    fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.bold,
   },
 });

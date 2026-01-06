@@ -7,6 +7,7 @@ import {
   StyleSheet,
   SafeAreaView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -67,13 +68,17 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.container}>
       <KeyboardAwareScrollView>
         <View style={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Ionicons name="medical" size={40} color={Colors.white} />
-          </View>
+         <View style={styles.header}>
+           <View style={styles.logoContainer}>
+             <Image
+               source={require('../../../assets/images/gogol-icon.png')}
+               style={styles.logoImage}
+               resizeMode="contain"
+             />
+           </View>
            <Text style={styles.title}>Welcome</Text>
-          <Text style={styles.subtitle}>Sign in to your partner account</Text>
-        </View>
+           <Text style={styles.subtitle}>Sign in to your partner account</Text>
+         </View>
 
         <Formik
           initialValues={{ email: '', password: '' }}
@@ -171,7 +176,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.white,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
@@ -183,6 +188,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 6,
+  },
+  logoImage: {
+    width: 60,
+    height: 60,
   },
   title: {
     fontSize: Typography.fontSizes['3xl'],
