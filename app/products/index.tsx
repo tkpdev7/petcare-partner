@@ -148,7 +148,11 @@ export default function ProductsScreen() {
   };
 
   const renderProductCard = ({ item }: { item: Product }) => (
-    <View style={[styles.productCard, !item.isActive && styles.inactiveCard]}>
+    <TouchableOpacity
+      style={[styles.productCard, !item.isActive && styles.inactiveCard]}
+      onPress={() => router.push(`/products/add?id=${item.id}&mode=view`)}
+      activeOpacity={0.7}
+    >
       <Image source={{ uri: item.images[0] }} style={styles.productImage} />
       
       <View style={styles.productInfo}>
@@ -226,7 +230,7 @@ export default function ProductsScreen() {
           </Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   // Check if partner is pharmacy type

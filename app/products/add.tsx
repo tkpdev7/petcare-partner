@@ -52,6 +52,8 @@ export default function AddProductScreen() {
   const router = useRouter();
   const { id, mode } = useLocalSearchParams();
   const isEditMode = mode === 'edit' && id;
+  const isViewMode = mode === 'view' && id;
+  const [isEditing, setIsEditing] = useState(!isViewMode); // Start in edit mode unless viewing
   const [loading, setLoading] = useState(false);
   const [initialValues, setInitialValues] = useState({
     title: '',
@@ -79,13 +81,13 @@ export default function AddProductScreen() {
     const loadData = async () => {
       // Load categories first
       const cats = await loadCategories();
-      // Then load product data if in edit mode, passing the loaded categories
-      if (isEditMode) {
+      // Then load product data if in edit mode or view mode, passing the loaded categories
+      if (isEditMode || isViewMode) {
         await loadProductData(cats);
       }
     };
     loadData();
-  }, [isEditMode, id]);
+  }, [isEditMode, isViewMode, id]);
 
   // Ensure subcategory value is set after subcategories are loaded
   useEffect(() => {
@@ -356,6 +358,34 @@ export default function AddProductScreen() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!id) return;
+
+    modal.showWarning('Are you sure you want to delete this product? This action cannot be undone.', {
+      title: 'Delete Product',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        try {
+          modal.showLoading('Deleting product...');
+          const response = await apiService.deleteProduct(id as string);
+
+          if (!response.success) {
+            modal.showError(response.error || 'Failed to delete product');
+            return;
+          }
+
+          modal.showSuccess('Product deleted successfully!', {
+            onClose: () => router.back()
+          });
+        } catch (error) {
+          console.error('Delete product error:', error);
+          modal.showError('Failed to delete product. Please try again.');
+        }
+      },
+    });
+  };
+
   const handleSave = async (values: any, { setSubmitting }: any) => {
     if (images.length === 0) {
       modal.showError('Please add at least one product image');
@@ -364,6 +394,41 @@ export default function AddProductScreen() {
     }
 
     try {
+      // Upload images to Supabase first
+      modal.showLoading('Uploading images...');
+      const uploadedImageUrls: string[] = [];
+
+      for (let i = 0; i < images.length; i++) {
+        const imageUri = images[i];
+
+        // Skip if it's already a URL (http/https) - meaning it's already uploaded
+        if (imageUri.startsWith('http://') || imageUri.startsWith('https://')) {
+          uploadedImageUrls.push(imageUri);
+          continue;
+        }
+
+        // Upload local image to Supabase
+        const uploadResponse = await apiService.uploadImage(imageUri, 'products', 'product-images');
+
+        if (!uploadResponse.success || !uploadResponse.data?.url) {
+          modal.showError(`Failed to upload image ${i + 1}. Please try again.`);
+          setSubmitting(false);
+          return;
+        }
+
+        uploadedImageUrls.push(uploadResponse.data.url);
+      }
+
+      // Upload video if present
+      let uploadedVideoUrl = video;
+      if (video && !video.startsWith('http://') && !video.startsWith('https://')) {
+        // For now, we'll skip video upload as it's not in the uploadImage method
+        // You can add video upload support later if needed
+        uploadedVideoUrl = undefined;
+      }
+
+      modal.showLoading(`${isEditMode ? 'Updating' : 'Creating'} product...`);
+
       const productData = {
         title: values.title,
         description: values.description,
@@ -372,8 +437,8 @@ export default function AddProductScreen() {
         subCategory: values.subCategory || undefined,
         inventoryQuantity: parseInt(values.inventoryQuantity),
         discount: values.discount ? parseFloat(values.discount) : undefined,
-        images: images,
-        video: video || undefined,
+        images: uploadedImageUrls, // Use uploaded URLs instead of local paths
+        video: uploadedVideoUrl,
       };
 
       const response = isEditMode
@@ -443,7 +508,7 @@ export default function AddProductScreen() {
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  if (loading && isEditMode) {
+  if (loading && (isEditMode || isViewMode)) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -464,9 +529,28 @@ export default function AddProductScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {isEditMode ? 'Edit Product' : 'Add Product'}
+          {isViewMode ? 'Product Details' : isEditMode ? 'Edit Product' : 'Add Product'}
         </Text>
-        <View style={styles.saveButton} />
+        <View style={styles.headerActions}>
+          {(isViewMode || (isEditMode && id)) && (
+            <>
+              {isViewMode && (
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={() => setIsEditing(true)}
+                >
+                  <Ionicons name="create-outline" size={24} color={Colors.primary} />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.iconButton, { marginLeft: 12 }]}
+                onPress={handleDelete}
+              >
+                <Ionicons name="trash-outline" size={24} color={Colors.error} />
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
       </View>
 
       <Formik
@@ -489,6 +573,7 @@ export default function AddProductScreen() {
                     onChangeText={handleChange('title')}
                     onBlur={handleBlur('title')}
                     placeholder="Enter product title"
+                    editable={!isViewMode || isEditing}
                   />
                   {touched.title && errors.title && (
                     <Text style={styles.errorText}>{errors.title}</Text>
@@ -505,6 +590,7 @@ export default function AddProductScreen() {
                     placeholder="Enter product description"
                     multiline
                     numberOfLines={4}
+                    editable={!isViewMode || isEditing}
                   />
                   {touched.description && errors.description && (
                     <Text style={styles.errorText}>{errors.description}</Text>
@@ -518,6 +604,7 @@ export default function AddProductScreen() {
                       selectedValue={values.category}
                       style={styles.picker}
                       onValueChange={(value) => handleCategoryChange(value, setFieldValue)}
+                      enabled={!isViewMode || isEditing}
                     >
                       <Picker.Item label="Select Category" value="" />
                       {categories.map((cat: any) => (
@@ -529,13 +616,15 @@ export default function AddProductScreen() {
                       ))}
                     </Picker>
                   </View>
-                  <TouchableOpacity
-                    style={styles.addButton}
-                    onPress={() => setShowCategoryModal(true)}
-                  >
-                    <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
-                    <Text style={styles.addButtonText}>Add Category</Text>
-                  </TouchableOpacity>
+                  {(!isViewMode || isEditing) && (
+                    <TouchableOpacity
+                      style={styles.addButton}
+                      onPress={() => setShowCategoryModal(true)}
+                    >
+                      <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+                      <Text style={styles.addButtonText}>Add Category</Text>
+                    </TouchableOpacity>
+                  )}
                   {touched.category && errors.category && (
                     <Text style={styles.errorText}>{errors.category}</Text>
                   )}
@@ -548,7 +637,7 @@ export default function AddProductScreen() {
                       selectedValue={values.subCategory}
                       style={styles.picker}
                       onValueChange={(value) => setFieldValue('subCategory', value)}
-                      enabled={!!values.category}
+                      enabled={!!values.category && (!isViewMode || isEditing)}
                     >
                       <Picker.Item label="Select Sub Category" value="" />
                       {subcategories.map((subcat: any) => (
@@ -560,30 +649,32 @@ export default function AddProductScreen() {
                       ))}
                     </Picker>
                   </View>
-                  <TouchableOpacity
-                    style={[styles.addButton, !values.category && styles.addButtonDisabled]}
-                    onPress={() => {
-                      if (values.category) {
-                        setSelectedCategoryForSubcat(values.category);
-                        setShowSubcategoryModal(true);
-                      }
-                    }}
-                    disabled={!values.category}
-                  >
-                    <Ionicons
-                      name="add-circle-outline"
-                      size={20}
-                      color={values.category ? Colors.primary : '#999'}
-                    />
-                    <Text
-                      style={[
-                        styles.addButtonText,
-                        !values.category && styles.addButtonTextDisabled,
-                      ]}
+                  {(!isViewMode || isEditing) && (
+                    <TouchableOpacity
+                      style={[styles.addButton, !values.category && styles.addButtonDisabled]}
+                      onPress={() => {
+                        if (values.category) {
+                          setSelectedCategoryForSubcat(values.category);
+                          setShowSubcategoryModal(true);
+                        }
+                      }}
+                      disabled={!values.category}
                     >
-                      Add Subcategory
-                    </Text>
-                  </TouchableOpacity>
+                      <Ionicons
+                        name="add-circle-outline"
+                        size={20}
+                        color={values.category ? Colors.primary : '#999'}
+                      />
+                      <Text
+                        style={[
+                          styles.addButtonText,
+                          !values.category && styles.addButtonTextDisabled,
+                        ]}
+                      >
+                        Add Subcategory
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -595,6 +686,7 @@ export default function AddProductScreen() {
                     onBlur={handleBlur('price')}
                     placeholder="Enter price"
                     keyboardType="numeric"
+                    editable={!isViewMode || isEditing}
                   />
                   {touched.price && errors.price && (
                     <Text style={styles.errorText}>{errors.price}</Text>
@@ -610,6 +702,7 @@ export default function AddProductScreen() {
                     onBlur={handleBlur('discount')}
                     placeholder="Enter discount percentage"
                     keyboardType="numeric"
+                    editable={!isViewMode || isEditing}
                   />
                   {touched.discount && errors.discount && (
                     <Text style={styles.errorText}>{errors.discount}</Text>
@@ -625,6 +718,7 @@ export default function AddProductScreen() {
                     onBlur={handleBlur('inventoryQuantity')}
                     placeholder="Enter inventory quantity"
                     keyboardType="numeric"
+                    editable={!isViewMode || isEditing}
                   />
                   {touched.inventoryQuantity && errors.inventoryQuantity && (
                     <Text style={styles.errorText}>{errors.inventoryQuantity}</Text>
@@ -636,16 +730,18 @@ export default function AddProductScreen() {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Media</Text>
                 
-                {/* Add Video */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Add Video</Text>
-                  <TouchableOpacity style={styles.mediaButton} onPress={pickVideo}>
-                    <Ionicons name="videocam-outline" size={24} color={Colors.primary} />
-                    <Text style={styles.mediaButtonText}>
-                      {video ? 'Video Selected' : 'Choose Video'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                {/* Add Video - Hide in view mode */}
+                {(!isViewMode || isEditing) && (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Add Video</Text>
+                    <TouchableOpacity style={styles.mediaButton} onPress={pickVideo}>
+                      <Ionicons name="videocam-outline" size={24} color={Colors.primary} />
+                      <Text style={styles.mediaButtonText}>
+                        {video ? 'Video Selected' : 'Choose Video'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
 
                 {/* Add Images */}
                 <View style={styles.inputGroup}>
@@ -655,16 +751,18 @@ export default function AddProductScreen() {
                       {images.map((image, index) => (
                         <View key={index} style={styles.imageItem}>
                           <Image source={{ uri: image }} style={styles.productImage} />
-                          <TouchableOpacity
-                            style={styles.removeImageButton}
-                            onPress={() => removeImage(index)}
-                          >
-                            <Ionicons name="close-circle" size={24} color={Colors.error} />
-                          </TouchableOpacity>
+                          {(!isViewMode || isEditing) && (
+                            <TouchableOpacity
+                              style={styles.removeImageButton}
+                              onPress={() => removeImage(index)}
+                            >
+                              <Ionicons name="close-circle" size={24} color={Colors.error} />
+                            </TouchableOpacity>
+                          )}
                         </View>
                       ))}
                       
-                      {images.length < 5 && (
+                      {images.length < 5 && (!isViewMode || isEditing) && (
                         <TouchableOpacity style={styles.addImageButton} onPress={pickImage}>
                           <Ionicons name="camera-outline" size={32} color={Colors.textSecondary} />
                           <Text style={styles.addImageText}>Add Photo</Text>
@@ -675,22 +773,24 @@ export default function AddProductScreen() {
                 </View>
               </View>
 
-              {/* Submit Button */}
-              <View style={styles.section}>
-                <TouchableOpacity
-                  style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
-                  onPress={handleSubmit}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator color={Colors.white} />
-                  ) : (
-                    <Text style={styles.submitButtonText}>
-                      {isEditMode ? 'Update Product' : 'Add Product'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
+              {/* Submit Button - Only show when adding new product or editing */}
+              {(!isViewMode || isEditing) && (
+                <View style={styles.section}>
+                  <TouchableOpacity
+                    style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+                    onPress={handleSubmit}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <ActivityIndicator color={Colors.white} />
+                    ) : (
+                      <Text style={styles.submitButtonText}>
+                        {isEditMode || isViewMode ? 'Update Product' : 'Add Product'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
             </KeyboardAwareScrollView>
 
             {/* Add Category Modal */}
@@ -821,13 +921,12 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
   },
-  saveButton: {
-    padding: Spacing.xs,
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  saveButtonText: {
-    fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.bold,
-    color: Colors.primary,
+  iconButton: {
+    padding: Spacing.xs,
   },
   content: {
     flex: 1,
