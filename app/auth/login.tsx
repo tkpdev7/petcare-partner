@@ -71,7 +71,7 @@ export default function LoginScreen() {
           <View style={styles.logoContainer}>
             <Ionicons name="medical" size={40} color={Colors.white} />
           </View>
-          <Text style={styles.title}>Welcome Back</Text>
+           <Text style={styles.title}>Welcome</Text>
           <Text style={styles.subtitle}>Sign in to your partner account</Text>
         </View>
 
