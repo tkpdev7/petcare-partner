@@ -34,6 +34,37 @@ interface PartnerData {
   reviewCount: number;
 }
 
+// Helper function to mask email
+const maskEmail = (email: string) => {
+  if (!email) return '';
+  const [localPart, domain] = email.split('@');
+  if (!domain) return email;
+
+  const maskedLocal = localPart.length > 2
+    ? localPart[0] + '*'.repeat(localPart.length - 2) + localPart[localPart.length - 1]
+    : localPart + '*';
+
+  const [domainName, domainExt] = domain.split('.');
+  const maskedDomain = domainName.length > 2
+    ? domainName[0] + '*'.repeat(domainName.length - 2) + domainName[domainName.length - 1]
+    : domainName + '*';
+
+  return `${maskedLocal}@${maskedDomain}.${domainExt}`;
+};
+
+// Helper function to mask phone number
+const maskPhone = (phone: string) => {
+  if (!phone) return '';
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length < 4) return cleaned;
+
+  const firstTwo = cleaned.slice(0, 2);
+  const lastTwo = cleaned.slice(-2);
+  const middleStars = '*'.repeat(cleaned.length - 4);
+
+  return `${firstTwo}${middleStars}${lastTwo}`;
+};
+
 export default function ProfileScreen() {
   const router = useRouter();
   const modal = useCustomModal();
@@ -325,21 +356,21 @@ export default function ProfileScreen() {
             )}
           </View>
 
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Email</Text>
-            <View style={styles.readOnlyContainer}>
-              <Text style={styles.readOnlyText}>{partnerData.email}</Text>
-              <Ionicons name="lock-closed" size={16} color="#999" />
-            </View>
-          </View>
+           <View style={styles.infoItem}>
+             <Text style={styles.infoLabel}>Email</Text>
+             <View style={styles.readOnlyContainer}>
+               <Text style={styles.readOnlyText}>{maskEmail(partnerData.email)}</Text>
+               <Ionicons name="lock-closed" size={16} color="#999" />
+             </View>
+           </View>
 
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Phone</Text>
-            <View style={styles.readOnlyContainer}>
-              <Text style={styles.readOnlyText}>{partnerData.phone}</Text>
-              <Ionicons name="lock-closed" size={16} color="#999" />
-            </View>
-          </View>
+           <View style={styles.infoItem}>
+             <Text style={styles.infoLabel}>Phone</Text>
+             <View style={styles.readOnlyContainer}>
+               <Text style={styles.readOnlyText}>{maskPhone(partnerData.phone)}</Text>
+               <Ionicons name="lock-closed" size={16} color="#999" />
+             </View>
+           </View>
 
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Service Type</Text>

@@ -32,27 +32,26 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
+        tabBarStyle: {
+          position: "absolute",
+          bottom: 1,
+          left: 30,
+          right: 30,
+          borderRadius: 15,
+          height: 70,
+          backgroundColor: "#fff",
+          elevation: 5,
+          shadowOpacity: 0.25,
+          shadowOffset: { width: 0, height: -3 },
+          overflow: "hidden",
+        },
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textSecondary,
-        tabBarStyle: {
-          backgroundColor: Colors.white,
-          borderTopWidth: 1,
-          borderTopColor: Colors.borderLight,
-          height: 85, // Increased height to avoid interference
-          paddingBottom: 25, // More padding to clear mobile bottom navigation
-          paddingTop: 8,
-          shadowColor: Colors.black,
-          shadowOffset: {
-            width: 0,
-            height: -2,
-          },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-          elevation: 5,
-        },
         tabBarLabelStyle: {
-          fontSize: Typography.fontSizes.xs,
-          fontWeight: Typography.fontWeights.semibold,
+          fontSize: 12,
+          fontWeight: "600",
+          marginTop: -5,
+          marginBottom: 5,
         },
         headerShown: false,
       }}
@@ -61,8 +60,12 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? "home" : "home-outline"}
+              size={24}
+              color={color}
+            />
           ),
         }}
       />
@@ -70,8 +73,12 @@ export default function TabLayout() {
         name="products"
         options={{
           title: 'Inventory',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cube-outline" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? "cube" : "cube-outline"}
+              size={24}
+              color={color}
+            />
           ),
           // Show Inventory tab only for Essentials partners
           href: isEssentials ? '/(tabs)/products' : null,
@@ -82,10 +89,10 @@ export default function TabLayout() {
         options={{
           // Tab title based on partner type
           title: isVetOrGrooming ? 'Appointments' : 'Orders',
-          tabBarIcon: ({ color, size }) => (
+          tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
-              name={isVetOrGrooming ? "calendar-outline" : "receipt-outline"}
-              size={size}
+              name={focused ? (isVetOrGrooming ? "calendar" : "receipt") : (isVetOrGrooming ? "calendar-outline" : "receipt-outline")}
+              size={24}
               color={color}
             />
           ),
@@ -95,8 +102,12 @@ export default function TabLayout() {
         name="account"
         options={{
           title: 'Account',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons
+              name={focused ? "person" : "person-outline"}
+              size={24}
+              color={color}
+            />
           ),
         }}
       />
