@@ -1081,6 +1081,123 @@ export default function HistoryScreen() {
               {/* Step 2: Completion Form (only if OTP verified) */}
               {!showOrders && otpVerifiedInSession && (
                 <>
+                  {/* Prescription Form and Clinical Notes (For All Service Appointments) */}
+                  <Text style={styles.vetSectionTitle}>Medical Documentation</Text>
+
+                  {/* Clinical Notes */}
+                  <Text style={styles.modalDescription}>
+                    Clinical Notes (Optional):
+                  </Text>
+                  <TextInput
+                    style={styles.treatmentInput}
+                    placeholder="Enter clinical observations, diagnosis, vital signs, etc."
+                    value={clinicalNotes}
+                    onChangeText={setClinicalNotes}
+                    multiline
+                    numberOfLines={4}
+                    maxLength={500}
+                    textAlignVertical="top"
+                  />
+                  <Text style={styles.characterCount}>{clinicalNotes.length}/500</Text>
+
+                  {/* Prescription Form */}
+                  <Text style={[styles.modalDescription, { marginTop: Spacing.lg }]}>
+                    Prescription Details (Optional):
+                  </Text>
+
+                  {prescriptions.map((prescription, index) => (
+                    <View key={index} style={styles.prescriptionItem}>
+                      <View style={styles.prescriptionHeader}>
+                        <Text style={styles.prescriptionNumber}>Medicine {index + 1}</Text>
+                        {prescriptions.length > 1 && (
+                          <TouchableOpacity onPress={() => removePrescription(index)}>
+                            <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+
+                      {/* Drug Name */}
+                      <TextInput
+                        style={styles.prescriptionInput}
+                        placeholder="Drug name"
+                        value={prescription.drug_name}
+                        onChangeText={(text) => updatePrescription(index, 'drug_name', text)}
+                      />
+
+                      {/* Dosage */}
+                      <TextInput
+                        style={styles.prescriptionInput}
+                        placeholder="Dosage"
+                        value={prescription.dosage}
+                        onChangeText={(text) => updatePrescription(index, 'dosage', text)}
+                      />
+
+                      {/* Frequency Dropdown */}
+                      <TouchableOpacity
+                        style={styles.dropdownButton}
+                        onPress={() => setShowFrequencyPicker(showFrequencyPicker === index ? null : index)}
+                      >
+                        <Text style={prescription.frequency ? styles.dropdownButtonTextSelected : styles.dropdownButtonText}>
+                          {prescription.frequency || 'Frequency'}
+                        </Text>
+                        <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />
+                      </TouchableOpacity>
+                      {showFrequencyPicker === index && (
+                        <View style={styles.dropdownList}>
+                          {frequencyOptions.map((option) => (
+                            <TouchableOpacity
+                              key={option}
+                              style={styles.dropdownOption}
+                              onPress={() => {
+                                updatePrescription(index, 'frequency', option);
+                                setShowFrequencyPicker(null);
+                              }}
+                            >
+                              <Text style={styles.dropdownOptionText}>{option}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* Duration Dropdown */}
+                      <TouchableOpacity
+                        style={styles.dropdownButton}
+                        onPress={() => setShowDurationPicker(showDurationPicker === index ? null : index)}
+                      >
+                        <Text style={prescription.duration ? styles.dropdownButtonTextSelected : styles.dropdownButtonText}>
+                          {prescription.duration || 'Duration'}
+                        </Text>
+                        <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />
+                      </TouchableOpacity>
+                      {showDurationPicker === index && (
+                        <View style={styles.dropdownList}>
+                          {durationOptions.map((option) => (
+                            <TouchableOpacity
+                              key={option}
+                              style={styles.dropdownOption}
+                              onPress={() => {
+                                updatePrescription(index, 'duration', option);
+                                setShowDurationPicker(null);
+                              }}
+                            >
+                              <Text style={styles.dropdownOptionText}>{option}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  ))}
+
+                  {/* Add More Button */}
+                  <TouchableOpacity
+                    style={styles.addMoreButton}
+                    onPress={addPrescription}
+                  >
+                    <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+                    <Text style={styles.addMoreButtonText}>Add More Medicine</Text>
+                  </TouchableOpacity>
+
+                  {/* Follow-up Appointment */}
                   <View style={styles.checkboxContainer}>
                     <TouchableOpacity
                       style={styles.checkbox}
@@ -1208,126 +1325,6 @@ export default function HistoryScreen() {
                       )}
                     </View>
                   )}
-                </>
-              )}
-
-              {/* Prescription Form and Clinical Notes (For All Service Appointments) */}
-              {!showOrders && otpVerifiedInSession && (
-                <>
-                  <Text style={styles.vetSectionTitle}>Medical Documentation</Text>
-
-                  {/* Prescription Form */}
-                  <Text style={styles.modalDescription}>
-                    Prescription Details (Optional):
-                  </Text>
-
-                  {prescriptions.map((prescription, index) => (
-                    <View key={index} style={styles.prescriptionItem}>
-                      <View style={styles.prescriptionHeader}>
-                        <Text style={styles.prescriptionNumber}>Medicine {index + 1}</Text>
-                        {prescriptions.length > 1 && (
-                          <TouchableOpacity onPress={() => removePrescription(index)}>
-                            <Ionicons name="trash-outline" size={20} color={Colors.error} />
-                          </TouchableOpacity>
-                        )}
-                      </View>
-
-                      {/* Drug Name */}
-                      <TextInput
-                        style={styles.prescriptionInput}
-                        placeholder="Drug Name"
-                        value={prescription.drug_name}
-                        onChangeText={(text) => updatePrescription(index, 'drug_name', text)}
-                      />
-
-                      {/* Dosage */}
-                      <TextInput
-                        style={styles.prescriptionInput}
-                        placeholder="Dosage (e.g., 10mg, 1 tablet)"
-                        value={prescription.dosage}
-                        onChangeText={(text) => updatePrescription(index, 'dosage', text)}
-                      />
-
-                      {/* Frequency Dropdown */}
-                      <TouchableOpacity
-                        style={styles.dropdownButton}
-                        onPress={() => setShowFrequencyPicker(showFrequencyPicker === index ? null : index)}
-                      >
-                        <Text style={prescription.frequency ? styles.dropdownButtonTextSelected : styles.dropdownButtonText}>
-                          {prescription.frequency || 'Select Frequency'}
-                        </Text>
-                        <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />
-                      </TouchableOpacity>
-                      {showFrequencyPicker === index && (
-                        <View style={styles.dropdownList}>
-                          {frequencyOptions.map((option) => (
-                            <TouchableOpacity
-                              key={option}
-                              style={styles.dropdownOption}
-                              onPress={() => {
-                                updatePrescription(index, 'frequency', option);
-                                setShowFrequencyPicker(null);
-                              }}
-                            >
-                              <Text style={styles.dropdownOptionText}>{option}</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-
-                      {/* Duration Dropdown */}
-                      <TouchableOpacity
-                        style={styles.dropdownButton}
-                        onPress={() => setShowDurationPicker(showDurationPicker === index ? null : index)}
-                      >
-                        <Text style={prescription.duration ? styles.dropdownButtonTextSelected : styles.dropdownButtonText}>
-                          {prescription.duration || 'Select Duration'}
-                        </Text>
-                        <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />
-                      </TouchableOpacity>
-                      {showDurationPicker === index && (
-                        <View style={styles.dropdownList}>
-                          {durationOptions.map((option) => (
-                            <TouchableOpacity
-                              key={option}
-                              style={styles.dropdownOption}
-                              onPress={() => {
-                                updatePrescription(index, 'duration', option);
-                                setShowDurationPicker(null);
-                              }}
-                            >
-                              <Text style={styles.dropdownOptionText}>{option}</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-                  ))}
-
-                  {/* Add More Button */}
-                  <TouchableOpacity
-                    style={styles.addMoreButton}
-                    onPress={addPrescription}
-                  >
-                    <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
-                    <Text style={styles.addMoreButtonText}>Add More Medicine</Text>
-                  </TouchableOpacity>
-
-                  {/* Clinical Notes */}
-                  <Text style={[styles.modalDescription, { marginTop: Spacing.lg }]}>
-                    Clinical Notes (Optional):
-                  </Text>
-                  <TextInput
-                    style={styles.treatmentInput}
-                    placeholder="Enter clinical observations, diagnosis, vital signs, etc."
-                    value={clinicalNotes}
-                    onChangeText={setClinicalNotes}
-                    multiline
-                    numberOfLines={4}
-                    maxLength={500}
-                    textAlignVertical="top"
-                  />
-                  <Text style={styles.characterCount}>{clinicalNotes.length}/500</Text>
                 </>
               )}
                 </View>
