@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,17 +8,21 @@ import {
   TextInput,
   Image,
   ActivityIndicator,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
+import { requestMediaPermissionLazy } from '../utils/permissions';
 import AppHeader from '../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../constants/Colors';
 import apiService from '../services/apiService';
 import CustomModal from '../components/CustomModal';
 import KeyboardAwareScrollView from '../components/KeyboardAwareScrollView';
 import { useCustomModal } from '../hooks/useCustomModal';
+import { useBiometricAuth } from '../hooks/useBiometricAuth';
 
 interface PartnerData {
   id: string;
@@ -68,9 +72,14 @@ const maskPhone = (phone: string) => {
 export default function ProfileScreen() {
   const router = useRouter();
   const modal = useCustomModal();
+  const { authenticateBiometric, isAuthenticating } = useBiometricAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [revealedFields, setRevealedFields] = useState({
+    email: false,
+    phone: false,
+  });
   const [partnerData, setPartnerData] = useState<PartnerData>({
     id: '',
     name: '',
@@ -86,6 +95,19 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     loadPartnerData();
+  }, []);
+
+  // Auto-hide revealed fields when app goes to background
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (nextAppState !== 'active') {
+        setRevealedFields({ email: false, phone: false });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   const loadPartnerData = async () => {
@@ -170,19 +192,15 @@ export default function ProfileScreen() {
 
   const handleImagePicker = async () => {
     try {
-      // Request permissions first
-      const { status} = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (status !== 'granted') {
-        modal.showWarning('Please grant access to your photo library to select images.', { title: 'Permission Required' });
-        return;
-      }
+      // Request permissions lazily with soft prompt
+      const mediaGranted = await requestMediaPermissionLazy();
+      if (!mediaGranted) return;
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: 'Images',
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8, // Slightly compress to reduce upload size
+        quality: 0.8,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -243,6 +261,40 @@ export default function ProfileScreen() {
         }
       }
     );
+  };
+
+  const handleRevealEmail = async () => {
+    if (isAuthenticating) return; // Prevent multiple simultaneous auth attempts
+
+    const result = await authenticateBiometric();
+
+    if (result.success) {
+      setRevealedFields(prev => ({ ...prev, email: true }));
+
+      // Auto-hide after 30 seconds
+      setTimeout(() => {
+        setRevealedFields(prev => ({ ...prev, email: false }));
+      }, 30000);
+    } else {
+      modal.showError(result.error || 'Authentication failed');
+    }
+  };
+
+  const handleRevealPhone = async () => {
+    if (isAuthenticating) return; // Prevent multiple simultaneous auth attempts
+
+    const result = await authenticateBiometric();
+
+    if (result.success) {
+      setRevealedFields(prev => ({ ...prev, phone: true }));
+
+      // Auto-hide after 30 seconds
+      setTimeout(() => {
+        setRevealedFields(prev => ({ ...prev, phone: false }));
+      }, 30000);
+    } else {
+      modal.showError(result.error || 'Authentication failed');
+    }
   };
 
   const getServiceTypeDisplay = (type: string) => {
@@ -356,21 +408,53 @@ export default function ProfileScreen() {
             )}
           </View>
 
-           <View style={styles.infoItem}>
-             <Text style={styles.infoLabel}>Email</Text>
-             <View style={styles.readOnlyContainer}>
-               <Text style={styles.readOnlyText}>{maskEmail(partnerData.email)}</Text>
-               <Ionicons name="lock-closed" size={16} color="#999" />
-             </View>
-           </View>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Email</Text>
+              <View style={styles.readOnlyContainer}>
+                <Text style={styles.readOnlyText}>
+                  {revealedFields.email ? partnerData.email : maskEmail(partnerData.email)}
+                </Text>
+                <TouchableOpacity
+                  onPress={handleRevealEmail}
+                  disabled={isAuthenticating}
+                  style={styles.revealButton}
+                >
+                  {isAuthenticating ? (
+                    <ActivityIndicator size="small" color="#ED6D4E" />
+                  ) : (
+                    <Ionicons
+                      name={revealedFields.email ? "eye-off" : "eye"}
+                      size={16}
+                      color="#ED6D4E"
+                    />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
 
-           <View style={styles.infoItem}>
-             <Text style={styles.infoLabel}>Phone</Text>
-             <View style={styles.readOnlyContainer}>
-               <Text style={styles.readOnlyText}>{maskPhone(partnerData.phone)}</Text>
-               <Ionicons name="lock-closed" size={16} color="#999" />
-             </View>
-           </View>
+            <View style={styles.infoItem}>
+              <Text style={styles.infoLabel}>Phone</Text>
+              <View style={styles.readOnlyContainer}>
+                <Text style={styles.readOnlyText}>
+                  {revealedFields.phone ? partnerData.phone : maskPhone(partnerData.phone)}
+                </Text>
+                <TouchableOpacity
+                  onPress={handleRevealPhone}
+                  disabled={isAuthenticating}
+                  style={styles.revealButton}
+                >
+                  {isAuthenticating ? (
+                    <ActivityIndicator size="small" color="#ED6D4E" />
+                  ) : (
+                    <Ionicons
+                      name={revealedFields.phone ? "eye-off" : "eye"}
+                      size={16}
+                      color="#ED6D4E"
+                    />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
 
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Service Type</Text>
@@ -581,20 +665,24 @@ const styles = StyleSheet.create({
     height: 80,
     textAlignVertical: 'top',
   },
-  readOnlyContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#f8f8f8',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  readOnlyText: {
-    fontSize: 16,
-    color: '#666',
-    flex: 1,
-  },
+   readOnlyContainer: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     justifyContent: 'space-between',
+     backgroundColor: '#f8f8f8',
+     borderRadius: 8,
+     paddingHorizontal: 12,
+     paddingVertical: 12,
+   },
+   readOnlyText: {
+     fontSize: 16,
+     color: '#666',
+     flex: 1,
+   },
+   revealButton: {
+     padding: 4,
+     marginLeft: 8,
+   },
   actionSection: {
     backgroundColor: Colors.white,
     paddingHorizontal: Spacing.lg,

@@ -691,6 +691,26 @@ class ApiService {
   }): Promise<ApiResponse> {
     return this.makeRequest('POST', '/product-categories/subcategories', subcategoryData);
   }
+
+  // Revenue APIs
+  async getRevenueSummary(params?: {
+    from?: string;
+    to?: string;
+  }): Promise<ApiResponse> {
+    const config = params ? { params } : {};
+    return this.makeRequest('GET', '/partner-revenue/summary', undefined, config);
+  }
+
+  async getRevenues(params?: {
+    from?: string;
+    to?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ApiResponse> {
+    const config = params ? { params } : {};
+    return this.makeRequest('GET', '/partner-revenue', undefined, config);
+  }
 }
 
 export default new ApiService();

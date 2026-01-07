@@ -81,6 +81,12 @@ export default function RegisterScreen() {
   const [mapError, setMapError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
+  const [mapRegion, setMapRegion] = useState({
+    latitude: 13.0827, // Default to Chennai
+    longitude: 80.2707,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  });
   const formikRef = React.useRef<any>(null);
   const mapRef = React.useRef<MapView>(null);
   
@@ -99,6 +105,19 @@ export default function RegisterScreen() {
   const [document4, setDocument4] = useState(null as any);
   
   const [showPassword, setShowPassword] = useState(false);
+
+  // Update map region when store location changes
+  React.useEffect(() => {
+    if (storeLocation.latitude !== 0 && storeLocation.longitude !== 0) {
+      setMapRegion(prev => ({
+        ...prev,
+        latitude: storeLocation.latitude,
+        longitude: storeLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }));
+    }
+  }, [storeLocation.latitude, storeLocation.longitude]);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showOpeningTimePicker, setShowOpeningTimePicker] = useState(false);
   const [showClosingTimePicker, setShowClosingTimePicker] = useState(false);
@@ -181,15 +200,13 @@ export default function RegisterScreen() {
           address: searchQuery,
         });
 
-        // Animate map to searched location
-        if (mapRef.current) {
-          mapRef.current.animateToRegion({
-            latitude,
-            longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          }, 1000);
-        }
+        // Update controlled map region
+        setMapRegion({
+          latitude,
+          longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        });
 
         modal.showSuccess('Tap "Done" to confirm this location', { title: 'Location Found' });
       } else {
@@ -549,27 +566,46 @@ export default function RegisterScreen() {
                 </View>
               )}
 
-              <TouchableOpacity style={styles.locationButton} onPress={async () => {
-                // Get current location when opening map
-                try {
-                  const { status } = await Location.requestForegroundPermissionsAsync();
-                  if (status === 'granted') {
-                    const location = await Location.getCurrentPositionAsync({});
-                    if (storeLocation.latitude === 0) { // Only set if no location is already set
-                      setStoreLocation(prev => ({
-                        ...prev,
-                        latitude: location.coords.latitude,
-                        longitude: location.coords.longitude,
-                      }));
-                    }
-                  }
-                } catch (error) {
-                  console.log('Location permission denied or error:', error);
-                }
-                setMapLoading(true);
-                setMapError(false);
-                setShowMapModal(true);
-              }}>
+               <TouchableOpacity style={styles.locationButton} onPress={async () => {
+                 // Get current location when opening map
+                 try {
+                   const { status } = await Location.requestForegroundPermissionsAsync();
+                   if (status === 'granted') {
+                     const location = await Location.getCurrentPositionAsync({});
+                     const newLat = location.coords.latitude;
+                     const newLng = location.coords.longitude;
+
+                     if (storeLocation.latitude === 0) { // Only set if no location is already set
+                       setStoreLocation(prev => ({
+                         ...prev,
+                         latitude: newLat,
+                         longitude: newLng,
+                       }));
+
+                       // Update map region for controlled map
+                       setMapRegion({
+                         latitude: newLat,
+                         longitude: newLng,
+                         latitudeDelta: 0.01,
+                         longitudeDelta: 0.01,
+                       });
+                     } else {
+                       // Update map region to current location even if store location exists
+                       setMapRegion({
+                         latitude: newLat,
+                         longitude: newLng,
+                         latitudeDelta: 0.01,
+                         longitudeDelta: 0.01,
+                       });
+                     }
+                   }
+                 } catch (error) {
+                   console.log('Location permission denied or error:', error);
+                 }
+                 setMapLoading(true);
+                 setMapError(false);
+                 setShowMapModal(true);
+               }}>
                 <Ionicons name="map-outline" size={20} color={Colors.primary} />
                 <Text style={styles.locationButtonText}>
                   {storeLocation.address ? 'Update Store Location' : 'Pin Store Location *'}
@@ -946,11 +982,16 @@ export default function RegisterScreen() {
             <MapView
               ref={mapRef}
               style={[styles.map, (mapLoading || mapError) && styles.mapHidden]}
-              initialRegion={{
-                latitude: storeLocation.latitude || 37.78825,
-                longitude: storeLocation.longitude || -122.4324,
-                latitudeDelta: 0.0922,
-                longitudeDelta: 0.0421,
+              region={mapRegion}
+              onRegionChangeComplete={(region) => {
+                // Update coordinates when user drags the map
+                if (region.latitude !== mapRegion.latitude || region.longitude !== mapRegion.longitude) {
+                  setStoreLocation(prev => ({
+                    ...prev,
+                    latitude: region.latitude,
+                    longitude: region.longitude,
+                  }));
+                }
               }}
               onPress={(event) => {
                 const { latitude, longitude } = event.nativeEvent.coordinate;
@@ -959,6 +1000,12 @@ export default function RegisterScreen() {
                   longitude,
                   address: storeLocation.address, // Keep existing address until confirmed
                 });
+                // Update map region for controlled map
+                setMapRegion(prev => ({
+                  ...prev,
+                  latitude,
+                  longitude,
+                }));
               }}
               onMapReady={() => {
                 setMapLoading(false);
@@ -994,7 +1041,7 @@ export default function RegisterScreen() {
               {storeLocation.latitude !== 0 && storeLocation.longitude !== 0 && (
                 <View style={styles.coordinateDisplay}>
                   <Text style={styles.coordinateText}>
-                    📍 {storeLocation.latitude.toFixed(6)}, {storeLocation.longitude.toFixed(6)}
+                    📍 Lat: {storeLocation.latitude.toFixed(6)}, Lng: {storeLocation.longitude.toFixed(6)}
                   </Text>
                 </View>
               )}

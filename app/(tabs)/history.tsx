@@ -17,8 +17,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
-import * as DocumentPicker from 'expo-document-picker';
-import * as ImagePicker from 'expo-image-picker';
 import AppHeader from '../../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
@@ -44,12 +42,12 @@ interface HistoryItem {
   cancellationReason?: string;
   cancelledBy?: string;
   cancelledAt?: string;
-  prescription_data?: Array<{
+  prescription_data?: {
     drug_name: string;
     dosage: string;
     frequency: string;
     duration: string;
-  }> | null;
+  }[] | null;
   clinical_notes?: string | null;
   prescription_pdf_base64?: string | null;
 }
@@ -86,12 +84,12 @@ export default function HistoryScreen() {
 
   // Prescription and clinical notes states (for vet appointments)
   const [clinicalNotes, setClinicalNotes] = useState('');
-  const [prescriptions, setPrescriptions] = useState<Array<{
+  const [prescriptions, setPrescriptions] = useState<{
     drug_name: string;
     dosage: string;
     frequency: string;
     duration: string;
-  }>>([{ drug_name: '', dosage: '', frequency: '', duration: '' }]);
+  }[]>([{ drug_name: '', dosage: '', frequency: '', duration: '' }]);
   const [showFrequencyPicker, setShowFrequencyPicker] = useState<number | null>(null);
   const [showDurationPicker, setShowDurationPicker] = useState<number | null>(null);
 
@@ -100,9 +98,6 @@ export default function HistoryScreen() {
 
   // Determine if this partner type should show orders (pharmacy & essentials) or appointments (vet & grooming)
   const showOrders = partnerData?.serviceType === 'pharmacy' || partnerData?.serviceType === 'essentials';
-
-  // Check if this is a vet appointment (not grooming)
-  const isVetAppointment = !showOrders && partnerData?.serviceType === 'vet';
 
   useEffect(() => {
     loadPartnerData();
@@ -268,6 +263,10 @@ export default function HistoryScreen() {
     setRefreshing(false);
   };
 
+  // Status to tab mapping logic:
+  // - "pending" tab: New orders / Upcoming appointments
+  // - "completed" tab: Completed orders / Completed appointments
+  // - "cancelled" tab: Cancelled orders / Cancelled appointments
   const filteredHistory = history.filter(item => {
     // First apply status filter
     let statusMatch = false;
@@ -288,12 +287,13 @@ export default function HistoryScreen() {
       statusMatch = item.status === filter;
     }
 
-    // Then apply search filter (by appointment ID)
+    // Then apply search filter (by Order ID for orders, Appointment ID for appointments)
+    // Search implementation: Frontend filtering with case-insensitive partial match
     let searchMatch = true;
     if (searchQuery.trim()) {
       const query = searchQuery.trim().toLowerCase();
-      const appointmentId = item.id.toString().toLowerCase();
-      searchMatch = appointmentId.includes(query);
+      const itemId = item.id.toString().toLowerCase();
+      searchMatch = itemId.includes(query);
     }
 
     return statusMatch && searchMatch;
@@ -837,7 +837,7 @@ export default function HistoryScreen() {
                   <Text style={styles.ratingText}>{item.rating}/5</Text>
                 </View>
                 {item.review && (
-                  <Text style={styles.reviewText}>"{item.review}"</Text>
+                  <Text style={styles.reviewText}>&ldquo;{item.review}&rdquo;</Text>
                 )}
               </View>
             )}
@@ -858,7 +858,7 @@ export default function HistoryScreen() {
           <Ionicons name="search-outline" size={20} color={Colors.textSecondary} />
           <TextInput
             style={styles.searchInput}
-            placeholder={showOrders ? 'Search for Products' : 'Search by Appointment ID'}
+            placeholder={showOrders ? 'Search by Order ID' : 'Search by Appointment ID'}
             placeholderTextColor={Colors.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}

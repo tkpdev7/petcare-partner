@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
+import { requestMediaPermissionLazy } from '../../utils/permissions';
 import AppHeader from '../../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import CustomModal from '../../components/CustomModal';
@@ -145,19 +146,15 @@ export default function AccountScreen() {
 
   const handleImagePicker = async () => {
     try {
-      // Request permissions first
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (status !== 'granted') {
-        modal.showWarning('Please grant access to your photo library to select images.', { title: 'Permission Required' });
-        return;
-      }
+      // Request permissions lazily with soft prompt
+      const mediaGranted = await requestMediaPermissionLazy();
+      if (!mediaGranted) return;
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8, // Slightly compress to reduce upload size
+        quality: 0.8,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {

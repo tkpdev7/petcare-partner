@@ -19,6 +19,7 @@ import { Picker } from '@react-native-picker/picker';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import * as ImagePicker from 'expo-image-picker';
+import { requestMediaPermissionLazy } from '../../utils/permissions';
 import * as DocumentPicker from 'expo-document-picker';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
@@ -322,14 +323,9 @@ export default function AddServiceScreen() {
   // Image picker
   const pickImage = async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (status !== 'granted') {
-        modal.showError('Please grant access to your photo library to select images.', {
-          title: 'Permission Required'
-        });
-        return;
-      }
+      // Request permissions lazily with soft prompt
+      const mediaGranted = await requestMediaPermissionLazy();
+      if (!mediaGranted) return;
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: 'Images',

@@ -16,6 +16,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
+import { requestMediaPermissionLazy } from '../../utils/permissions';
 import * as DocumentPicker from 'expo-document-picker';
 import KeyboardAwareScrollView from '../../components/KeyboardAwareScrollView';
 import { Formik } from 'formik';
@@ -463,15 +464,9 @@ export default function AddProductScreen() {
 
   const pickImage = async () => {
     try {
-      // Request permissions first
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (status !== 'granted') {
-        modal.showError('Please grant access to your photo library to select images.', {
-          title: 'Permission Required'
-        });
-        return;
-      }
+      // Request permissions lazily with soft prompt
+      const mediaGranted = await requestMediaPermissionLazy();
+      if (!mediaGranted) return;
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: 'Images',
