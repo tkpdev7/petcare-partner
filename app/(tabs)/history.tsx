@@ -81,6 +81,9 @@ export default function HistoryScreen() {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [showSlotPicker, setShowSlotPicker] = useState(false);
 
+  // Search functionality
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Prescription and clinical notes states (for vet appointments)
   const [clinicalNotes, setClinicalNotes] = useState('');
   const [prescriptions, setPrescriptions] = useState<Array<{
@@ -245,23 +248,34 @@ export default function HistoryScreen() {
   };
 
   const filteredHistory = history.filter(item => {
-    if (filter === 'all') return true;
-
-    // Map filter to actual statuses
-    if (filter === 'pending') {
+    // First apply status filter
+    let statusMatch = false;
+    if (filter === 'all') {
+      statusMatch = true;
+    } else if (filter === 'pending') {
       // "New/Upcoming" - For appointments: scheduled, confirmed, in_progress
       // For product orders: placed, confirmed, processing, packed, shipped, out_for_delivery
-      return ['pending', 'scheduled', 'confirmed', 'placed', 'processing', 'packed', 'shipped', 'out_for_delivery', 'in_progress'].includes(item.status);
+      statusMatch = ['pending', 'scheduled', 'confirmed', 'placed', 'processing', 'packed', 'shipped', 'out_for_delivery', 'in_progress'].includes(item.status);
     } else if (filter === 'completed') {
       // "Completed" - includes delivered and completed
-      return ['completed', 'delivered'].includes(item.status);
+      statusMatch = ['completed', 'delivered'].includes(item.status);
     } else if (filter === 'cancelled') {
       // "Cancelled" - includes cancelled and returned
-      return ['cancelled', 'returned', 'no_show'].includes(item.status);
+      statusMatch = ['cancelled', 'returned', 'no_show'].includes(item.status);
+    } else {
+      // Exact match for other statuses
+      statusMatch = item.status === filter;
     }
 
-    // Exact match for other statuses
-    return item.status === filter;
+    // Then apply search filter (by appointment ID)
+    let searchMatch = true;
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      const appointmentId = item.id.toString().toLowerCase();
+      searchMatch = appointmentId.includes(query);
+    }
+
+    return statusMatch && searchMatch;
   });
 
   const toggleExpanded = (itemId: string) => {
@@ -698,7 +712,7 @@ export default function HistoryScreen() {
         activeOpacity={0.7}
       >
         <View style={styles.orderHeader}>
-          <Text style={styles.orderNumber}>Order#{String(item.id).padStart(3, '0')}</Text>
+          <Text style={styles.orderNumber}>{showOrders ? 'Order' : 'Appointment'}#{String(item.id).padStart(3, '0')}</Text>
           <View style={styles.expandButton}>
             <Ionicons
               name={isExpanded ? "chevron-up" : "chevron-down"}
@@ -823,16 +837,11 @@ export default function HistoryScreen() {
           <Ionicons name="search-outline" size={20} color={Colors.textSecondary} />
           <TextInput
             style={styles.searchInput}
-            placeholder={showOrders ? 'Search for Products' : 'Search for Appointments'}
+            placeholder={showOrders ? 'Search for Products' : 'Search by Appointment ID'}
             placeholderTextColor={Colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
             maxLength={50}
-            onChangeText={(text) => {
-              // Basic validation for search input
-              if (text.length > 0 && text.length < 2) {
-                return; // Don't search for single characters
-              }
-              // Add search logic here when needed
-            }}
           />
         </View>
       </View>
@@ -963,8 +972,20 @@ export default function HistoryScreen() {
                     <Text style={styles.detailLabel}>Cancellation Reason:</Text>
                     <Text style={styles.detailValue}>{selectedAppointment.cancellationReason}</Text>
                     <Text style={styles.detailSubtext}>
-                      Cancelled by {selectedAppointment.cancelledBy === 'user' ? 'Customer' :
-                                   selectedAppointment.cancelledBy === 'provider' ? 'You (Provider)' : 'System'}
+                      Cancelled by {
+                        // Map cancelled_by values to display names
+                        // Handle various possible values from API: 'user', 'customer', 'provider', 'doctor', 'system', etc.
+                        (() => {
+                          const cancelledBy = selectedAppointment.cancelledBy?.toLowerCase();
+                          if (cancelledBy === 'user' || cancelledBy === 'customer') {
+                            return 'Customer';
+                          } else if (cancelledBy === 'provider' || cancelledBy === 'doctor' || cancelledBy === 'partner') {
+                            return 'Provider';
+                          } else {
+                            return 'System'; // Default fallback
+                          }
+                        })()
+                      }
                     </Text>
                   </View>
                 )}
@@ -1385,22 +1406,24 @@ export default function HistoryScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              <Text style={styles.modalDescription}>
-                Please provide a reason for cancelling this appointment:
-              </Text>
-              <TextInput
-                style={styles.treatmentInput}
-                placeholder="Enter cancellation reason (required)"
-                value={cancelReason}
-                onChangeText={setCancelReason}
-                multiline
-                numberOfLines={3}
-                maxLength={200}
-                textAlignVertical="top"
-              />
-              <Text style={styles.characterCount}>{cancelReason.length}/200</Text>
-            </View>
+            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+              <View style={styles.modalBody}>
+                <Text style={styles.modalDescription}>
+                  Please provide a reason for cancelling this appointment:
+                </Text>
+                <TextInput
+                  style={styles.treatmentInput}
+                  placeholder="Enter cancellation reason (required)"
+                  value={cancelReason}
+                  onChangeText={setCancelReason}
+                  multiline
+                  numberOfLines={3}
+                  maxLength={200}
+                  textAlignVertical="top"
+                />
+                <Text style={styles.characterCount}>{cancelReason.length}/200</Text>
+              </View>
+            </ScrollView>
 
             <View style={styles.modalFooter}>
               <TouchableOpacity
