@@ -205,7 +205,15 @@ export default function HistoryScreen() {
             id: String(item.id), // Ensure id is always a string
             customerName: item.customer_name || item.customerName || item.customer?.name || 'Unknown Customer',
             petName: item.petName || item.pet?.name || item.pet_name || 'N/A',
-            service: productNames || item.service || item.productName || item.serviceName || `${partnerData?.serviceType || 'Service'}`,
+            service: productNames ||
+                     (item.service && typeof item.service === 'object' ? item.service.name : null) || // Handle service object from API
+                     item.service_name ||
+                     item.serviceName ||
+                     item.service ||
+                     item.productName ||
+                     `${partnerData?.serviceType || 'Service'}`,
+            // Ensure service name is properly extracted from API response
+            // For appointments, this should be the selected service name from item.service.name
             appointmentDate: (item.order_date || item.appointmentDate || item.orderDate || item.created_at || item.createdAt || new Date().toISOString()).split('T')[0],
             appointmentTime: item.appointmentTime || item.orderTime || new Date(item.order_date || item.created_at || new Date()).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
             status: item.order_status || item.status || 'pending',
@@ -224,6 +232,19 @@ export default function HistoryScreen() {
             clinical_notes: item.clinical_notes || null,
             prescription_pdf_base64: item.prescription_pdf_base64 || null,
           };
+        });
+
+        // Debug service data extraction
+        transformedHistory.forEach((item, index) => {
+          if (!showOrders && (!item.service || item.service === `${partnerData?.serviceType || 'Service'}`)) {
+            console.log(`⚠️ Missing service name for appointment ${item.id}:`, {
+              service: item.service,
+              service_name: item.service_name,
+              serviceName: item.serviceName,
+              rawService: item.service,
+              serviceType: partnerData?.serviceType
+            });
+          }
         });
 
         console.log('Transformed history:', JSON.stringify(transformedHistory, null, 2));
