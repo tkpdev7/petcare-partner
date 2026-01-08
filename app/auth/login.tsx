@@ -71,7 +71,7 @@ export default function LoginScreen() {
          <View style={styles.header}>
            <View style={styles.logoContainer}>
              <Image
-               source={require('../../../assets/images/gogol-icon.png')}
+               source={require('../../assets/images/gogol-icon.png')}
                style={styles.logoImage}
                resizeMode="contain"
              />
