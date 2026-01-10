@@ -91,6 +91,10 @@ export default function ServicesManagementScreen() {
 
   const fetchServices = async () => {
     try {
+      // Check if we have an auth token
+      const token = await AsyncStorage.getItem('partnerToken');
+      console.log('🔑 Auth Token:', token ? 'Present' : 'Missing');
+
       const response = await apiService.getServices();
       console.log('📦 Services API Response:', JSON.stringify(response, null, 2));
 
@@ -113,11 +117,22 @@ export default function ServicesManagementScreen() {
         setServices(servicesList);
       } else {
         console.log('❌ No services in response');
+        const errorMsg = response.error || response.message || 'Failed to load services';
+
+        // Check for specific error types
+        if (errorMsg.includes('Network Error')) {
+          modal.showError('Network connection error. Please check your internet connection and try again.');
+        } else if (errorMsg.includes('Unauthorized') || errorMsg.includes('401')) {
+          modal.showError('Session expired. Please login again.');
+          router.push('/auth/login');
+        } else {
+          modal.showError(errorMsg);
+        }
         setServices([]);
       }
     } catch (error) {
       console.error('❌ Error fetching services:', error);
-      modal.showError('Failed to load services');
+      modal.showError('Failed to load services. Please try again.');
       setServices([]);
     } finally {
       setLoading(false);
