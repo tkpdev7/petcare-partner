@@ -112,13 +112,13 @@ export default function AddServiceScreen() {
     const loadData = async () => {
       // Load categories first
       const cats = await loadCategories();
-      // Then load service data if in edit mode, passing the loaded categories
-      if (isEditMode) {
+      // Then load service data if in edit or view mode, passing the loaded categories
+      if (isEditMode || isViewMode) {
         await loadServiceData(cats);
       }
     };
     loadData();
-  }, [isEditMode, id]);
+  }, [isEditMode, isViewMode, id]);
 
   // Ensure subcategory value is set after subcategories are loaded
   const subcategorySetRef = React.useRef(false);
@@ -329,14 +329,31 @@ export default function AddServiceScreen() {
       if (!mediaGranted) return;
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'Images',
-        allowsMultipleSelection: true,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: false, // Upload one at a time to show progress
+        allowsEditing: true,
+        aspect: [4, 3],
         quality: 0.8,
       });
 
-      if (!result.canceled && result.assets) {
-        const newImages = result.assets.map(asset => asset.uri);
-        setImages(prev => [...prev, ...newImages].slice(0, 5)); // Max 5 images
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const imageUri = result.assets[0].uri;
+
+        // Upload immediately like profile photo
+        modal.showLoading('Uploading image...');
+        try {
+          const uploadResponse = await apiService.uploadImage(imageUri, 'services', 'service-images');
+
+          if (uploadResponse.success && uploadResponse.data?.url) {
+            setImages(prev => [...prev, uploadResponse.data.url].slice(0, 5)); // Max 5 images
+            modal.showSuccess('Image uploaded successfully!');
+          } else {
+            modal.showError('Failed to upload image. Please try again.');
+          }
+        } catch (error) {
+          console.error('Image upload error:', error);
+          modal.showError('Failed to upload image. Please try again.');
+        }
       }
     } catch (error) {
       console.error('Image picker error:', error);
@@ -500,7 +517,7 @@ export default function AddServiceScreen() {
     }
   };
 
-  if (loading && isEditMode) {
+  if (loading && (isEditMode || isViewMode)) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>

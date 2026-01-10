@@ -469,14 +469,31 @@ export default function AddProductScreen() {
       if (!mediaGranted) return;
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: 'Images',
-        allowsMultipleSelection: true,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: false, // Upload one at a time to show progress
+        allowsEditing: true,
+        aspect: [4, 3],
         quality: 0.8,
       });
 
-      if (!result.canceled && result.assets) {
-        const newImages = result.assets.map(asset => asset.uri);
-        setImages(prev => [...prev, ...newImages].slice(0, 5)); // Max 5 images
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const imageUri = result.assets[0].uri;
+
+        // Upload immediately like profile photo
+        modal.showLoading('Uploading image...');
+        try {
+          const uploadResponse = await apiService.uploadImage(imageUri, 'products', 'product-images');
+
+          if (uploadResponse.success && uploadResponse.data?.url) {
+            setImages(prev => [...prev, uploadResponse.data.url].slice(0, 5)); // Max 5 images
+            modal.showSuccess('Image uploaded successfully!');
+          } else {
+            modal.showError('Failed to upload image. Please try again.');
+          }
+        } catch (error) {
+          console.error('Image upload error:', error);
+          modal.showError('Failed to upload image. Please try again.');
+        }
       }
     } catch (error) {
       console.error('Image picker error:', error);

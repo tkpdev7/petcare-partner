@@ -174,18 +174,46 @@ export default function ProductsScreen() {
   };
 
   const renderProductCard = ({ item }: { item: Product }) => (
-    <View style={styles.productCard}>
-      <View style={styles.productHeader}>
-        <Text style={styles.productName}>{item.name}</Text>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => router.push(`/products/add?id=${item.id}&mode=edit`)}
-        >
-          <Text style={styles.editButtonText}>Edit</Text>
-        </TouchableOpacity>
+    <TouchableOpacity
+      style={styles.productCard}
+      onPress={() => router.push(`/products/add?id=${item.id}&mode=view`)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.productContent}>
+        <View style={styles.productHeader}>
+          <Text style={styles.productName}>{item.name}</Text>
+          <View style={styles.productActions}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                router.push(`/products/add?id=${item.id}&mode=edit`);
+              }}
+            >
+              <Ionicons name="create-outline" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                deleteProduct(item.id);
+              }}
+            >
+              <Ionicons name="trash-outline" size={20} color={Colors.error} />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <Text style={styles.productStock}>Stock: {item.stock} units • {item.category}</Text>
+        <View style={styles.productPriceRow}>
+          <Text style={styles.productPrice}>₹{item.price}</Text>
+          <View style={[styles.statusBadge, item.isActive ? styles.activeBadge : styles.inactiveBadge]}>
+            <Text style={item.isActive ? styles.activeText : styles.inactiveText}>
+              {item.isActive ? 'Active' : 'Inactive'}
+            </Text>
+          </View>
+        </View>
       </View>
-      <Text style={styles.productStock}>Stock {item.stock} units - {item.category}</Text>
-    </View>
+    </TouchableOpacity>
   );
 
   // Check if partner is vet/grooming (services) or pharmacy/essentials (products)
@@ -503,9 +531,18 @@ const styles = StyleSheet.create({
   productCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.sm,
-    padding: Spacing.md,
     marginBottom: Spacing.sm,
     marginHorizontal: Spacing.lg,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  productContent: {
+    padding: Spacing.md,
   },
   productHeader: {
     flexDirection: 'row',
@@ -515,9 +552,16 @@ const styles = StyleSheet.create({
   },
   productName: {
     fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.medium,
+    fontWeight: Typography.fontWeights.bold,
     color: Colors.textPrimary,
     flex: 1,
+  },
+  productActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
+    padding: 4,
   },
   editButton: {
     paddingHorizontal: Spacing.sm,
@@ -531,6 +575,38 @@ const styles = StyleSheet.create({
   productStock: {
     fontSize: Typography.fontSizes.sm,
     color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  productPriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  productPrice: {
+    fontSize: Typography.fontSizes.lg,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.primary,
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  activeBadge: {
+    backgroundColor: '#E8F5E9',
+  },
+  inactiveBadge: {
+    backgroundColor: '#FFEBEE',
+  },
+  activeText: {
+    fontSize: Typography.fontSizes.xs,
+    fontWeight: Typography.fontWeights.bold,
+    color: '#2E7D32',
+  },
+  inactiveText: {
+    fontSize: Typography.fontSizes.xs,
+    fontWeight: Typography.fontWeights.bold,
+    color: '#C62828',
   },
   section: {
     backgroundColor: Colors.white,
