@@ -21,7 +21,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import apiService from '../../services/apiService';
 import CustomModal from '../../components/CustomModal';
@@ -1049,6 +1049,7 @@ export default function RegisterScreen() {
             )}
 
             <MapView
+              provider={PROVIDER_GOOGLE}
               ref={mapRef}
               style={[styles.map, (mapLoading || mapError) && styles.mapHidden]}
               region={mapRegion}
