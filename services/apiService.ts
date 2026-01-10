@@ -66,6 +66,9 @@ class ApiService {
     config?: any
   ): Promise<ApiResponse<T>> {
     try {
+      const fullUrl = `${this.api.defaults.baseURL}${endpoint}`;
+      console.log(`🌐 API Request: ${method} ${fullUrl}`);
+
       const response: AxiosResponse<T> = await this.api.request({
         method,
         url: endpoint,
@@ -73,13 +76,14 @@ class ApiService {
         ...config,
       });
 
+      console.log(`✅ API Success: ${method} ${endpoint}`, response.status);
       return {
         success: true,
         data: response.data,
         message: (response.data as any)?.message || 'Request successful',
       };
     } catch (error) {
-      console.error(`API Error (${method} ${endpoint}):`, error);
+      console.error(`❌ API Error (${method} ${endpoint}):`, error);
 
       if (error instanceof AxiosError) {
         const errorData = error.response?.data;

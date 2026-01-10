@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   TextInput,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -190,9 +191,11 @@ export default function ServicesManagementScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <Ionicons name="menu" size={24} color="#fff" />
+          <TouchableOpacity onPress={() => router.push('/(tabs)/products')}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>Services</Text>
-          <Ionicons name="notifications-outline" size={24} color="#fff" />
+          <View style={{ width: 24 }} />
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
@@ -210,11 +213,11 @@ export default function ServicesManagementScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="menu" size={24} color="#fff" />
+        <TouchableOpacity onPress={() => router.push('/(tabs)/products')}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Services</Text>
-        <Ionicons name="notifications-outline" size={24} color="#fff" />
+        <View style={{ width: 24 }} />
       </View>
 
       <KeyboardAwareScrollView
@@ -391,6 +394,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    paddingTop: Platform.OS === 'android' ? 40 : 16,
     backgroundColor: Colors.primary,
   },
   headerTitle: {
