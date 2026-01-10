@@ -260,7 +260,11 @@ export default function AccountScreen() {
         }
       />
 
-      <KeyboardAwareScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.profileSection}>
           <TouchableOpacity
             style={styles.profileImageContainer}
@@ -430,9 +434,11 @@ const styles = StyleSheet.create({
   editButton: {
     padding: 8,
   },
-  content: {
+  scrollView: {
     flex: 1,
-    paddingBottom: 120, // Extra padding to clear tab navigation and mobile bottom buttons
+  },
+  scrollContent: {
+    paddingBottom: 140, // Extra padding to clear tab navigation and mobile bottom buttons
   },
   profileSection: {
     backgroundColor: Colors.white,
