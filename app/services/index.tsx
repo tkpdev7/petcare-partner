@@ -42,7 +42,6 @@ export default function ServicesManagementScreen() {
   const [partnerId, setPartnerId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All');
-  const [activeTab, setActiveTab] = useState('All');
 
   const categories = [
     'All',
@@ -72,7 +71,7 @@ export default function ServicesManagementScreen() {
 
   useEffect(() => {
     filterServices();
-  }, [searchQuery, selectedCategoryFilter, activeTab, services]);
+  }, [searchQuery, selectedCategoryFilter, services]);
 
   const loadPartnerData = async () => {
     try {
@@ -140,13 +139,6 @@ export default function ServicesManagementScreen() {
       filtered = filtered.filter(service => service.category === selectedCategoryFilter);
     }
 
-    // Filter by active tab
-    if (activeTab !== 'All') {
-      filtered = filtered.filter(service =>
-        activeTab === 'Active' ? service.is_active : !service.is_active
-      );
-    }
-
     setFilteredServices(filtered);
   };
 
@@ -192,7 +184,6 @@ export default function ServicesManagementScreen() {
   const clearFilters = () => {
     setSearchQuery('');
     setSelectedCategoryFilter('All');
-    setActiveTab('All');
   };
 
   if (loading) {
@@ -256,22 +247,8 @@ export default function ServicesManagementScreen() {
           </View>
         </View>
 
-        {/* Filter Tabs */}
+        {/* Category Filter */}
         <View style={styles.filterTabsContainer}>
-          <View style={styles.filterTabs}>
-            {['All', 'Active', 'Inactive'].map(tab => (
-              <TouchableOpacity
-                key={tab}
-                style={[styles.filterTab, activeTab === tab && styles.activeFilterTab]}
-                onPress={() => setActiveTab(tab)}
-              >
-                <Text style={[styles.filterTabText, activeTab === tab && styles.activeFilterTabText]}>
-                  {tab}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
           {/* Category Filter Dropdown */}
           <View style={styles.categoryFilterContainer}>
             <View style={styles.pickerWrapper}>
@@ -291,7 +268,7 @@ export default function ServicesManagementScreen() {
         {/* Filter Count and Clear */}
         <View style={styles.filterResultsContainer}>
           <Text style={styles.filterResultsText}>{filteredServices.length} Service{filteredServices.length !== 1 ? 's' : ''} Found</Text>
-          {(searchQuery || selectedCategoryFilter !== 'All' || activeTab !== 'All') && (
+          {(searchQuery || selectedCategoryFilter !== 'All') && (
             <TouchableOpacity onPress={clearFilters}>
               <Text style={styles.clearFiltersText}>Clear all</Text>
             </TouchableOpacity>
@@ -367,14 +344,7 @@ export default function ServicesManagementScreen() {
                   <Text style={styles.serviceStock}>
                     {service.duration} mins • {service.category}
                   </Text>
-                  <View style={styles.servicePriceRow}>
-                    <Text style={styles.servicePrice}>₹{service.price}</Text>
-                    <View style={[styles.statusBadge, service.is_active ? styles.activeBadge : styles.inactiveBadge]}>
-                      <Text style={service.is_active ? styles.activeText : styles.inactiveText}>
-                        {service.is_active ? 'Active' : 'Inactive'}
-                      </Text>
-                    </View>
-                  </View>
+                  <Text style={styles.servicePrice}>₹{service.price}</Text>
                 </View>
               </TouchableOpacity>
             ))}

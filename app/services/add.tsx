@@ -936,6 +936,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
+    paddingTop: Platform.OS === 'android' ? 40 : 0,
   },
   keyboardView: {
     flex: 1,
