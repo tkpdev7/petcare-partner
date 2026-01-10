@@ -68,7 +68,6 @@ export default function AddServiceScreen() {
 
   // Category management state
   const [categories, setCategories] = useState<any[]>([]);
-  useEffect(() => { console.log('🔄 Categories state updated:', categories.length, 'categories'); }, [categories]);
   const [subcategories, setSubcategories] = useState<any[]>([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
@@ -122,12 +121,14 @@ export default function AddServiceScreen() {
   }, [isEditMode, id]);
 
   // Ensure subcategory value is set after subcategories are loaded
+  const subcategorySetRef = React.useRef(false);
   useEffect(() => {
-    if (subcategories.length > 0 && initialValues.subCategory && formikRef.current) {
+    if (subcategories.length > 0 && initialValues.subCategory && formikRef.current && !subcategorySetRef.current) {
       const currentFormikValue = formikRef.current.values.subCategory;
       if (currentFormikValue !== initialValues.subCategory) {
         console.log('🎯 Setting subcategory from useEffect:', initialValues.subCategory);
         formikRef.current.setFieldValue('subCategory', initialValues.subCategory);
+        subcategorySetRef.current = true;
       }
     }
   }, [subcategories, initialValues.subCategory]);
@@ -1133,5 +1134,158 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontSize: Typography.fontSizes.base,
     fontWeight: Typography.fontWeights.bold,
+  },
+
+  // Image Styles
+  imageGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  imageItem: {
+    width: 100,
+    height: 100,
+    position: 'relative',
+  },
+  serviceImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+  },
+  addImageButton: {
+    width: 100,
+    height: 100,
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FAFAFA',
+  },
+  addImageText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+  noImagesText: {
+    fontSize: 14,
+    color: '#999',
+    fontStyle: 'italic',
+  },
+
+  // Video Styles
+  videoContainer: {
+    position: 'relative',
+  },
+  videoPlaceholder: {
+    height: 120,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FAFAFA',
+  },
+  videoText: {
+    fontSize: 14,
+    color: Colors.primary,
+    marginTop: 8,
+  },
+  removeVideoButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+  },
+  addVideoButton: {
+    height: 120,
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FAFAFA',
+  },
+  addVideoText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 24,
+    width: '80%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 16,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    color: '#333',
+    backgroundColor: '#fff',
+    marginBottom: 16,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#F5F5F5',
+  },
+  modalButtonSave: {
+    backgroundColor: Colors.primary,
+  },
+  modalButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+  },
+  modalButtonTextSave: {
+    color: '#fff',
+  },
+
+  // Loading Styles
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
   },
 });

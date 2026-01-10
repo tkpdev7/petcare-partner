@@ -179,9 +179,18 @@ class ApiService {
   async createService(serviceData: {
     name: string;
     description?: string;
+    detailedDescription?: string;
+    shortDescription?: string;
     duration?: number;
     price: number;
+    priceDetails?: any;
     category: string;
+    subCategory?: string;
+    experienceYears?: number;
+    certifications?: string[];
+    specializations?: string[];
+    images?: string[];
+    video?: string;
   }): Promise<ApiResponse> {
     return this.makeRequest('POST', '/services', serviceData);
   }
@@ -189,10 +198,19 @@ class ApiService {
   async updateService(id: string, serviceData: {
     name?: string;
     description?: string;
+    detailedDescription?: string;
+    shortDescription?: string;
     duration?: number;
     price?: number;
+    priceDetails?: any;
     category?: string;
+    subCategory?: string;
+    experienceYears?: number;
+    certifications?: string[];
+    specializations?: string[];
     isActive?: boolean;
+    images?: string[];
+    video?: string;
   }): Promise<ApiResponse> {
     return this.makeRequest('PUT', `/services/${id}`, serviceData);
   }
