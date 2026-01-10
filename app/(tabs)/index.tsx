@@ -205,8 +205,8 @@ export default function HomeScreen() {
 
 
   const renderStatsCard = (item: StatsItem) => (
-    <TouchableOpacity 
-      key={item.id} 
+    <TouchableOpacity
+      key={item.id}
       style={styles.individualCard}
       onPress={() => item.route && router.push(item.route as any)}
     >
@@ -222,8 +222,8 @@ export default function HomeScreen() {
   );
 
   const renderServiceCard = (item: ServiceItem) => (
-    <TouchableOpacity 
-      key={item.id} 
+    <TouchableOpacity
+      key={item.id}
       style={styles.individualCard}
       onPress={() => router.push(item.route as any)}
     >
@@ -329,6 +329,8 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeights.medium,
     color: Colors.textPrimary,
     textAlign: 'center',
+    flexWrap: 'wrap',
+    paddingHorizontal: Spacing.xs,
   },
   cardImage: {
     width: 32,

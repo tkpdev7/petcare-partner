@@ -111,6 +111,13 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="revenue"
+        options={{
+          title: 'Revenue',
+          href: null, // Hide revenue tab from navigation
+        }}
+      />
     </Tabs>
   );
 }
