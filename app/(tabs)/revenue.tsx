@@ -29,7 +29,10 @@ interface RevenueSummary {
 interface RevenueItem {
   id: number;
   source_type: 'APPOINTMENT' | 'ORDER';
+  source_id: number;
   source_type_display: string;
+  service_id?: number;
+  product_id?: number;
   item_name: string;
   quantity: number;
   gross_amount: number;
@@ -157,9 +160,12 @@ export default function RevenueScreen() {
   const renderRevenueItem = ({ item }: { item: RevenueItem }) => (
     <View style={styles.revenueCard}>
       <View style={styles.revenueHeader}>
-        <Text style={styles.revenueTitle}>
-          {item.source_type_display}#{item.id}
-        </Text>
+        <View>
+          <Text style={styles.revenueTitle}>
+            {item.source_type_display} #{item.source_id}
+          </Text>
+          <Text style={styles.revenueSubtitle}>Revenue ID: {item.id}</Text>
+        </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
           <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
             {item.status}
@@ -417,6 +423,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSizes.base,
     fontWeight: Typography.fontWeights.bold,
     color: Colors.textPrimary,
+  },
+  revenueSubtitle: {
+    fontSize: Typography.fontSizes.xs,
+    color: Colors.textTertiary,
+    marginTop: 2,
   },
   statusBadge: {
     paddingHorizontal: Spacing.sm,
