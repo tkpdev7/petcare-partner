@@ -334,17 +334,49 @@ export default function ServicesManagementScreen() {
         ) : (
           <View style={styles.servicesContainer}>
             {filteredServices.map((service) => (
-              <View key={service.id} style={styles.serviceCard}>
-                <View style={styles.serviceHeader}>
-                  <Text style={styles.serviceName}>{service.name}</Text>
-                  <TouchableOpacity onPress={() => handleEditService(service)}>
-                    <Text style={styles.editText}>Edit</Text>
-                  </TouchableOpacity>
+              <TouchableOpacity
+                key={service.id}
+                style={styles.serviceCard}
+                onPress={() => router.push(`/services/add?id=${service.id}&mode=view`)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.serviceContent}>
+                  <View style={styles.serviceHeader}>
+                    <Text style={styles.serviceName}>{service.name}</Text>
+                    <View style={styles.serviceActions}>
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleEditService(service);
+                        }}
+                      >
+                        <Ionicons name="create-outline" size={20} color={Colors.primary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.actionButton}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleDeleteService(service);
+                        }}
+                      >
+                        <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <Text style={styles.serviceStock}>
+                    {service.duration} mins • {service.category}
+                  </Text>
+                  <View style={styles.servicePriceRow}>
+                    <Text style={styles.servicePrice}>₹{service.price}</Text>
+                    <View style={[styles.statusBadge, service.is_active ? styles.activeBadge : styles.inactiveBadge]}>
+                      <Text style={service.is_active ? styles.activeText : styles.inactiveText}>
+                        {service.is_active ? 'Active' : 'Inactive'}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-                <Text style={styles.serviceStock}>
-                  {service.duration} mins • {service.category}
-                </Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -529,10 +561,17 @@ const styles = StyleSheet.create({
   serviceCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
-    padding: 16,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#E0E0E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  serviceContent: {
+    padding: 16,
   },
   serviceHeader: {
     flexDirection: 'row',
@@ -545,15 +584,50 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     flex: 1,
+    marginRight: 8,
   },
-  editText: {
-    fontSize: 14,
-    color: Colors.primary,
-    fontWeight: '500',
+  serviceActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
+    padding: 4,
   },
   serviceStock: {
     fontSize: 13,
     color: '#666',
+    marginBottom: 8,
+  },
+  servicePriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  servicePrice: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  activeBadge: {
+    backgroundColor: '#E8F5E9',
+  },
+  inactiveBadge: {
+    backgroundColor: '#FFEBEE',
+  },
+  activeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4CAF50',
+  },
+  inactiveText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#F44336',
   },
   emptyContainer: {
     alignItems: 'center',

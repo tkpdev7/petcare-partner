@@ -561,7 +561,9 @@ export default function AddServiceScreen() {
           }) => (
             <ScrollView
               style={styles.scrollView}
+              contentContainerStyle={styles.scrollViewContent}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
               {/* Service Name */}
               <View style={styles.section}>
@@ -600,32 +602,36 @@ export default function AddServiceScreen() {
                 )}
               </View>
 
-              {/* Service Images - Only show in edit/add mode */}
-              {!(isViewMode && !isEditing) && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>Service Images (Max 5) *</Text>
+              {/* Service Images - Show in all modes */}
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Service Images (Max 5) {!(isViewMode && !isEditing) && '*'}</Text>
                 <View style={styles.imageGrid}>
                   {images.map((image, index) => (
                     <View key={index} style={styles.imageItem}>
                       <Image source={{ uri: image }} style={styles.serviceImage} />
-                      <TouchableOpacity
-                        style={styles.removeImageButton}
-                        onPress={() => removeImage(index)}
-                      >
-                        <Ionicons name="close-circle" size={24} color={Colors.error} />
-                      </TouchableOpacity>
+                      {!(isViewMode && !isEditing) && (
+                        <TouchableOpacity
+                          style={styles.removeImageButton}
+                          onPress={() => removeImage(index)}
+                        >
+                          <Ionicons name="close-circle" size={24} color={Colors.error} />
+                        </TouchableOpacity>
+                      )}
                     </View>
                   ))}
 
-                  {images.length < 5 && (
+                  {!(isViewMode && !isEditing) && images.length < 5 && (
                     <TouchableOpacity style={styles.addImageButton} onPress={pickImage}>
                       <Ionicons name="camera-outline" size={32} color={Colors.textSecondary} />
                       <Text style={styles.addImageText}>Add Photo</Text>
                     </TouchableOpacity>
                   )}
-                 </View>
+
+                  {images.length === 0 && (isViewMode && !isEditing) && (
+                    <Text style={styles.noImagesText}>No images added</Text>
+                  )}
                 </View>
-              )}
+              </View>
 
               {/* Service Video - Only show in edit/add mode */}
               {!(isViewMode && !isEditing) && (
@@ -952,6 +958,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollViewContent: {
+    paddingBottom: 100,
   },
   section: {
     backgroundColor: '#fff',
