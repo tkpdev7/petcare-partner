@@ -308,44 +308,44 @@ export default function ProductsScreen() {
         ))}
       </View>
 
-      {/* Add Product Button */}
-      <View style={styles.addButtonContainer}>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => router.push('/products/add')}
-        >
-          <Ionicons name="add-circle-outline" size={20} color={Colors.white} />
-          <Text style={styles.addButtonText}>Add Product</Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Inventory Count */}
       <View style={styles.inventoryInfo}>
         <Text style={styles.inventoryCount}>{filteredProducts.length} Inventory Found</Text>
       </View>
 
-      <View style={styles.content}>
-        {filteredProducts.length === 0 ? (
+      {filteredProducts.length === 0 ? (
+        <View style={styles.emptyStateContainer}>
           <View style={styles.emptyState}>
             <Ionicons name="cube-outline" size={64} color={Colors.textTertiary} />
             <Text style={styles.emptyStateText}>No products found</Text>
             <Text style={styles.emptyStateSubtext}>
-              {searchQuery 
-                ? 'Try adjusting your search' 
+              {searchQuery
+                ? 'Try adjusting your search'
                 : 'Add your first product to get started'
               }
             </Text>
           </View>
-        ) : (
-          <FlatList
-            data={filteredProducts}
-            renderItem={renderProductCard}
-            keyExtractor={(item) => item.id}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.productsList}
-          />
-        )}
-      </View>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredProducts}
+          renderItem={renderProductCard}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.productsList}
+          ListHeaderComponent={
+            <View style={styles.addButtonContainer}>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => router.push('/products/add')}
+              >
+                <Ionicons name="add-circle-outline" size={20} color={Colors.white} />
+                <Text style={styles.addButtonText}>Add Product</Text>
+              </TouchableOpacity>
+            </View>
+          }
+        />
+      )}
 
       <CustomModal
         visible={modal.visible}
@@ -491,6 +491,11 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingTop: Spacing.md,
+  },
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   productsList: {
     paddingBottom: 120, // Extra padding to clear tab navigation and mobile bottom buttons

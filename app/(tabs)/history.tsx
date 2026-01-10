@@ -287,13 +287,20 @@ export default function HistoryScreen() {
       statusMatch = item.status === filter;
     }
 
-    // Then apply search filter (by Order ID for orders, Appointment ID for appointments)
+    // Then apply search filter (by Order ID, customer name, pet name, service)
     // Search implementation: Frontend filtering with case-insensitive partial match
     let searchMatch = true;
     if (searchQuery.trim()) {
       const query = searchQuery.trim().toLowerCase();
       const itemId = item.id.toString().toLowerCase();
-      searchMatch = itemId.includes(query);
+      const customerName = (item.customerName || '').toLowerCase();
+      const petName = (item.petName || '').toLowerCase();
+      const service = (item.service || '').toLowerCase();
+
+      searchMatch = itemId.includes(query) ||
+                    customerName.includes(query) ||
+                    petName.includes(query) ||
+                    service.includes(query);
     }
 
     return statusMatch && searchMatch;
@@ -858,7 +865,7 @@ export default function HistoryScreen() {
           <Ionicons name="search-outline" size={20} color={Colors.textSecondary} />
           <TextInput
             style={styles.searchInput}
-            placeholder={showOrders ? 'Search by Order ID' : 'Search by Appointment ID'}
+            placeholder={showOrders ? 'Search by ID, customer, or product' : 'Search by ID, customer, pet, or service'}
             placeholderTextColor={Colors.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -886,7 +893,7 @@ export default function HistoryScreen() {
           onPress={() => setFilter('pending')}
         >
           <Text style={[styles.toggleText, filter === 'pending' && styles.toggleTextActive]}>
-            {showOrders ? 'New' : 'Upcoming'}
+            Upcoming
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
