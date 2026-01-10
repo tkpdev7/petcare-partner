@@ -204,14 +204,7 @@ export default function ProductsScreen() {
           </View>
         </View>
         <Text style={styles.productStock}>Stock: {item.stock} units • {item.category}</Text>
-        <View style={styles.productPriceRow}>
-          <Text style={styles.productPrice}>₹{item.price}</Text>
-          <View style={[styles.statusBadge, item.isActive ? styles.activeBadge : styles.inactiveBadge]}>
-            <Text style={item.isActive ? styles.activeText : styles.inactiveText}>
-              {item.isActive ? 'Active' : 'Inactive'}
-            </Text>
-          </View>
-        </View>
+        <Text style={styles.productPrice}>₹{item.price}</Text>
       </View>
     </TouchableOpacity>
   );

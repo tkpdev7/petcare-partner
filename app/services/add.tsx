@@ -536,7 +536,7 @@ export default function AddServiceScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/products')}>
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
@@ -798,27 +798,8 @@ export default function AddServiceScreen() {
                 </View>
               </View>
 
-              {/* Action Buttons */}
-              {isViewMode && !isEditing ? (
-                // View Mode Buttons
-                <View style={styles.viewModeActions}>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.editButton]}
-                    onPress={handleEditService}
-                  >
-                    <Ionicons name="create-outline" size={20} color={Colors.white} />
-                    <Text style={styles.actionButtonText}>Edit Service</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.deleteButton]}
-                    onPress={handleDeleteService}
-                  >
-                    <Ionicons name="trash-outline" size={20} color={Colors.white} />
-                    <Text style={styles.actionButtonText}>Delete Service</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                // Edit/Add Mode Buttons
+              {/* Action Buttons - Only show in edit/add mode, not in view mode */}
+              {(!isViewMode || isEditing) && (
                 <View style={styles.editModeActions}>
                   <TouchableOpacity
                     style={[styles.submitButton, loading && styles.submitButtonDisabled]}
@@ -829,7 +810,7 @@ export default function AddServiceScreen() {
                       <ActivityIndicator color="#fff" />
                     ) : (
                       <Text style={styles.submitButtonText}>
-                        {isEditMode ? 'Update Service' : 'Create Service'}
+                        {isEditMode || isEditing ? 'Update' : 'Create Service'}
                       </Text>
                     )}
                   </TouchableOpacity>
