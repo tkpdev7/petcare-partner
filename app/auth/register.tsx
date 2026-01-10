@@ -122,8 +122,16 @@ export default function RegisterScreen() {
   const [showOpeningTimePicker, setShowOpeningTimePicker] = useState(false);
   const [showClosingTimePicker, setShowClosingTimePicker] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showPrefixDropdown, setShowPrefixDropdown] = useState(false);
   const [countryCode, setCountryCode] = useState('+91');
   const [showCountryCodeDropdown, setShowCountryCodeDropdown] = useState(false);
+
+  const prefixOptions = [
+    { label: 'Mr.', value: 'Mr' },
+    { label: 'Mrs.', value: 'Mrs' },
+    { label: 'Ms.', value: 'Ms' },
+    { label: 'Dr.', value: 'Dr' },
+  ];
 
   const partnerTypes = [
     { label: 'Veterinary Clinic', value: 'veterinary', icon: 'medical' },
@@ -194,10 +202,20 @@ export default function RegisterScreen() {
 
       if (results.length > 0) {
         const { latitude, longitude } = results[0];
+
+        // Reverse geocode to get detailed address
+        const address = await Location.reverseGeocodeAsync({
+          latitude,
+          longitude,
+        });
+
+        const addressData = address[0];
+        const addressString = `${addressData?.street || ''}, ${addressData?.city || ''}, ${addressData?.region || ''}`.trim();
+
         setStoreLocation({
           latitude,
           longitude,
-          address: searchQuery,
+          address: addressString || searchQuery,
         });
 
         // Update controlled map region
@@ -234,7 +252,8 @@ export default function RegisterScreen() {
         longitude: location.coords.longitude,
       });
 
-      const addressString = `${address[0]?.street || 'Unnamed Road'}, ${address[0]?.city || 'Unknown City'}, ${address[0]?.region || 'Unknown Region'}`;
+      const addressData = address[0];
+      const addressString = `${addressData?.street || 'Unnamed Road'}, ${addressData?.city || 'Unknown City'}, ${addressData?.region || 'Unknown Region'}`;
 
       setStoreLocation({
         latitude: location.coords.latitude,
@@ -242,8 +261,24 @@ export default function RegisterScreen() {
         address: addressString.trim(),
       });
 
+      // Auto-fill address fields if formik ref is available
+      if (formikRef.current && addressData) {
+        if (addressData.street) {
+          formikRef.current.setFieldValue('street_road', addressData.street);
+        }
+        if (addressData.city) {
+          formikRef.current.setFieldValue('city', addressData.city);
+        }
+        if (addressData.region) {
+          formikRef.current.setFieldValue('state', addressData.region);
+        }
+        if (addressData.postalCode) {
+          formikRef.current.setFieldValue('pincode', addressData.postalCode);
+        }
+      }
+
       // Show success message
-      modal.showSuccess(`Store location set to:\n${addressString.trim()}`, { title: 'Location Set' });
+      modal.showSuccess('Location set and address fields auto-filled!', { title: 'Location Set' });
     } catch (error) {
       console.error('Location error:', error);
       modal.showError('Failed to get location. Please try again.');
@@ -338,12 +373,11 @@ export default function RegisterScreen() {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/auth/login');
-            }
+            console.log('Back button pressed');
+            router.replace('/auth/login');
           }}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
@@ -352,16 +386,18 @@ export default function RegisterScreen() {
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        enabled={Platform.OS === 'ios'}
       >
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
-        nestedScrollEnabled={true}
+        scrollEventThrottle={16}
+        bounces={true}
       >
 
         <Formik
@@ -406,17 +442,15 @@ export default function RegisterScreen() {
 
                {/* Owner Name Fields */}
                <View style={styles.ownerNameRow}>
-                 <View style={styles.prefixContainer}>
-                   <TextInput
-                     style={styles.prefixInput}
-                     placeholder="Prefix"
-                     placeholderTextColor="#999"
-                     value={values.ownerNamePrefix}
-                     onChangeText={handleChange('ownerNamePrefix')}
-                     onBlur={handleBlur('ownerNamePrefix')}
-                     maxLength={10}
-                   />
-                 </View>
+                 <TouchableOpacity
+                   style={styles.prefixContainer}
+                   onPress={() => setShowPrefixDropdown(!showPrefixDropdown)}
+                 >
+                   <Text style={[styles.prefixText, !values.ownerNamePrefix && styles.placeholderText]}>
+                     {values.ownerNamePrefix ? `${values.ownerNamePrefix}.` : 'Prefix'}
+                   </Text>
+                   <Ionicons name="chevron-down" size={14} color="#666" />
+                 </TouchableOpacity>
                  <View style={[styles.inputContainer, styles.ownerNameInput]}>
                    <View style={styles.iconContainer}>
                      <Ionicons name="person-outline" size={20} color="#666" />
@@ -436,6 +470,24 @@ export default function RegisterScreen() {
                )}
                {touched.ownerFirstName && errors.ownerFirstName && (
                  <Text style={styles.errorText}>{errors.ownerFirstName}</Text>
+               )}
+
+               {/* Prefix Dropdown */}
+               {showPrefixDropdown && (
+                 <View style={styles.prefixDropdownList}>
+                   {prefixOptions.map((prefix) => (
+                     <TouchableOpacity
+                       key={prefix.value}
+                       style={styles.dropdownItem}
+                       onPress={() => {
+                         setFieldValue('ownerNamePrefix', prefix.value);
+                         setShowPrefixDropdown(false);
+                       }}
+                     >
+                       <Text style={styles.dropdownItemText}>{prefix.label}</Text>
+                     </TouchableOpacity>
+                   ))}
+                 </View>
                )}
 
                <View style={styles.inputContainer}>
@@ -901,17 +953,31 @@ export default function RegisterScreen() {
                         latitude: storeLocation.latitude,
                         longitude: storeLocation.longitude,
                       });
-                      const addressString = `${address[0]?.street || address[0]?.name || 'Unknown Location'}, ${address[0]?.city || 'Unknown City'}, ${address[0]?.region || 'Unknown Region'}`;
+                      const addressData = address[0];
+                      const addressString = `${addressData?.street || addressData?.name || 'Unknown Location'}, ${addressData?.city || 'Unknown City'}, ${addressData?.region || 'Unknown Region'}`;
                       setStoreLocation(prev => ({
                         ...prev,
                         address: addressString.trim(),
                       }));
-                      // Auto-populate the manual address field
-                      if (formikRef.current) {
-                        formikRef.current.setFieldValue('address', addressString.trim());
+
+                      // Auto-fill address fields if formik ref is available
+                      if (formikRef.current && addressData) {
+                        if (addressData.street) {
+                          formikRef.current.setFieldValue('street_road', addressData.street);
+                        }
+                        if (addressData.city) {
+                          formikRef.current.setFieldValue('city', addressData.city);
+                        }
+                        if (addressData.region) {
+                          formikRef.current.setFieldValue('state', addressData.region);
+                        }
+                        if (addressData.postalCode) {
+                          formikRef.current.setFieldValue('pincode', addressData.postalCode);
+                        }
                       }
+
                       setShowMapModal(false);
-                      modal.showSuccess(`Store location pinned at:\n${addressString.trim()}`, { title: 'Location Set' });
+                      modal.showSuccess('Location set and address fields auto-filled!', { title: 'Location Set' });
                     } catch (error) {
                       setShowMapModal(false);
                       modal.showSuccess('Store location has been pinned successfully!', { title: 'Location Set' });
@@ -921,7 +987,7 @@ export default function RegisterScreen() {
                   }
                 }}
               >
-                <Text style={styles.modalDoneText}>Done</Text>
+                <Text style={styles.modalDoneButtonText}>Done</Text>
               </TouchableOpacity>
             </View>
 
@@ -1036,16 +1102,21 @@ export default function RegisterScreen() {
                 📍 Tap anywhere on the map to pin your store location
               </Text>
               <Text style={styles.instructionSubtext}>
-                The blue dot shows your current location
+                This will help customers find your store
               </Text>
               {storeLocation.latitude !== 0 && storeLocation.longitude !== 0 && (
                 <View style={styles.coordinateDisplay}>
                   <Text style={styles.coordinateText}>
-                    📍 Lat: {storeLocation.latitude.toFixed(6)}, Lng: {storeLocation.longitude.toFixed(6)}
+                    📍 {storeLocation.latitude.toFixed(6)}, {storeLocation.longitude.toFixed(6)}
                   </Text>
                 </View>
               )}
             </View>
+
+            <TouchableOpacity style={styles.currentLocationButton} onPress={pickLocation}>
+              <Ionicons name="locate" size={20} color="#fff" />
+              <Text style={styles.currentLocationText}>Use Current Location</Text>
+            </TouchableOpacity>
           </View>
         </Modal>
         
@@ -1105,13 +1176,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
-    paddingBottom: 100, // Increased bottom padding for keyboard
+    paddingBottom: 150, // Increased bottom padding for keyboard
+    flexGrow: 1,
   },
   backButton: {
     alignSelf: 'flex-start',
-    padding: Spacing.sm,
+    padding: Spacing.md,
     marginBottom: Spacing.md,
-    marginLeft: -Spacing.sm,
+    zIndex: 10,
   },
   title: {
     fontSize: Typography.fontSizes['2xl'],
@@ -1348,24 +1420,248 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   prefixContainer: {
-    width: 80,
-    height: 56,
+    width: 90,
+    minHeight: 56,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: BorderRadius.md,
     marginRight: Spacing.sm,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 4,
     backgroundColor: Colors.white,
   },
-  prefixInput: {
-    width: '100%',
-    textAlign: 'center',
+  prefixText: {
     fontSize: Typography.fontSizes.base,
     color: Colors.textPrimary,
-    fontWeight: Typography.fontWeights.normal,
+    fontWeight: Typography.fontWeights.medium,
+  },
+  prefixDropdownList: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.white,
+    marginTop: -Spacing.sm,
+    marginBottom: Spacing.sm,
+    width: 90,
+    elevation: 3,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   ownerNameInput: {
     flex: 1,
+  },
+
+  // Map Modal Styles
+  mapModalContainer: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
+  mapModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+    backgroundColor: Colors.white,
+    elevation: 2,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  mapModalTitle: {
+    fontSize: Typography.fontSizes.lg,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.textPrimary,
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: Spacing.md,
+  },
+  modalCloseButton: {
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.backgroundSecondary,
+  },
+  modalDoneButton: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primary,
+  },
+  modalDoneButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.bold,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  searchInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.backgroundSecondary,
+  },
+  searchTextInput: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+  },
+  searchButton: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSizes.sm,
+    fontWeight: Typography.fontWeights.bold,
+  },
+  pickLocationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primary,
+    elevation: 2,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  pickLocationButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.bold,
+  },
+  map: {
+    flex: 1,
+    width: '100%',
+  },
+  mapHidden: {
+    height: 0,
+    opacity: 0,
+  },
+  mapLoadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundSecondary,
+  },
+  mapLoadingText: {
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textSecondary,
+  },
+  mapErrorContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundSecondary,
+    padding: Spacing.xl,
+  },
+  mapErrorText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.error,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+  },
+  retryButton: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primary,
+  },
+  retryButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.bold,
+  },
+  mapInstructions: {
+    padding: Spacing.lg,
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+  },
+  instructionText: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textPrimary,
+    fontWeight: Typography.fontWeights.medium,
+    marginBottom: Spacing.xs,
+  },
+  instructionSubtext: {
+    fontSize: Typography.fontSizes.xs,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  coordinateDisplay: {
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.backgroundTertiary,
+    borderRadius: BorderRadius.sm,
+  },
+  coordinateText: {
+    fontSize: Typography.fontSizes.xs,
+    color: Colors.textSecondary,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  currentLocationButton: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+    elevation: 4,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  currentLocationText: {
+    color: Colors.white,
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.bold,
   },
 });
