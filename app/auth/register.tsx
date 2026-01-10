@@ -442,15 +442,36 @@ export default function RegisterScreen() {
 
                {/* Owner Name Fields */}
                <View style={styles.ownerNameRow}>
-                 <TouchableOpacity
-                   style={styles.prefixContainer}
-                   onPress={() => setShowPrefixDropdown(!showPrefixDropdown)}
-                 >
-                   <Text style={[styles.prefixText, !values.ownerNamePrefix && styles.placeholderText]}>
-                     {values.ownerNamePrefix ? `${values.ownerNamePrefix}.` : 'Prefix'}
-                   </Text>
-                   <Ionicons name="chevron-down" size={14} color="#666" />
-                 </TouchableOpacity>
+                 <View style={styles.prefixWrapper}>
+                   <TouchableOpacity
+                     style={styles.prefixContainer}
+                     onPress={() => setShowPrefixDropdown(!showPrefixDropdown)}
+                   >
+                     <Text style={[styles.prefixText, !values.ownerNamePrefix && styles.placeholderText]}>
+                       {values.ownerNamePrefix ? `${values.ownerNamePrefix}.` : 'Prefix'}
+                     </Text>
+                     <Ionicons name="chevron-down" size={14} color="#666" />
+                   </TouchableOpacity>
+
+                   {/* Prefix Dropdown */}
+                   {showPrefixDropdown && (
+                     <View style={styles.prefixDropdownList}>
+                       {prefixOptions.map((prefix) => (
+                         <TouchableOpacity
+                           key={prefix.value}
+                           style={styles.dropdownItem}
+                           onPress={() => {
+                             setFieldValue('ownerNamePrefix', prefix.value);
+                             setShowPrefixDropdown(false);
+                           }}
+                         >
+                           <Text style={styles.dropdownItemText}>{prefix.label}</Text>
+                         </TouchableOpacity>
+                       ))}
+                     </View>
+                   )}
+                 </View>
+
                  <View style={[styles.inputContainer, styles.ownerNameInput]}>
                    <View style={styles.iconContainer}>
                      <Ionicons name="person-outline" size={20} color="#666" />
@@ -470,24 +491,6 @@ export default function RegisterScreen() {
                )}
                {touched.ownerFirstName && errors.ownerFirstName && (
                  <Text style={styles.errorText}>{errors.ownerFirstName}</Text>
-               )}
-
-               {/* Prefix Dropdown */}
-               {showPrefixDropdown && (
-                 <View style={styles.prefixDropdownList}>
-                   {prefixOptions.map((prefix) => (
-                     <TouchableOpacity
-                       key={prefix.value}
-                       style={styles.dropdownItem}
-                       onPress={() => {
-                         setFieldValue('ownerNamePrefix', prefix.value);
-                         setShowPrefixDropdown(false);
-                       }}
-                     >
-                       <Text style={styles.dropdownItemText}>{prefix.label}</Text>
-                     </TouchableOpacity>
-                   ))}
-                 </View>
                )}
 
                <View style={styles.inputContainer}>
@@ -1419,18 +1422,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.sm,
   },
+  prefixWrapper: {
+    position: 'relative',
+    marginRight: Spacing.sm,
+  },
   prefixContainer: {
     width: 90,
-    minHeight: 56,
+    height: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: BorderRadius.md,
-    marginRight: Spacing.sm,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.sm,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
     gap: 4,
     backgroundColor: Colors.white,
   },
@@ -1440,17 +1445,19 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeights.medium,
   },
   prefixDropdownList: {
+    position: 'absolute',
+    top: 58,
+    left: 0,
+    width: 90,
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: BorderRadius.md,
     backgroundColor: Colors.white,
-    marginTop: -Spacing.sm,
-    marginBottom: Spacing.sm,
-    width: 90,
-    elevation: 3,
+    zIndex: 1000,
+    elevation: 5,
     shadowColor: Colors.black,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
   },
   ownerNameInput: {

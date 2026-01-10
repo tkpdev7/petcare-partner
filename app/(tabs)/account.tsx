@@ -34,6 +34,36 @@ interface PartnerData {
   reviewCount: number;
 }
 
+// Helper function to mask email address
+const maskEmail = (email: string): string => {
+  if (!email) return '';
+  const [localPart, domain] = email.split('@');
+  if (!domain) return email;
+
+  const visibleChars = Math.min(2, Math.floor(localPart.length / 3));
+  const maskedLocal = localPart.substring(0, visibleChars) + '****';
+
+  const [domainName, tld] = domain.split('.');
+  const maskedDomain = domainName.charAt(0) + '****' + (tld ? '.' + tld : '');
+
+  return `${maskedLocal}@${maskedDomain}`;
+};
+
+// Helper function to mask phone number
+const maskPhone = (phone: string): string => {
+  if (!phone) return '';
+  const cleaned = phone.replace(/\D/g, ''); // Remove non-digits
+
+  if (cleaned.length <= 4) return phone;
+
+  // Show last 3 digits, mask the rest
+  const lastDigits = cleaned.slice(-3);
+  const maskedPart = '*'.repeat(Math.min(6, cleaned.length - 3));
+  const prefix = cleaned.length > 10 ? cleaned.substring(0, cleaned.length - 10) + ' ' : '';
+
+  return `${prefix}${maskedPart}${lastDigits}`;
+};
+
 export default function AccountScreen() {
   const router = useRouter();
   const modal = useCustomModal();
@@ -123,7 +153,6 @@ export default function AccountScreen() {
       const response = await apiService.updatePartnerProfile({
         name: partnerData.name,
         address: partnerData.address,
-        description: partnerData.description,
       });
 
       if (response.success) {
@@ -327,25 +356,11 @@ export default function AccountScreen() {
 
         <View style={styles.infoSection}>
           <Text style={styles.sectionTitle}>Business Information</Text>
-          
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Business Name</Text>
-            {isEditing ? (
-              <TextInput
-                style={styles.editInput}
-                value={partnerData.name}
-                onChangeText={(text) => setPartnerData(prev => ({ ...prev, name: text }))}
-                placeholder="Enter business name"
-              />
-            ) : (
-              <Text style={styles.infoValue}>{partnerData.name}</Text>
-            )}
-          </View>
 
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Email</Text>
             <View style={styles.readOnlyContainer}>
-              <Text style={styles.readOnlyText}>{partnerData.email}</Text>
+              <Text style={styles.readOnlyText}>{maskEmail(partnerData.email)}</Text>
               <Ionicons name="lock-closed" size={16} color="#999" />
             </View>
           </View>
@@ -353,7 +368,7 @@ export default function AccountScreen() {
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Phone</Text>
             <View style={styles.readOnlyContainer}>
-              <Text style={styles.readOnlyText}>{partnerData.phone}</Text>
+              <Text style={styles.readOnlyText}>{maskPhone(partnerData.phone)}</Text>
               <Ionicons name="lock-closed" size={16} color="#999" />
             </View>
           </View>
@@ -379,22 +394,6 @@ export default function AccountScreen() {
               />
             ) : (
               <Text style={styles.infoValue}>{partnerData.address}</Text>
-            )}
-          </View>
-
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Description</Text>
-            {isEditing ? (
-              <TextInput
-                style={[styles.editInput, styles.textArea]}
-                value={partnerData.description}
-                onChangeText={(text) => setPartnerData(prev => ({ ...prev, description: text }))}
-                placeholder="Enter business description"
-                multiline
-                numberOfLines={4}
-              />
-            ) : (
-              <Text style={styles.infoValue}>{partnerData.description || 'No description added'}</Text>
             )}
           </View>
         </View>
@@ -483,6 +482,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: Spacing.xs,
     marginBottom: Spacing.lg,
+    textAlign: 'center',
   },
   statsContainer: {
     flexDirection: 'row',
@@ -518,9 +518,11 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666',
     marginTop: 4,
+    textAlign: 'center',
+    width: '100%',
   },
   verifiedContainer: {
     flexDirection: 'row',
