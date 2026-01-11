@@ -132,8 +132,9 @@ export default function RevenueScreen() {
     setRefreshing(false);
   };
 
-  const formatCurrency = (amount: number) => {
-    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatCurrency = (amount: number | undefined | null) => {
+    const value = amount ?? 0;
+    return `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const getStatusColor = (status: string) => {
@@ -266,7 +267,7 @@ export default function RevenueScreen() {
           {renderSummaryCard({
             title: 'Net Payable',
             value: formatCurrency(summary.total_net_payable),
-            subtitle: `${summary.pending_count} pending, ${summary.settled_count} settled`,
+            subtitle: `${summary.pending_count || 0} pending, ${summary.settled_count || 0} settled`,
             color: Colors.success
           })}
         </View>

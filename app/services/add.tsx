@@ -282,7 +282,7 @@ export default function AddServiceScreen() {
     } catch (error) {
       console.error('Error loading service:', error);
       modal.showError('Failed to load service data');
-      router.back();
+      router.push('/(tabs)/products');
     } finally {
       setLoading(false);
     }
@@ -504,7 +504,7 @@ export default function AddServiceScreen() {
           : 'Service created successfully';
 
         modal.showSuccess(message, {
-          onClose: () => router.back()
+          onClose: () => router.push('/(tabs)/products')
         });
       } else {
         modal.showError(response.error || 'Failed to save service');
