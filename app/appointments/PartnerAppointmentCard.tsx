@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Colors } from "../../constants/Colors";
@@ -147,7 +147,16 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
       </View>
 
       {showDetails && (
-        <View style={styles.viewContent}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingView}
+        >
+          <ScrollView
+            style={styles.viewContent}
+            contentContainerStyle={styles.viewContentContainer}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled={true}
+          >
           {/* Reschedule Details */}
           {isRescheduled && item.reschedule_from_date && item.reschedule_from_time && (
             <View style={styles.rescheduleInfoBox}>
@@ -296,7 +305,8 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
               </View>
             </View>
           )}
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       )}
     </View>
   );
@@ -389,10 +399,16 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 16,
   },
+  keyboardAvoidingView: {
+    width: "100%",
+  },
   viewContent: {
     width: "95%",
     alignSelf: "center",
+  },
+  viewContentContainer: {
     padding: 10,
+    paddingBottom: 20,
   },
   appointmentDetailsBox: {
     backgroundColor: "#F8F7FB",
