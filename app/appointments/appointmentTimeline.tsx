@@ -70,6 +70,7 @@ const route = useRoute<AppointmentTimelineRouteProp>();
   const [token, setToken] = useState<string | null>(null);
   const [otp, setOtp] = useState<string | null>(null);
   const [otpGenerated, setOtpGenerated] = useState(false);
+  const [loading, setLoading] = useState(true);
 
 
 
@@ -168,6 +169,7 @@ const route = useRoute<AppointmentTimelineRouteProp>();
 
     const fetchAppointmentData = async () => {
       try {
+        setLoading(true);
         // Fetch appointment details using apiService
         const response = await apiService.getAppointment(id);
 
@@ -194,12 +196,27 @@ const route = useRoute<AppointmentTimelineRouteProp>();
           setAppointment(appointmentData);
 
           // Generate timeline milestones from appointment status
-          const milestones = generateMilestones(appointmentData);
-          setMilestones(milestones);
+          const generatedMilestones = generateMilestones(appointmentData);
+          console.log('Generated milestones:', generatedMilestones.length, 'items');
+          setMilestones(generatedMilestones);
+        } else {
+          // Set default milestones even if no data
+          setMilestones([
+            { status: 'accepted', title: 'Appointment Request Accepted', completed: false, timestamp: null, icon: '📅' },
+            { status: 'in_progress', title: 'Appointment On-going', completed: false, timestamp: null, icon: '🏥' },
+            { status: 'completed', title: 'Appointment Completed', completed: false, timestamp: null, icon: '🎉' }
+          ]);
         }
       } catch (error) {
         console.error('Error fetching appointment:', error);
-        setMilestones([]);
+        // Set default milestones on error
+        setMilestones([
+          { status: 'accepted', title: 'Appointment Request Accepted', completed: false, timestamp: null, icon: '📅' },
+          { status: 'in_progress', title: 'Appointment On-going', completed: false, timestamp: null, icon: '🏥' },
+          { status: 'completed', title: 'Appointment Completed', completed: false, timestamp: null, icon: '🎉' }
+        ]);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -307,9 +324,9 @@ const getStatusStyle = (status?: string) => {
         <View style={{ width: 24 }} />
       </View>
 
-      {milestones.length === 0 ? (
+      {loading ? (
         <View style={{ padding: 40, alignItems: 'center' }}>
-          <Text style={{ color: '#777' }}>Loading timeline...</Text>
+          <Text style={{ color: '#777' }}>Loading appointment details...</Text>
         </View>
        ) : (
          <ScrollView contentContainerStyle={styles.scroll}>
@@ -403,21 +420,46 @@ const getStatusStyle = (status?: string) => {
                   <View style={styles.detailContent}>
                     <Text style={styles.detailLabel}>Prescription</Text>
                     <TouchableOpacity
-                      onPress={() => {
-                        // Convert base64 to data URI and navigate to viewDocument
-                        const pdfDataUri = `data:application/pdf;base64,${appointment.prescription_pdf_base64}`;
-                        router.push({
-                          pathname: '/appointments/viewDocument',
-                          params: {
-                            url: pdfDataUri,
-                            name: `Prescription - Appointment ${appointment.id}`
-                          }
-                        });
+                      onPress={async () => {
+                        try {
+                          const { viewPDF } = await import('../../utils/documentViewer');
+                          await viewPDF(
+                            appointment.prescription_pdf_base64!,
+                            `prescription_${appointment.id}.pdf`
+                          );
+                        } catch (error) {
+                          console.error('Error viewing prescription:', error);
+                          modal.showModal({
+                            type: "error",
+                            message: "Failed to open prescription. Please try again.",
+                          });
+                        }
                       }}
                       style={styles.prescriptionButton}
                     >
-                      <Text style={styles.prescriptionButtonText}>View & Download Prescription</Text>
+                      <Text style={styles.prescriptionButtonText}>View Prescription</Text>
                       <Ionicons name="eye" size={16} color="#ED6D4E" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={async () => {
+                        try {
+                          const { downloadPDF } = await import('../../utils/documentViewer');
+                          await downloadPDF(
+                            appointment.prescription_pdf_base64!,
+                            `prescription_${appointment.id}.pdf`
+                          );
+                        } catch (error) {
+                          console.error('Error downloading prescription:', error);
+                          modal.showModal({
+                            type: "error",
+                            message: "Failed to download prescription. Please try again.",
+                          });
+                        }
+                      }}
+                      style={[styles.prescriptionButton, { marginTop: 8 }]}
+                    >
+                      <Text style={styles.prescriptionButtonText}>Download Prescription</Text>
+                      <Ionicons name="download" size={16} color="#ED6D4E" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -515,7 +557,7 @@ const getStatusStyle = (status?: string) => {
             </View>
 
             {/* Prescription Section */}
-            {(appointment?.prescription_file_url || appointment?.prescription_pdf_base64) && (
+            {appointment?.prescription_pdf_base64 && (
               <View style={styles.prescriptionSection}>
                 <View style={styles.prescriptionHeader}>
                   <Ionicons name="document-text" size={20} color="#4CAF50" />
@@ -523,24 +565,16 @@ const getStatusStyle = (status?: string) => {
                 </View>
                 <TouchableOpacity
                   style={styles.viewPrescriptionBtn}
-                  onPress={() => {
-                    let pdfUrl = appointment.prescription_file_url;
-
-                    // If we have base64 data, convert it to data URI
-                    if (!pdfUrl && appointment.prescription_pdf_base64) {
-                      pdfUrl = `data:application/pdf;base64,${appointment.prescription_pdf_base64}`;
-                    }
-
-                    if (pdfUrl) {
-                      router.push({
-                        pathname: '/appointments/viewDocument',
-                        params: {
-                          url: pdfUrl,
-                          name: `Prescription - Appointment ${appointment.id}`
-                        }
-                      });
-                    } else {
-                      modal.showError('Prescription not available');
+                  onPress={async () => {
+                    try {
+                      const { viewPDF } = await import('../../utils/documentViewer');
+                      await viewPDF(
+                        appointment.prescription_pdf_base64!,
+                        `prescription_${appointment.id}.pdf`
+                      );
+                    } catch (error) {
+                      console.error('Error viewing prescription:', error);
+                      modal.showError('Failed to open prescription. Please try again.');
                     }
                   }}
                 >
