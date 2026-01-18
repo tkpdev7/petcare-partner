@@ -164,20 +164,6 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
             </View>
           )}
 
-          {/* OTP Display */}
-          {showOTP && (
-            <View style={styles.otpBox}>
-              <View style={styles.otpHeader}>
-                <Ionicons name="shield-checkmark" size={20} color="#4CAF50" />
-                <Text style={styles.otpTitle}>Customer OTP</Text>
-              </View>
-              <View style={styles.otpCodeContainer}>
-                <Text style={styles.otpCode}>{otp_code}</Text>
-              </View>
-              <Text style={styles.otpNote}>Customer will provide this code</Text>
-            </View>
-          )}
-
           {/* Appointment Details */}
           <TouchableOpacity onPress={onPress}>
             <View style={styles.appointmentDetailsBox}>
