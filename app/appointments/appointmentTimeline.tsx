@@ -16,8 +16,6 @@ import { useRouter } from "expo-router";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import apiService from "../../services/apiService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import CustomModal from "../../components/CustomModal";
 import { useCustomModal } from "../../hooks/useCustomModal";
 
@@ -405,52 +403,21 @@ const getStatusStyle = (status?: string) => {
                   <View style={styles.detailContent}>
                     <Text style={styles.detailLabel}>Prescription</Text>
                     <TouchableOpacity
-                      onPress={async () => {
-                        try {
-                          // Save base64 PDF to file system
-                          const filename = `prescription_${appointment.id}_${Date.now()}.pdf`;
-                          const fileUri = `${FileSystem.documentDirectory}${filename}`;
-
-                          console.log('Saving PDF to:', fileUri);
-
-                          // Write base64 data to file
-                          await FileSystem.writeAsStringAsync(
-                            fileUri,
-                            appointment.prescription_pdf_base64,
-                            {
-                              encoding: FileSystem.EncodingType.Base64,
-                            }
-                          );
-
-                          console.log('PDF saved successfully');
-
-                          // Check if sharing is available
-                          const isAvailable = await Sharing.isAvailableAsync();
-                          if (isAvailable) {
-                            // Open sharing dialog to view/save PDF
-                            await Sharing.shareAsync(fileUri, {
-                              mimeType: 'application/pdf',
-                              dialogTitle: 'Prescription PDF',
-                              UTI: 'com.adobe.pdf'
-                            });
-                          } else {
-                            modal.showModal({
-                              type: "info",
-                              message: "PDF saved successfully. You can find it in your device's file manager.",
-                            });
+                      onPress={() => {
+                        // Convert base64 to data URI and navigate to viewDocument
+                        const pdfDataUri = `data:application/pdf;base64,${appointment.prescription_pdf_base64}`;
+                        router.push({
+                          pathname: '/appointments/viewDocument',
+                          params: {
+                            url: pdfDataUri,
+                            name: `Prescription - Appointment ${appointment.id}`
                           }
-                        } catch (error) {
-                          console.error('Error opening prescription:', error);
-                          modal.showModal({
-                            type: "error",
-                            message: "Failed to open prescription. Please try again.",
-                          });
-                        }
+                        });
                       }}
                       style={styles.prescriptionButton}
                     >
                       <Text style={styles.prescriptionButtonText}>View & Download Prescription</Text>
-                      <Ionicons name="download" size={16} color="#ED6D4E" />
+                      <Ionicons name="eye" size={16} color="#ED6D4E" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -548,7 +515,7 @@ const getStatusStyle = (status?: string) => {
             </View>
 
             {/* Prescription Section */}
-            {appointment?.prescription_file_url && (
+            {(appointment?.prescription_file_url || appointment?.prescription_pdf_base64) && (
               <View style={styles.prescriptionSection}>
                 <View style={styles.prescriptionHeader}>
                   <Ionicons name="document-text" size={20} color="#4CAF50" />
@@ -556,24 +523,28 @@ const getStatusStyle = (status?: string) => {
                 </View>
                 <TouchableOpacity
                   style={styles.viewPrescriptionBtn}
-                  onPress={async () => {
-                    const url = appointment.prescription_file_url;
-                    if (url) {
-                      try {
-                        const canOpen = await Linking.canOpenURL(url);
-                        if (canOpen) {
-                          await Linking.openURL(url);
-                        } else {
-                          modal.showError('Unable to open prescription file');
+                  onPress={() => {
+                    let pdfUrl = appointment.prescription_file_url;
+
+                    // If we have base64 data, convert it to data URI
+                    if (!pdfUrl && appointment.prescription_pdf_base64) {
+                      pdfUrl = `data:application/pdf;base64,${appointment.prescription_pdf_base64}`;
+                    }
+
+                    if (pdfUrl) {
+                      router.push({
+                        pathname: '/appointments/viewDocument',
+                        params: {
+                          url: pdfUrl,
+                          name: `Prescription - Appointment ${appointment.id}`
                         }
-                      } catch (error) {
-                        console.error('Error opening prescription:', error);
-                        modal.showError('Failed to open prescription file');
-                      }
+                      });
+                    } else {
+                      modal.showError('Prescription not available');
                     }
                   }}
                 >
-                  <Ionicons name="download-outline" size={20} color="#fff" />
+                  <Ionicons name="eye-outline" size={20} color="#fff" />
                   <Text style={styles.viewPrescriptionText}>View Prescription</Text>
                 </TouchableOpacity>
               </View>
