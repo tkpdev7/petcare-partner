@@ -178,16 +178,19 @@ const route = useRoute<AppointmentTimelineRouteProp>();
         console.log('============================');
 
         if (response.success && response.data) {
-          // Handle nested data structure
+          // Handle double-nested data structure: response.data.data
           const appointmentData = response.data.data || response.data;
+
           console.log('Key Fields Check:');
           console.log('- provider_name:', appointmentData?.provider_name);
           console.log('- service_name:', appointmentData?.service_name);
           console.log('- service_type:', appointmentData?.service_type);
           console.log('- pet_name:', appointmentData?.pet_name);
           console.log('- price:', appointmentData?.price);
-          console.log('- total_price:', appointmentData?.total_price);
+          console.log('- totalAmount:', appointmentData?.totalAmount);
           console.log('- payment_method:', appointmentData?.payment_method);
+          console.log('- otp_code:', appointmentData?.otp_code);
+          console.log('- prescription_pdf_base64:', appointmentData?.prescription_pdf_base64 ? 'present' : 'not present');
           console.log('============================');
 
           setAppointment(appointmentData);
@@ -519,10 +522,10 @@ const getStatusStyle = (status?: string) => {
                       {node.label}
                     </Text>
                     <Text style={styles.timelineSubLabel}>
-                      {enhancedStatusStates[idx]?.time}, {enhancedStatusStates[idx]?.date}
+                      {enhancedStatusStates[idx]?.time || '--'}, {enhancedStatusStates[idx]?.date || '--'}
                     </Text>
                     {/* Show reschedule details without reason */}
-                    {node.details && (
+                    {node.details && node.details.from_date && node.details.from_time && (
                       <View style={styles.rescheduleDetails}>
                         <Text style={styles.rescheduleText}>
                           From: {node.details.from_date} at {node.details.from_time}
