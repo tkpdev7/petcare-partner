@@ -263,8 +263,10 @@ export default function AddServiceScreen() {
 
         // Load images and video if they exist
         if (service.images && Array.isArray(service.images) && service.images.length > 0) {
-          console.log('📸 Loading service images:', service.images.length);
+          console.log('📸 Loading service images:', service.images.length, 'URLs:', service.images);
           setImages(service.images);
+        } else {
+          console.log('⚠️ No images found in service data');
         }
         if (service.video) {
           console.log('🎥 Loading service video:', service.video);
@@ -282,7 +284,7 @@ export default function AddServiceScreen() {
     } catch (error) {
       console.error('Error loading service:', error);
       modal.showError('Failed to load service data');
-      router.push('/(tabs)/products');
+      router.push('/services');
     } finally {
       setLoading(false);
     }
@@ -329,7 +331,7 @@ export default function AddServiceScreen() {
       if (!mediaGranted) return;
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsMultipleSelection: false, // Upload one at a time to show progress
         allowsEditing: true,
         aspect: [4, 3],
@@ -342,10 +344,16 @@ export default function AddServiceScreen() {
         // Upload immediately like profile photo
         modal.showLoading('Uploading image...');
         try {
-          const uploadResponse = await apiService.uploadImage(imageUri, 'services', 'service-images');
+          const uploadResponse = await apiService.uploadImage(imageUri, 'products', 'service-images');
 
           if (uploadResponse.success && uploadResponse.data?.url) {
-            setImages(prev => [...prev, uploadResponse.data.url].slice(0, 5)); // Max 5 images
+            const newImageUrl = uploadResponse.data.url;
+            console.log('✅ Image uploaded successfully, URL:', newImageUrl);
+            setImages(prev => {
+              const updated = [...prev, newImageUrl].slice(0, 5);
+              console.log('📸 Updated images array:', updated);
+              return updated;
+            });
             modal.showSuccess('Image uploaded successfully!');
           } else {
             modal.showError('Failed to upload image. Please try again.');
@@ -490,22 +498,36 @@ export default function AddServiceScreen() {
       console.log('📤 Submitting service:', serviceData);
 
       let response;
-      if (isEditMode) {
+      if (isEditMode || isEditing) {
+        // Update if in edit mode OR if editing from view mode
         response = await apiService.updateService(id as string, serviceData);
       } else {
         response = await apiService.createService(serviceData);
       }
 
-      console.log('📥 Service creation response:', response);
+      console.log('📥 Service creation/update response:', response);
 
       if (response.success) {
-        const message = isEditMode
+        const message = (isEditMode || isEditing)
           ? 'Service updated successfully'
           : 'Service created successfully';
 
-        modal.showSuccess(message, {
-          onClose: () => router.push('/(tabs)/products')
-        });
+        // Update images if returned from API
+        if (response.data?.images) {
+          console.log('📸 Updating images from API response:', response.data.images);
+          setImages(response.data.images);
+        }
+
+        // If editing from view mode, exit edit mode and stay on page
+        if (isEditing) {
+          setIsEditing(false);
+          modal.showSuccess(message);
+        } else {
+          // For create or direct edit mode, navigate to services list
+          modal.showSuccess(message, {
+            onClose: () => router.push('/services')
+          });
+        }
       } else {
         modal.showError(response.error || 'Failed to save service');
       }
@@ -536,13 +558,13 @@ export default function AddServiceScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/products')}>
+          <TouchableOpacity onPress={() => router.push('/services')}>
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {isViewMode ? 'View Service' : isEditMode ? 'Edit Service' : 'Add Service'}
+            {isViewMode ? (isEditing ? 'Edit Service' : 'View Service') : isEditMode ? 'Edit Service' : 'Add Service'}
           </Text>
-          {isViewMode && (
+          {isViewMode && !isEditing && (
             <View style={styles.headerActions}>
               <TouchableOpacity
                 style={styles.headerButton}
@@ -558,7 +580,7 @@ export default function AddServiceScreen() {
               </TouchableOpacity>
             </View>
           )}
-          {!isViewMode && <View style={{ width: 24 }} />}
+          {(!isViewMode || isEditing) && <View style={{ width: 24 }} />}
         </View>
 
         <Formik
@@ -626,7 +648,11 @@ export default function AddServiceScreen() {
                 <View style={styles.imageGrid}>
                   {images.map((image, index) => (
                     <View key={index} style={styles.imageItem}>
-                      <Image source={{ uri: image }} style={styles.serviceImage} />
+                      <Image
+                        source={{ uri: image }}
+                        style={styles.serviceImage}
+                        resizeMode="cover"
+                      />
                       {!(isViewMode && !isEditing) && (
                         <TouchableOpacity
                           style={styles.removeImageButton}
@@ -801,27 +827,42 @@ export default function AddServiceScreen() {
               {/* Action Buttons - Only show in edit/add mode, not in view mode */}
               {(!isViewMode || isEditing) && (
                 <View style={styles.editModeActions}>
-                  <TouchableOpacity
-                    style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-                    onPress={() => handleSubmit()}
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={styles.submitButtonText}>
-                        {isEditMode || isEditing ? 'Update' : 'Create Service'}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-
-                  {isViewMode && isEditing && (
+                  {isViewMode && isEditing ? (
+                    // Show Update and Cancel side by side when editing in view mode
+                    <>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.updateButton, loading && styles.submitButtonDisabled]}
+                        onPress={() => handleSubmit()}
+                        disabled={loading}
+                      >
+                        {loading ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <Text style={styles.actionButtonText}>Update</Text>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.cancelButton]}
+                        onPress={handleCancelEdit}
+                        disabled={loading}
+                      >
+                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    // Show single Create/Update button when adding or in edit mode
                     <TouchableOpacity
-                      style={[styles.cancelButton]}
-                      onPress={handleCancelEdit}
+                      style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                      onPress={() => handleSubmit()}
                       disabled={loading}
                     >
-                      <Text style={styles.cancelButtonText}>Cancel Edit</Text>
+                      {loading ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.submitButtonText}>
+                          {isEditMode || isEditing ? 'Update Service' : 'Create Service'}
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   )}
                 </View>
@@ -1003,7 +1044,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   picker: {
-    height: 50,
+    height: 56,
     color: '#333',
   },
   row: {
@@ -1080,28 +1121,25 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   editModeActions: {
+    flexDirection: 'row',
     gap: Spacing.md,
+    marginHorizontal: 16,
+    marginTop: 24,
   },
   actionButton: {
     flex: 1,
-    flexDirection: 'row',
+    paddingVertical: 12,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
   },
-  editButton: {
+  updateButton: {
     backgroundColor: Colors.primary,
-  },
-  deleteButton: {
-    backgroundColor: '#F44336',
   },
   actionButtonText: {
     color: Colors.white,
     fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.bold,
+    fontWeight: Typography.fontWeights.semibold,
   },
 
   // Header Styles
@@ -1119,20 +1157,16 @@ const styles = StyleSheet.create({
     color: '#666',
   },
 
-  // Cancel Button
+  // Cancel Button (used for side-by-side layout in edit mode)
   cancelButton: {
     backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.primary,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-    marginTop: Spacing.md,
   },
   cancelButtonText: {
     color: Colors.primary,
     fontSize: Typography.fontSizes.base,
-    fontWeight: Typography.fontWeights.bold,
+    fontWeight: Typography.fontWeights.semibold,
   },
 
   // Image Styles

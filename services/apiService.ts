@@ -733,6 +733,19 @@ class ApiService {
     const config = params ? { params } : {};
     return this.makeRequest('GET', '/partner-revenue', undefined, config);
   }
+
+  // Case Sheet APIs
+  async getCaseSheet(appointmentId: string): Promise<ApiResponse> {
+    return this.makeRequest('GET', `/case-sheets/appointment/${appointmentId}`);
+  }
+
+  async getCaseSheetById(caseSheetId: string): Promise<ApiResponse> {
+    return this.makeRequest('GET', `/case-sheets/${caseSheetId}`);
+  }
+
+  async createCaseSheet(caseSheetData: any): Promise<ApiResponse> {
+    return this.makeRequest('POST', '/case-sheets', caseSheetData);
+  }
 }
 
 export default new ApiService();

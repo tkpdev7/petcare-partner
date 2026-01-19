@@ -81,6 +81,7 @@ export default function RegisterScreen() {
   const [mapError, setMapError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
   const [mapRegion, setMapRegion] = useState({
     latitude: 13.0827, // Default to Chennai
     longitude: 80.2707,
@@ -105,17 +106,26 @@ export default function RegisterScreen() {
   const [document4, setDocument4] = useState(null as any);
   
   const [showPassword, setShowPassword] = useState(false);
+  const [dateOfIncorporation, setDateOfIncorporation] = useState<Date | null>(null);
+  const [showIncorporationDatePicker, setShowIncorporationDatePicker] = useState(false);
 
-  // Update map region when store location changes
+  // Update map region when store location changes (only when tapping on map or dragging)
+  // This is optimized to prevent unnecessary updates when location is set programmatically
   React.useEffect(() => {
     if (storeLocation.latitude !== 0 && storeLocation.longitude !== 0) {
-      setMapRegion(prev => ({
-        ...prev,
-        latitude: storeLocation.latitude,
-        longitude: storeLocation.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }));
+      // Only update if the region is significantly different to avoid flickers
+      const latDiff = Math.abs(mapRegion.latitude - storeLocation.latitude);
+      const lngDiff = Math.abs(mapRegion.longitude - storeLocation.longitude);
+
+      if (latDiff > 0.00001 || lngDiff > 0.00001) {
+        setMapRegion(prev => ({
+          ...prev,
+          latitude: storeLocation.latitude,
+          longitude: storeLocation.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        }));
+      }
     }
   }, [storeLocation.latitude, storeLocation.longitude]);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -149,6 +159,10 @@ export default function RegisterScreen() {
   ];
 
   const validateAdditionalFields = () => {
+    if (!dateOfIncorporation) {
+      modal.showError('Please select Date of Incorporation');
+      return false;
+    }
     if (!storeLocation.address) {
       modal.showError('Please pin your store location on the map');
       return false;
@@ -196,6 +210,11 @@ export default function RegisterScreen() {
       return;
     }
 
+    // Prevent multiple simultaneous searches
+    if (searchLoading) {
+      return;
+    }
+
     try {
       setSearchLoading(true);
       const results = await Location.geocodeAsync(searchQuery);
@@ -212,6 +231,7 @@ export default function RegisterScreen() {
         const addressData = address[0];
         const addressString = `${addressData?.street || ''}, ${addressData?.city || ''}, ${addressData?.region || ''}`.trim();
 
+        // Update both location and map region immediately
         setStoreLocation({
           latitude,
           longitude,
@@ -239,10 +259,17 @@ export default function RegisterScreen() {
   };
 
   const pickLocation = async () => {
+    // Prevent multiple simultaneous calls
+    if (locationLoading) {
+      return;
+    }
+
     try {
+      setLocationLoading(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         modal.showError('Location permission is required to select store location', { title: 'Permission Denied' });
+        setLocationLoading(false);
         return;
       }
 
@@ -255,10 +282,22 @@ export default function RegisterScreen() {
       const addressData = address[0];
       const addressString = `${addressData?.street || 'Unnamed Road'}, ${addressData?.city || 'Unknown City'}, ${addressData?.region || 'Unknown Region'}`;
 
+      // Update both location and map region immediately in a single batch
+      const newLat = location.coords.latitude;
+      const newLng = location.coords.longitude;
+
       setStoreLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
+        latitude: newLat,
+        longitude: newLng,
         address: addressString.trim(),
+      });
+
+      // Update map region immediately to center on the pinned location
+      setMapRegion({
+        latitude: newLat,
+        longitude: newLng,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
       });
 
       // Auto-fill address fields if formik ref is available
@@ -282,6 +321,8 @@ export default function RegisterScreen() {
     } catch (error) {
       console.error('Location error:', error);
       modal.showError('Failed to get location. Please try again.');
+    } finally {
+      setLocationLoading(false);
     }
   };
 
@@ -323,6 +364,7 @@ export default function RegisterScreen() {
         state: values.state,
         pincode: values.pincode,
         storeLocation: storeLocation,
+        dateOfIncorporation: dateOfIncorporation ? dateOfIncorporation.toISOString().split('T')[0] : null,
         openingTime: formatTimeForAPI(openingTime),
         closingTime: formatTimeForAPI(closingTime),
         document1: document1?.uri || null,
@@ -621,45 +663,42 @@ export default function RegisterScreen() {
                 </View>
               )}
 
-               <TouchableOpacity style={styles.locationButton} onPress={async () => {
-                 // Get current location when opening map
-                 try {
-                   const { status } = await Location.requestForegroundPermissionsAsync();
-                   if (status === 'granted') {
-                     const location = await Location.getCurrentPositionAsync({});
-                     const newLat = location.coords.latitude;
-                     const newLng = location.coords.longitude;
-
-                     if (storeLocation.latitude === 0) { // Only set if no location is already set
-                       setStoreLocation(prev => ({
-                         ...prev,
-                         latitude: newLat,
-                         longitude: newLng,
-                       }));
-
-                       // Update map region for controlled map
-                       setMapRegion({
-                         latitude: newLat,
-                         longitude: newLng,
-                         latitudeDelta: 0.01,
-                         longitudeDelta: 0.01,
-                       });
-                     } else {
-                       // Update map region to current location even if store location exists
-                       setMapRegion({
-                         latitude: newLat,
-                         longitude: newLng,
-                         latitudeDelta: 0.01,
-                         longitudeDelta: 0.01,
-                       });
-                     }
-                   }
-                 } catch (error) {
-                   console.log('Location permission denied or error:', error);
-                 }
+               <TouchableOpacity style={styles.locationButton} onPress={() => {
+                 // Open modal IMMEDIATELY for instant response
                  setMapLoading(true);
                  setMapError(false);
                  setShowMapModal(true);
+
+                 // THEN try to get current location in background (non-blocking)
+                 (async () => {
+                   try {
+                     const { status } = await Location.requestForegroundPermissionsAsync();
+                     if (status === 'granted') {
+                       const location = await Location.getCurrentPositionAsync({});
+                       const newLat = location.coords.latitude;
+                       const newLng = location.coords.longitude;
+
+                       // Update map region to center on current location
+                       setMapRegion({
+                         latitude: newLat,
+                         longitude: newLng,
+                         latitudeDelta: 0.01,
+                         longitudeDelta: 0.01,
+                       });
+
+                       // If no location is already set, also update store location
+                       if (storeLocation.latitude === 0) {
+                         setStoreLocation(prev => ({
+                           ...prev,
+                           latitude: newLat,
+                           longitude: newLng,
+                         }));
+                       }
+                     }
+                   } catch (error) {
+                     console.log('Location permission denied or error:', error);
+                   }
+                 })();
                }}>
                 <Ionicons name="map-outline" size={20} color={Colors.primary} />
                 <Text style={styles.locationButtonText}>
@@ -778,6 +817,20 @@ export default function RegisterScreen() {
                  <Text style={styles.errorText}>{errors.pincode}</Text>
                )}
           
+              {/* Date of Incorporation */}
+              <Text style={styles.label}>Date of Incorporation</Text>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => setShowIncorporationDatePicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={20} color={Colors.primary} />
+                <Text style={styles.dateButtonText}>
+                  {dateOfIncorporation
+                    ? dateOfIncorporation.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                    : 'Select Incorporation Date'}
+                </Text>
+              </TouchableOpacity>
+
               <View style={styles.timeContainer} key={`times-${timeUpdateTrigger}`}>
                 <TouchableOpacity
                   style={styles.timeButton}
@@ -1055,7 +1108,11 @@ export default function RegisterScreen() {
               region={mapRegion}
               onRegionChangeComplete={(region) => {
                 // Update coordinates when user drags the map
-                if (region.latitude !== mapRegion.latitude || region.longitude !== mapRegion.longitude) {
+                // Only update if significantly different to prevent flickers
+                const latDiff = Math.abs(region.latitude - mapRegion.latitude);
+                const lngDiff = Math.abs(region.longitude - mapRegion.longitude);
+
+                if (latDiff > 0.0001 || lngDiff > 0.0001) {
                   setStoreLocation(prev => ({
                     ...prev,
                     latitude: region.latitude,
@@ -1065,12 +1122,12 @@ export default function RegisterScreen() {
               }}
               onPress={(event) => {
                 const { latitude, longitude } = event.nativeEvent.coordinate;
-                setStoreLocation({
+                // Update both location and map region immediately
+                setStoreLocation(prev => ({
+                  ...prev,
                   latitude,
                   longitude,
-                  address: storeLocation.address, // Keep existing address until confirmed
-                });
-                // Update map region for controlled map
+                }));
                 setMapRegion(prev => ({
                   ...prev,
                   latitude,
@@ -1117,13 +1174,38 @@ export default function RegisterScreen() {
               )}
             </View>
 
-            <TouchableOpacity style={styles.currentLocationButton} onPress={pickLocation}>
-              <Ionicons name="locate" size={20} color="#fff" />
-              <Text style={styles.currentLocationText}>Use Current Location</Text>
+            <TouchableOpacity
+              style={[styles.currentLocationButton, locationLoading && styles.buttonDisabled]}
+              onPress={pickLocation}
+              disabled={locationLoading}
+            >
+              {locationLoading ? (
+                <ActivityIndicator size="small" color={Colors.white} />
+              ) : (
+                <Ionicons name="locate" size={20} color="#fff" />
+              )}
+              <Text style={styles.currentLocationText}>
+                {locationLoading ? 'Getting Location...' : 'Use Current Location'}
+              </Text>
             </TouchableOpacity>
           </View>
         </Modal>
         
+        {showIncorporationDatePicker && (
+          <DateTimePicker
+            value={dateOfIncorporation || new Date()}
+            mode="date"
+            display="default"
+            maximumDate={new Date()} // Can't select future dates
+            onChange={(event, selectedDate) => {
+              setShowIncorporationDatePicker(false);
+              if (selectedDate && event.type === 'set') {
+                setDateOfIncorporation(selectedDate);
+              }
+            }}
+          />
+        )}
+
         {showOpeningTimePicker && (
           <DateTimePicker
             value={openingTime}
@@ -1321,6 +1403,23 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.fontSizes.sm,
     color: Colors.textSecondary,
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 14,
+    backgroundColor: Colors.white,
+    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+  },
+  dateButtonText: {
+    fontSize: Typography.fontSizes.base,
+    color: Colors.textPrimary,
+    flex: 1,
   },
   timeContainer: {
     flexDirection: 'row',
@@ -1621,10 +1720,18 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeights.bold,
   },
   mapInstructions: {
+    position: 'absolute',
+    bottom: 80,
+    left: 16,
+    right: 16,
     padding: Spacing.lg,
     backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderRadius: BorderRadius.md,
+    elevation: 4,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   instructionText: {
     fontSize: Typography.fontSizes.sm,
@@ -1671,5 +1778,8 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: Typography.fontSizes.base,
     fontWeight: Typography.fontWeights.bold,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });

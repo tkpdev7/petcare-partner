@@ -443,23 +443,44 @@ export default function AddProductScreen() {
         video: uploadedVideoUrl,
       };
 
-      const response = isEditMode
+      const response = (isEditMode || isEditing)
         ? await apiService.updateProduct(id as string, productData)
         : await apiService.createProduct(productData);
 
       if (!response.success) {
-        modal.showError(response.error || `Failed to ${isEditMode ? 'update' : 'add'} product`);
+        modal.showError(response.error || `Failed to ${(isEditMode || isEditing) ? 'update' : 'add'} product`);
         return;
       }
 
-      modal.showSuccess(`Product ${isEditMode ? 'updated' : 'added'} successfully!`, {
-        onClose: () => router.back()
-      });
+      // Update images if returned from API
+      if (response.data?.images) {
+        console.log('📸 Updating images from API response:', response.data.images);
+        setImages(response.data.images);
+      }
+
+      // If editing from view mode, exit edit mode and stay on page
+      if (isEditing) {
+        setIsEditing(false);
+        modal.showSuccess(`Product ${(isEditMode || isEditing) ? 'updated' : 'added'} successfully!`);
+      } else {
+        // For create or direct edit mode, navigate back
+        modal.showSuccess(`Product ${(isEditMode || isEditing) ? 'updated' : 'added'} successfully!`, {
+          onClose: () => router.back()
+        });
+      }
     } catch (error) {
-      console.error(`${isEditMode ? 'Update' : 'Add'} product error:`, error);
-      modal.showError(`Failed to ${isEditMode ? 'update' : 'add'} product. Please try again.`);
+      console.error(`${(isEditMode || isEditing) ? 'Update' : 'Add'} product error:`, error);
+      modal.showError(`Failed to ${(isEditMode || isEditing) ? 'update' : 'add'} product. Please try again.`);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    // Reload product data to reset any changes
+    if (id) {
+      loadProductData(categories);
     }
   };
 
@@ -470,7 +491,7 @@ export default function AddProductScreen() {
       if (!mediaGranted) return;
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsMultipleSelection: false, // Upload one at a time to show progress
         allowsEditing: true,
         aspect: [4, 3],
@@ -542,19 +563,17 @@ export default function AddProductScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {isViewMode ? 'Product Details' : isEditMode ? 'Edit Product' : 'Add Product'}
+          {isViewMode ? (isEditing ? 'Edit Product' : 'Product Details') : isEditMode ? 'Edit Product' : 'Add Product'}
         </Text>
         <View style={styles.headerActions}>
-          {(isViewMode || (isEditMode && id)) && (
+          {isViewMode && !isEditing && (
             <>
-              {isViewMode && (
-                <TouchableOpacity
-                  style={styles.iconButton}
-                  onPress={() => setIsEditing(true)}
-                >
-                  <Ionicons name="create-outline" size={24} color={Colors.primary} />
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => setIsEditing(true)}
+              >
+                <Ionicons name="create-outline" size={24} color={Colors.primary} />
+              </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.iconButton, { marginLeft: 12 }]}
                 onPress={handleDelete}
@@ -563,6 +582,7 @@ export default function AddProductScreen() {
               </TouchableOpacity>
             </>
           )}
+          {(!isViewMode || isEditing) && <View style={{ width: 24 }} />}
         </View>
       </View>
 
@@ -789,19 +809,44 @@ export default function AddProductScreen() {
               {/* Submit Button - Only show when adding new product or editing */}
               {(!isViewMode || isEditing) && (
                 <View style={styles.section}>
-                  <TouchableOpacity
-                    style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
-                    onPress={handleSubmit}
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? (
-                      <ActivityIndicator color={Colors.white} />
-                    ) : (
-                      <Text style={styles.submitButtonText}>
-                        {isEditMode || isViewMode ? 'Update Product' : 'Add Product'}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
+                  {isViewMode && isEditing ? (
+                    // Show Update and Cancel side by side when editing in view mode
+                    <View style={styles.buttonRow}>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.updateButton, isSubmitting && styles.submitButtonDisabled]}
+                        onPress={handleSubmit}
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? (
+                          <ActivityIndicator color={Colors.white} />
+                        ) : (
+                          <Text style={styles.actionButtonText}>Update</Text>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.cancelButton]}
+                        onPress={handleCancelEdit}
+                        disabled={isSubmitting}
+                      >
+                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    // Show single full-width button when adding or in edit mode
+                    <TouchableOpacity
+                      style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+                      onPress={handleSubmit}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <ActivityIndicator color={Colors.white} />
+                      ) : (
+                        <Text style={styles.submitButtonText}>
+                          {isEditMode || isEditing ? 'Update Product' : 'Add Product'}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
             </KeyboardAwareScrollView>
@@ -991,7 +1036,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   picker: {
-    height: 50,
+    height: 56,
     color: Colors.textPrimary,
   },
   mediaButton: {
@@ -1059,6 +1104,35 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSizes.lg,
     fontWeight: Typography.fontWeights.bold,
     color: Colors.white,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  updateButton: {
+    backgroundColor: Colors.primary,
+  },
+  actionButtonText: {
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.semibold,
+    color: Colors.white,
+  },
+  cancelButton: {
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  cancelButtonText: {
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.semibold,
+    color: Colors.primary,
   },
   bottomSpacing: {
     height: 40,

@@ -31,12 +31,18 @@ interface RevenueItem {
   source_type: 'APPOINTMENT' | 'ORDER';
   source_id: number;
   source_type_display: string;
+  appointment_id?: number;
+  order_id?: number;
+  product_name?: string;
+  service_name?: string;
   service_id?: number;
   product_id?: number;
   item_name: string;
   quantity: number;
   gross_amount: number;
   platform_commission: number;
+  vendor_payable: number;
+  tds_deduction: number;
   tds_amount: number;
   net_payable: number;
   status: 'PENDING' | 'SETTLED';
@@ -65,7 +71,6 @@ export default function RevenueScreen() {
   useFocusEffect(
     useCallback(() => {
       if (partnerData) {
-        console.log('Revenue tab focused - refreshing data...');
         loadRevenueData();
       }
     }, [partnerData, timeFilter])
@@ -92,12 +97,15 @@ export default function RevenueScreen() {
         apiService.getRevenues({ ...getDateFilters(), limit: 50 })
       ]);
 
+      // Extract data from nested response structure
       if (summaryResponse.success) {
-        setSummary(summaryResponse.data);
+        const summaryData = summaryResponse.data.data || summaryResponse.data;
+        setSummary(summaryData);
       }
 
       if (revenuesResponse.success) {
-        setRevenues(revenuesResponse.data);
+        const revenuesData = revenuesResponse.data.data || revenuesResponse.data;
+        setRevenues(Array.isArray(revenuesData) ? revenuesData : []);
       }
 
     } catch (error) {
@@ -158,53 +166,74 @@ export default function RevenueScreen() {
     </View>
   );
 
-  const renderRevenueItem = ({ item }: { item: RevenueItem }) => (
-    <View style={styles.revenueCard}>
-      <View style={styles.revenueHeader}>
-        <View>
-          <Text style={styles.revenueTitle}>
-            {item.source_type_display} #{item.source_id}
-          </Text>
-          <Text style={styles.revenueSubtitle}>Revenue ID: {item.id}</Text>
+  const renderRevenueItem = ({ item }: { item: RevenueItem }) => {
+    // Get the specific ID based on source type
+    const specificId = item.source_type === 'APPOINTMENT' ? item.appointment_id : item.order_id;
+    const specificName = item.source_type === 'APPOINTMENT' ? item.service_name : item.product_name;
+
+    return (
+      <View style={styles.revenueCard}>
+        <View style={styles.revenueHeader}>
+          <View>
+            <Text style={styles.revenueTitle}>
+              {item.source_type_display} #{specificId || item.source_id}
+            </Text>
+            <Text style={styles.revenueSubtitle}>
+              {specificName || item.item_name}
+            </Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
+            <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+              {item.status}
+            </Text>
+          </View>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-          <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-            {item.status}
-          </Text>
+
+        <Text style={styles.quantityText}>Quantity: {item.quantity}</Text>
+
+        <View style={styles.amountsContainer}>
+          <View style={styles.amountsRow}>
+            <View style={styles.amountItem}>
+              <Text style={styles.amountLabel}>Gross Amount</Text>
+              <Text style={styles.amountValue}>{formatCurrency(item.gross_amount)}</Text>
+            </View>
+            <View style={styles.amountItem}>
+              <Text style={styles.amountLabel}>Commission</Text>
+              <Text style={styles.amountValueRed}>-{formatCurrency(item.platform_commission)}</Text>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.amountsRow}>
+            <View style={styles.amountItem}>
+              <Text style={styles.amountLabelBold}>Vendor Payable</Text>
+              <Text style={styles.amountValueBlue}>{formatCurrency(item.vendor_payable)}</Text>
+            </View>
+            <View style={styles.amountItem}>
+              <Text style={styles.amountLabel}>TDS Deduction</Text>
+              <Text style={styles.amountValueRed}>-{formatCurrency(item.tds_deduction || item.tds_amount)}</Text>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.netPayableRow}>
+            <Text style={styles.netPayableLabel}>Net Payable</Text>
+            <Text style={styles.netPayableValue}>{formatCurrency(item.net_payable)}</Text>
+          </View>
         </View>
+
+        <Text style={styles.dateText}>
+          {new Date(item.created_at).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+          })}
+        </Text>
       </View>
-
-      <Text style={styles.itemName}>{item.item_name}</Text>
-      <Text style={styles.quantityText}>Quantity: {item.quantity}</Text>
-
-      <View style={styles.amountsRow}>
-        <View style={styles.amountItem}>
-          <Text style={styles.amountLabel}>Gross</Text>
-          <Text style={styles.amountValue}>{formatCurrency(item.gross_amount)}</Text>
-        </View>
-        <View style={styles.amountItem}>
-          <Text style={styles.amountLabel}>Commission</Text>
-          <Text style={styles.amountValueRed}>-{formatCurrency(item.platform_commission)}</Text>
-        </View>
-        <View style={styles.amountItem}>
-          <Text style={styles.amountLabel}>TDS</Text>
-          <Text style={styles.amountValueRed}>-{formatCurrency(item.tds_amount)}</Text>
-        </View>
-        <View style={styles.amountItem}>
-          <Text style={styles.amountLabel}>Net</Text>
-          <Text style={styles.amountValueGreen}>{formatCurrency(item.net_payable)}</Text>
-        </View>
-      </View>
-
-      <Text style={styles.dateText}>
-        {new Date(item.created_at).toLocaleDateString('en-IN', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric'
-        })}
-      </Text>
-    </View>
-  );
+    );
+  };
 
   if (loading && !summary) {
     return (
@@ -344,12 +373,13 @@ const styles = StyleSheet.create({
   },
   summaryContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.md,
     gap: Spacing.sm,
   },
   summaryCard: {
-    flex: 1,
+    width: '48%',
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.sm,
     padding: Spacing.md,
@@ -478,6 +508,41 @@ const styles = StyleSheet.create({
   },
   amountValueGreen: {
     fontSize: Typography.fontSizes.sm,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.success,
+  },
+  amountValueBlue: {
+    fontSize: Typography.fontSizes.sm,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.primary,
+  },
+  amountLabelBold: {
+    fontSize: Typography.fontSizes.xs,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+    fontWeight: Typography.fontWeights.bold,
+  },
+  amountsContainer: {
+    marginVertical: Spacing.md,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: Spacing.sm,
+  },
+  netPayableRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: Spacing.sm,
+  },
+  netPayableLabel: {
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.textPrimary,
+  },
+  netPayableValue: {
+    fontSize: Typography.fontSizes.lg,
     fontWeight: Typography.fontWeights.bold,
     color: Colors.success,
   },

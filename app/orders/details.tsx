@@ -12,69 +12,55 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import CustomModal from '../../components/CustomModal';
 import { useCustomModal } from '../../hooks/useCustomModal';
+import apiService from '../../services/apiService';
+import { Colors } from '../../constants/Colors';
 
 interface OrderDetails {
   id: string;
-  customerName: string;
-  customerPhone: string;
-  customerEmail: string;
-  petName: string;
-  petType: string;
-  petAge: string;
-  service: string;
-  appointmentDate: string;
-  appointmentTime: string;
-  status: 'pending' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled';
-  totalAmount: number;
+  order_date: string;
+  order_status: string;
+  customer_name: string;
+  customer_phone?: string;
+  customer_email?: string;
+  pet_name?: string;
+  total_amount: number;
+  payment_method?: string;
+  order_items?: any[];
+  delivery_address?: string;
   notes?: string;
-  serviceDetails?: string;
 }
 
 const statusOptions = [
-  { value: 'pending', label: 'Pending', color: '#F59E0B' },
-  { value: 'confirmed', label: 'Confirmed', color: '#10B981' },
-  { value: 'in-progress', label: 'In Progress', color: '#3B82F6' },
-  { value: 'completed', label: 'Completed', color: '#6B7280' },
-  { value: 'cancelled', label: 'Cancelled', color: '#EF4444' },
+  { value: 'ready_for_pickup', label: 'Ready for Pickup', color: '#00BCD4' },
+  { value: 'out_for_delivery', label: 'Out for Delivery', color: '#9C27B0' },
+  { value: 'delivered', label: 'Delivered', color: '#4CAF50' },
+  { value: 'cancelled', label: 'Cancelled', color: '#F44336' },
 ];
 
 export default function OrderDetailsScreen() {
   const router = useRouter();
   const modal = useCustomModal();
-  const { id } = useLocalSearchParams();
+  const { orderId } = useLocalSearchParams();
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     loadOrderDetails();
-  }, [id]);
+  }, [orderId]);
 
   const loadOrderDetails = async () => {
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch(`API_ENDPOINT/partner/orders/${id}`);
-      
-      // Mock data
-      const mockOrder: OrderDetails = {
-        id: id as string,
-        customerName: 'John Doe',
-        customerPhone: '+91 9876543210',
-        customerEmail: 'john.doe@email.com',
-        petName: 'Buddy',
-        petType: 'Golden Retriever',
-        petAge: '3 years',
-        service: 'Health Checkup',
-        appointmentDate: '2024-01-15',
-        appointmentTime: '10:00 AM',
-        status: 'confirmed',
-        totalAmount: 1500,
-        notes: 'Pet seems to have low energy lately. Please check for any health issues.',
-        serviceDetails: 'Complete health examination including blood tests and vaccination check',
-      };
-      
-      setOrderDetails(mockOrder);
-    } catch (error) {
+      setLoading(true);
+      // Try to get order from partner-orders endpoint
+      const response = await apiService.get(`/partner-orders/${orderId}`);
+
+      if (response.success && response.data) {
+        setOrderDetails(response.data);
+      } else {
+        throw new Error('Order not found');
+      }
+    } catch (error: any) {
       console.error('Error loading order details:', error);
       modal.showError('Failed to load order details');
     } finally {
@@ -82,37 +68,38 @@ export default function OrderDetailsScreen() {
     }
   };
 
-  const updateOrderStatus = async (newStatus: OrderDetails['status']) => {
+  const updateOrderStatus = async (newStatus: string) => {
     if (!orderDetails) return;
 
     setUpdating(true);
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch(`API_ENDPOINT/partner/orders/${id}/status`, {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ status: newStatus }),
-      // });
-      
-      // Mock update
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await apiService.patch(`/partner-orders/${orderDetails.id}/status`, {
+        status: newStatus
+      });
 
-      setOrderDetails(prev => prev ? { ...prev, status: newStatus } : null);
-      modal.showSuccess('Order status updated successfully');
-    } catch (error) {
-      modal.showError('Failed to update order status');
+      if (response.success) {
+        setOrderDetails(prev => prev ? { ...prev, order_status: newStatus } : null);
+        modal.showSuccess('Order status updated successfully', {
+          onClose: () => router.back(),
+        });
+      } else {
+        throw new Error(response.error || 'Failed to update status');
+      }
+    } catch (error: any) {
+      console.error('Error updating order status:', error);
+      modal.showError(error.message || 'Failed to update order status');
     } finally {
       setUpdating(false);
     }
   };
 
-  const handleStatusUpdate = (newStatus: OrderDetails['status']) => {
+  const handleStatusUpdate = (newStatus: string) => {
     const statusLabel = statusOptions.find(s => s.value === newStatus)?.label;
 
     modal.showWarning(
-      `Are you sure you want to update the status to "${statusLabel}"?`,
+      `Are you sure you want to update the order status to "${statusLabel}"?`,
       {
-        title: 'Update Status',
+        title: 'Update Order Status',
         primaryButtonText: 'Update',
         secondaryButtonText: 'Cancel',
         onPrimaryPress: () => {
@@ -124,21 +111,12 @@ export default function OrderDetailsScreen() {
     );
   };
 
-  const handleCall = () => {
-    // TODO: Implement call functionality
-    modal.showInfo('Calling feature will be implemented here', { title: 'Call Customer' });
-  };
-
-  const handleMessage = () => {
-    // TODO: Implement message functionality
-    modal.showInfo('Messaging feature will be implemented here', { title: 'Message Customer' });
-  };
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF7A59" />
+          <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading order details...</Text>
         </View>
       </SafeAreaView>
@@ -149,7 +127,7 @@ export default function OrderDetailsScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={64} color="#EF4444" />
+          <Ionicons name="alert-circle" size={64} color="#F44336" />
           <Text style={styles.errorText}>Order not found</Text>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>Go Back</Text>
@@ -159,7 +137,25 @@ export default function OrderDetailsScreen() {
     );
   }
 
-  const currentStatus = statusOptions.find(s => s.value === orderDetails.status);
+  const currentStatus = statusOptions.find(s => s.value === orderDetails.order_status);
+
+  let orderItems = [];
+  let productNames = '';
+  if (orderDetails.order_items) {
+    try {
+      orderItems = typeof orderDetails.order_items === 'string'
+        ? JSON.parse(orderDetails.order_items)
+        : orderDetails.order_items;
+      productNames = orderItems
+        .map((item: any) => `${item.product_name || item.name} (x${item.quantity || 1})`)
+        .filter(Boolean)
+        .join(', ');
+    } catch (e) {
+      console.error('Error parsing order_items:', e);
+    }
+  }
+
+  const canCancelOrder = orderDetails.order_status === 'ready_for_pickup';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -175,30 +171,73 @@ export default function OrderDetailsScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Status Section */}
+        {/* Order ID & Status Section */}
         <View style={styles.statusSection}>
-          <Text style={styles.sectionTitle}>Order Status</Text>
-          <View style={[styles.currentStatus, { backgroundColor: currentStatus?.color }]}>
-            <Text style={styles.currentStatusText}>{currentStatus?.label}</Text>
+          <View style={styles.orderIdRow}>
+            <Text style={styles.orderId}>Order #{orderDetails.id}</Text>
+            <View style={[styles.currentStatus, { backgroundColor: currentStatus?.color || '#666' }]}>
+              <Text style={styles.currentStatusText}>{currentStatus?.label || orderDetails.order_status}</Text>
+            </View>
           </View>
-          
-          <Text style={styles.statusUpdateTitle}>Update Status:</Text>
-          <View style={styles.statusButtons}>
-            {statusOptions
-              .filter(status => status.value !== orderDetails.status)
-              .map((status) => (
-                <TouchableOpacity
-                  key={status.value}
-                  style={[styles.statusButton, { borderColor: status.color }]}
-                  onPress={() => handleStatusUpdate(status.value as OrderDetails['status'])}
-                  disabled={updating}
-                >
-                  <Text style={[styles.statusButtonText, { color: status.color }]}>
-                    {status.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+
+          <View style={styles.orderDateRow}>
+            <Ionicons name="calendar-outline" size={16} color="#666" />
+            <Text style={styles.orderDate}>
+              {new Date(orderDetails.order_date).toLocaleDateString('en-US', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+              })}
+            </Text>
           </View>
+
+          {/* Info Box for Ready for Pickup */}
+          {orderDetails.order_status === 'ready_for_pickup' && (
+            <View style={styles.infoBox}>
+              <Ionicons name="checkmark-circle" size={20} color="#00BCD4" />
+              <Text style={styles.infoText}>
+                Order is ready for pickup. A delivery partner will collect it soon.
+              </Text>
+            </View>
+          )}
+
+          {/* Info Box for Out for Delivery */}
+          {orderDetails.order_status === 'out_for_delivery' && (
+            <View style={[styles.infoBox, { backgroundColor: '#F3E5F5' }]}>
+              <Ionicons name="bicycle" size={20} color="#9C27B0" />
+              <Text style={[styles.infoText, { color: '#6A1B9A' }]}>
+                Order is out for delivery. Delivery partner is on the way.
+              </Text>
+            </View>
+          )}
+
+          {/* Info Box for Delivered */}
+          {orderDetails.order_status === 'delivered' && (
+            <View style={[styles.infoBox, { backgroundColor: '#E8F5E9' }]}>
+              <Ionicons name="checkmark-done" size={20} color="#4CAF50" />
+              <Text style={[styles.infoText, { color: '#2E7D32' }]}>
+                Order has been delivered successfully.
+              </Text>
+            </View>
+          )}
+
+          {/* Cancel Button */}
+          {canCancelOrder && (
+            <TouchableOpacity
+              style={[styles.cancelButton, updating && styles.readyButtonDisabled]}
+              onPress={() => handleStatusUpdate('cancelled')}
+              disabled={updating}
+            >
+              {updating ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="close-circle" size={20} color="#fff" />
+                  <Text style={styles.cancelButtonText}>Cancel Order</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Customer Information */}
@@ -207,75 +246,62 @@ export default function OrderDetailsScreen() {
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               <Ionicons name="person-outline" size={20} color="#666" />
-              <Text style={styles.infoText}>{orderDetails.customerName}</Text>
+              <Text style={styles.infoText2}>{orderDetails.customer_name}</Text>
             </View>
-            <View style={styles.infoRow}>
-              <Ionicons name="call-outline" size={20} color="#666" />
-              <Text style={styles.infoText}>{orderDetails.customerPhone}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Ionicons name="mail-outline" size={20} color="#666" />
-              <Text style={styles.infoText}>{orderDetails.customerEmail}</Text>
-            </View>
-          </View>
-          
-          <View style={styles.contactButtons}>
-            <TouchableOpacity style={styles.contactButton} onPress={handleCall}>
-              <Ionicons name="call" size={20} color="#fff" />
-              <Text style={styles.contactButtonText}>Call</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.contactButton} onPress={handleMessage}>
-              <Ionicons name="chatbubble" size={20} color="#fff" />
-              <Text style={styles.contactButtonText}>Message</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Pet Information */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Pet Information</Text>
-          <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Ionicons name="paw-outline" size={20} color="#666" />
-              <Text style={styles.infoText}>{orderDetails.petName}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Ionicons name="medical-outline" size={20} color="#666" />
-              <Text style={styles.infoText}>{orderDetails.petType}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Ionicons name="time-outline" size={20} color="#666" />
-              <Text style={styles.infoText}>{orderDetails.petAge}</Text>
-            </View>
+            {orderDetails.customer_phone && (
+              <View style={styles.infoRow}>
+                <Ionicons name="call-outline" size={20} color="#666" />
+                <Text style={styles.infoText2}>{orderDetails.customer_phone}</Text>
+              </View>
+            )}
+            {orderDetails.customer_email && (
+              <View style={styles.infoRow}>
+                <Ionicons name="mail-outline" size={20} color="#666" />
+                <Text style={styles.infoText2}>{orderDetails.customer_email}</Text>
+              </View>
+            )}
+            {orderDetails.delivery_address && (
+              <View style={styles.infoRow}>
+                <Ionicons name="location-outline" size={20} color="#666" />
+                <Text style={styles.infoText2}>{orderDetails.delivery_address}</Text>
+              </View>
+            )}
           </View>
         </View>
 
-        {/* Service Details */}
+        {/* Order Items */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Service Details</Text>
+          <Text style={styles.sectionTitle}>Order Items</Text>
           <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Ionicons name="medical-outline" size={20} color="#666" />
-              <Text style={styles.infoText}>{orderDetails.service}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Ionicons name="calendar-outline" size={20} color="#666" />
-              <Text style={styles.infoText}>{orderDetails.appointmentDate}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Ionicons name="time-outline" size={20} color="#666" />
-              <Text style={styles.infoText}>{orderDetails.appointmentTime}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Ionicons name="cash-outline" size={20} color="#666" />
-              <Text style={styles.infoText}>₹{orderDetails.totalAmount}</Text>
-            </View>
+            {orderItems.length > 0 ? (
+              orderItems.map((item: any, index: number) => (
+                <View key={index} style={styles.orderItemRow}>
+                  <View style={styles.orderItemInfo}>
+                    <Text style={styles.orderItemName}>
+                      {item.product_name || item.name}
+                    </Text>
+                    <Text style={styles.orderItemQty}>Qty: {item.quantity || 1}</Text>
+                  </View>
+                  <Text style={styles.orderItemPrice}>
+                    ₹{(item.price || item.unit_price) * (item.quantity || 1)}
+                  </Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.noItemsText}>No items found</Text>
+            )}
           </View>
-          
-          {orderDetails.serviceDetails && (
-            <View style={styles.detailsBox}>
-              <Text style={styles.detailsTitle}>Service Description:</Text>
-              <Text style={styles.detailsText}>{orderDetails.serviceDetails}</Text>
+
+          {/* Total */}
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total Amount</Text>
+            <Text style={styles.totalAmount}>₹{orderDetails.total_amount}</Text>
+          </View>
+
+          {orderDetails.payment_method && (
+            <View style={styles.paymentRow}>
+              <Ionicons name="card-outline" size={18} color="#666" />
+              <Text style={styles.paymentText}>Payment: {orderDetails.payment_method}</Text>
             </View>
           )}
         </View>
@@ -289,6 +315,8 @@ export default function OrderDetailsScreen() {
             </View>
           </View>
         )}
+
+        <View style={{ height: 40 }} />
       </ScrollView>
 
       <CustomModal
@@ -311,14 +339,14 @@ export default function OrderDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#F8F7FB',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 60,
     paddingBottom: 16,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
@@ -337,7 +365,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 16,
   },
   loadingContainer: {
@@ -364,7 +392,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginTop: 20,
-    backgroundColor: '#FF7A59',
+    backgroundColor: Colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -386,6 +414,27 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
   },
+  orderIdRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  orderId: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+  orderDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 16,
+  },
+  orderDate: {
+    fontSize: 14,
+    color: '#666',
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -393,20 +442,66 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   currentStatus: {
-    alignSelf: 'flex-start',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
-    marginBottom: 16,
+    borderRadius: 12,
   },
   currentStatusText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  readyButton: {
+    backgroundColor: '#00BCD4',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  readyButtonDisabled: {
+    opacity: 0.6,
+  },
+  readyButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  cancelButton: {
+    backgroundColor: '#F44336',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  cancelButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  infoBox: {
+    backgroundColor: '#E0F7FA',
+    padding: 12,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#00838F',
+    lineHeight: 18,
   },
   statusUpdateTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#333',
     marginBottom: 12,
   },
@@ -423,7 +518,7 @@ const styles = StyleSheet.create({
   },
   statusButtonText: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   infoCard: {
     gap: 12,
@@ -433,47 +528,71 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  infoText: {
-    fontSize: 16,
+  infoText2: {
+    fontSize: 15,
     color: '#333',
     flex: 1,
   },
-  contactButtons: {
+  orderItemRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
-  contactButton: {
+  orderItemInfo: {
     flex: 1,
+  },
+  orderItemName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+  },
+  orderItemQty: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 2,
+  },
+  orderItemPrice: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  noItemsText: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 2,
+    borderTopColor: '#e0e0e0',
+  },
+  totalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  totalAmount: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  paymentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FF7A59',
-    paddingVertical: 12,
-    borderRadius: 8,
     gap: 8,
+    marginTop: 12,
   },
-  contactButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  detailsBox: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-  },
-  detailsTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  detailsText: {
+  paymentText: {
     fontSize: 14,
     color: '#666',
-    lineHeight: 20,
   },
   notesBox: {
     padding: 12,

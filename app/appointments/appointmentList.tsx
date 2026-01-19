@@ -11,6 +11,8 @@ import {
   RefreshControl,
   Modal,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { DrawerActions, useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -50,6 +52,7 @@ interface Appointment {
   original_time?: string;
   reschedule_from_date?: string;
   reschedule_from_time?: string;
+  case_sheet_url?: string | null;
 }
 
 const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
@@ -352,10 +355,15 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
         status={appointment.status}
         showActions={selectedTab === "scheduled" || selectedTab === "completed"}
         otp_code={appointment.otp_code}
+        hasCaseSheet={!!appointment.case_sheet_url}
         onPress={() => handleAppointmentPress(appointment)}
         onCancel={() => {
           setAppointmentToCancel(appointment.id);
           setShowCancelModal(true);
+        }}
+        onOTPVerified={() => {
+          modal.showSuccess("OTP verified successfully! You can now fill the case sheet.");
+          loadAppointments();
         }}
       />
     </View>
@@ -431,7 +439,8 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
         status === "scheduled" ||
         status === "confirmed" ||
         status === "rescheduled" ||
-        status === "pending";
+        status === "pending" ||
+        status === "in_progress";
       const isFutureOrToday = appointmentDateStr >= todayStr;
       console.log(
         `  -> Scheduled tab: isValidStatus=${isValidStatus}, isFutureOrToday=${isFutureOrToday}, result=${isValidStatus && isFutureOrToday}`
@@ -458,6 +467,11 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
       <View style={styles.container}>
         {/* <View style={styles.header}>
           
@@ -657,6 +671,7 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
         hidePrimaryButton={modal.config.hidePrimaryButton}
         hideSecondaryButton={modal.config.hideSecondaryButton}
       />
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

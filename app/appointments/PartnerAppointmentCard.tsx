@@ -14,6 +14,7 @@ interface PartnerAppointmentCardProps {
   showActions?: boolean;
   otp_code?: string;
   hasCaseSheet?: boolean;
+  onOTPVerified?: () => void;
 }
 
 const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
@@ -25,16 +26,19 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
   showActions = true,
   otp_code,
   hasCaseSheet = false,
+  onOTPVerified,
 }) => {
   const [showDetails, setShowDetails] = useState(false);
   const [showOTPVerification, setShowOTPVerification] = useState(false);
   const [otpInput, setOtpInput] = useState('');
   const [verifying, setVerifying] = useState(false);
-  const [otpVerified, setOtpVerified] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   // Determine if actions should be shown based on status
   const canShowActions = showActions && status && ['scheduled', 'confirmed', 'pending', 'rescheduled', 'in_progress'].includes(status.toLowerCase());
+
+  // Check if OTP is already verified based on status (in_progress or completed means OTP was verified)
+  const otpVerified = status?.toLowerCase() === 'in_progress' || status?.toLowerCase() === 'completed';
 
   // Show OTP for active appointments (not completed or cancelled)
   const showOTP = otp_code && status && !['completed', 'cancelled', 'no_show'].includes(status.toLowerCase());
@@ -77,10 +81,12 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
       const response = await apiService.verifyOTP(item.id, otpInput);
 
       if (response.success) {
-        setOtpVerified(true);
         setShowOTPVerification(false);
-        // Success message
-        alert('OTP verified successfully! You can now fill the case sheet.');
+        setOtpInput('');
+        // Call the success callback which will reload appointments and update status
+        if (onOTPVerified) {
+          onOTPVerified();
+        }
       } else {
         setErrorMessage(response.error || 'Invalid OTP');
       }
@@ -95,8 +101,25 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
     router.push(`/case-sheets/create?appointmentId=${item.id}`);
   };
 
-  const handleViewCaseSheet = () => {
-    router.push(`/case-sheets/view?appointmentId=${item.id}`);
+  const handleAddPrescription = () => {
+    router.push(`/appointments/add-prescription?appointmentId=${item.id}`);
+  };
+
+  // Check if this is a vet appointment (requires case sheet and prescription)
+  const isVetAppointment = item.provider_type?.toLowerCase() === 'specialist';
+
+  const handleCompleteAppointment = async () => {
+    try {
+      setVerifying(true);
+      await apiService.updateAppointmentStatus(item.id, 'completed');
+      if (onOTPVerified) {
+        onOTPVerified();
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Failed to complete appointment');
+    } finally {
+      setVerifying(false);
+    }
   };
 
   return (
@@ -128,11 +151,11 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
         <View style={styles.infoContainer}>
           <View style={styles.infoItem}>
             <Ionicons name="calendar-outline" size={16} color="gray" />
-            <Text style={styles.infoText}>{formatDate(item.appointmentDate || item.appointment_date)}</Text>
+            <Text style={styles.infoText}>{item.appointmentDate || item.appointment_date ? formatDate(item.appointmentDate || item.appointment_date) : 'N/A'}</Text>
           </View>
           <View style={styles.infoItem}>
             <Ionicons name="time-outline" size={16} color="gray" />
-            <Text style={styles.infoText}>{item.appointmentTime || item.appointment_time}</Text>
+            <Text style={styles.infoText}>{item.appointmentTime || item.appointment_time || 'N/A'}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -165,10 +188,10 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                 <Text style={styles.rescheduleTitle}>Appointment Rescheduled</Text>
               </View>
               <Text style={styles.rescheduleText}>
-                From: {formatDate(item.reschedule_from_date)} at {item.reschedule_from_time}
+                From: {formatDate(item.reschedule_from_date)} at {item.reschedule_from_time || 'N/A'}
               </Text>
               <Text style={styles.rescheduleText}>
-                To: {formatDate(item.appointment_date)} at {item.appointment_time || item.start_time}
+                To: {formatDate(item.appointment_date)} at {item.appointment_time || item.start_time || 'N/A'}
               </Text>
             </View>
           )}
@@ -185,7 +208,7 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                   />
                 </View>
                 <View style={styles.detailsTextWrapper}>
-                  <Text style={styles.detailsTitle}>{item.customerName || item.name}</Text>
+                  <Text style={styles.detailsTitle}>{item.customerName || item.name || 'N/A'}</Text>
                   <Text style={styles.detailsSubtitle}>Customer</Text>
                 </View>
               </View>
@@ -198,7 +221,7 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                   />
                 </View>
                 <View style={styles.detailsTextWrapper}>
-                  <Text style={styles.detailsTitle}>{item.petName}</Text>
+                  <Text style={styles.detailsTitle}>{item.petName || 'N/A'}</Text>
                   <Text style={styles.detailsSubtitle}>Pet Name</Text>
                 </View>
               </View>
@@ -212,25 +235,12 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                 </View>
                 <View style={styles.detailsTextWrapper}>
                   <Text style={styles.detailsSubtitle}>
-                    {formatDate(item.appointment_date || item.appointmentDate)}, {item.appointment_time || item.appointmentTime}
+                    {item.appointment_date || item.appointmentDate ? formatDate(item.appointment_date || item.appointmentDate) : 'N/A'}, {item.appointment_time || item.appointmentTime || 'N/A'}
                   </Text>
                 </View>
               </View>
             </View>
           </TouchableOpacity>
-
-          {/* View Case Sheet Button - Show for all appointments with case sheet */}
-          {hasCaseSheet && (
-            <View style={styles.btnContainer}>
-              <TouchableOpacity
-                onPress={handleViewCaseSheet}
-                style={styles.viewCaseSheetBtn}
-              >
-                <Ionicons name="eye-outline" size={18} color="#fff" />
-                <Text style={styles.viewCaseSheetBtnText}>View Case Sheet</Text>
-              </TouchableOpacity>
-            </View>
-          )}
 
           {canShowActions && (
             <View style={styles.btnContainer}>
@@ -244,14 +254,48 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                 </TouchableOpacity>
               )}
 
-              {/* Fill Case Sheet Button - Only show after OTP verification */}
-              {otpVerified && status?.toLowerCase() !== 'completed' && (
+              {/* FOR VET APPOINTMENTS: Case Sheet and Prescription Flow */}
+              {isVetAppointment && (
+                <>
+                  {/* Fill Case Sheet Button - Only show after OTP verification and if no case sheet */}
+                  {otpVerified && status?.toLowerCase() !== 'completed' && !hasCaseSheet && (
+                    <TouchableOpacity
+                      onPress={handleFillCaseSheet}
+                      style={styles.caseSheetBtn}
+                    >
+                      <Ionicons name="document-text-outline" size={18} color="#fff" />
+                      <Text style={styles.caseSheetBtnText}>Fill Case Sheet</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Add Prescription Button - Only show after case sheet is filled */}
+                  {otpVerified && status?.toLowerCase() !== 'completed' && hasCaseSheet && (
+                    <TouchableOpacity
+                      onPress={handleAddPrescription}
+                      style={styles.prescriptionBtn}
+                    >
+                      <Ionicons name="medical-outline" size={18} color="#fff" />
+                      <Text style={styles.prescriptionBtnText}>Add Prescription</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+
+              {/* FOR GROOMING APPOINTMENTS: Complete directly after OTP */}
+              {!isVetAppointment && otpVerified && status?.toLowerCase() !== 'completed' && (
                 <TouchableOpacity
-                  onPress={handleFillCaseSheet}
-                  style={styles.caseSheetBtn}
+                  onPress={handleCompleteAppointment}
+                  style={styles.completeBtn}
+                  disabled={verifying}
                 >
-                  <Ionicons name="document-text-outline" size={18} color="#fff" />
-                  <Text style={styles.caseSheetBtnText}>Fill Case Sheet</Text>
+                  {verifying ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+                      <Text style={styles.completeBtnText}>Complete Appointment</Text>
+                    </>
+                  )}
                 </TouchableOpacity>
               )}
 
@@ -476,8 +520,8 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "bold",
   },
-  viewCaseSheetBtn: {
-    backgroundColor: "#9C27B0",
+  prescriptionBtn: {
+    backgroundColor: "#FF9800",
     paddingVertical: 10,
     paddingHorizontal: 24,
     borderRadius: 20,
@@ -488,7 +532,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  viewCaseSheetBtnText: {
+  prescriptionBtnText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  completeBtn: {
+    backgroundColor: "#4CAF50",
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  completeBtnText: {
     color: "#fff",
     fontWeight: "bold",
   },

@@ -37,14 +37,23 @@ type AppointmentMilestone = {
 type Appointment = {
   id: number;
   status: string;
-  appointment_date: string;
+  appointment_date?: string;
+  appointmentDate?: string;
   appointment_time?: string;
-  created_at: string;
+  appointmentTime?: string;
+  created_at?: string;
+  createdAt?: string;
   cancellation_reason?: string;
   cancelled_by?: string;
+  cancelled_at?: string;
+  cancelledAt?: string;
+  rescheduled_at?: string;
+  rescheduledAt?: string;
   prescription_file_url?: string;
   prescription_pdf_base64?: string;
   prescription_data?: any;
+  case_sheet_pdf_base64?: string;
+  case_sheet_url?: string;
   clinical_notes?: string;
   otp_code?: string;
   provider_name?: string;
@@ -83,7 +92,7 @@ const route = useRoute<AppointmentTimelineRouteProp>();
         status: 'accepted',
         title: 'Appointment Request Accepted',
         completed: true,
-        timestamp: apt.created_at,
+        timestamp: apt.createdAt || apt.created_at,
         icon: '📅',
       },
     ];
@@ -96,7 +105,7 @@ const route = useRoute<AppointmentTimelineRouteProp>();
         status: 'rescheduled',
         title: 'Appointment Rescheduled',
         completed: true,
-        timestamp: new Date().toISOString(),
+        timestamp: apt.rescheduled_at || apt.rescheduledAt || new Date().toISOString(),
         icon: '🔄',
       });
     }
@@ -107,7 +116,7 @@ const route = useRoute<AppointmentTimelineRouteProp>();
         status: 'in_progress',
         title: 'Appointment On-going',
         completed: true,
-        timestamp: apt.appointment_date,
+        timestamp: apt.appointmentDate || apt.appointment_date,
         icon: '🏥',
       });
     } else {
@@ -126,7 +135,7 @@ const route = useRoute<AppointmentTimelineRouteProp>();
         status: 'completed',
         title: 'Appointment Completed',
         completed: true,
-        timestamp: apt.appointment_date,
+        timestamp: apt.appointmentDate || apt.appointment_date,
         icon: '🎉',
       });
     } else if (status === 'cancelled' || status === 'no_show') {
@@ -134,7 +143,7 @@ const route = useRoute<AppointmentTimelineRouteProp>();
         status: status,
         title: status === 'cancelled' ? 'Appointment Cancelled' : 'No Show',
         completed: true,
-        timestamp: apt.cancelled_at || new Date().toISOString(),
+        timestamp: apt.cancelled_at || apt.cancelledAt || new Date().toISOString(),
         icon: '❌',
       });
     } else {
@@ -191,6 +200,7 @@ const route = useRoute<AppointmentTimelineRouteProp>();
           console.log('- payment_method:', appointmentData?.payment_method);
           console.log('- otp_code:', appointmentData?.otp_code);
           console.log('- prescription_pdf_base64:', appointmentData?.prescription_pdf_base64 ? 'present' : 'not present');
+          console.log('- case_sheet_pdf_base64:', appointmentData?.case_sheet_pdf_base64 ? 'present' : 'not present');
           console.log('============================');
 
           setAppointment(appointmentData);
@@ -198,6 +208,7 @@ const route = useRoute<AppointmentTimelineRouteProp>();
           // Generate timeline milestones from appointment status
           const generatedMilestones = generateMilestones(appointmentData);
           console.log('Generated milestones:', generatedMilestones.length, 'items');
+          console.log('Milestones with timestamps:', generatedMilestones);
           setMilestones(generatedMilestones);
         } else {
           // Set default milestones even if no data
@@ -411,15 +422,34 @@ const getStatusStyle = (status?: string) => {
                 </View>
               )}
 
-              {/* Prescription - Show if available */}
-              {appointment.prescription_pdf_base64 && (
-                <View style={styles.detailRow}>
-                  <View style={styles.detailIcon}>
-                    <Ionicons name="document-text" size={24} color="#ED6D4E" />
+            </View>
+          )}
+
+         {/* Estimated Time Block */}
+         <View style={styles.estimatedTimeBox}>
+          <Text style={styles.estimatedHeading}>Appointment Time</Text>
+          <Text style={styles.estimatedTime}>{formatDateTime(date,time)}</Text>
+        </View>
+
+        {/* Medical Records (Prescription & Clinical Notes) */}
+        {appointment?.status === 'completed' && (appointment?.prescription_pdf_base64 || appointment?.case_sheet_pdf_base64 || appointment?.clinical_notes) && (
+          <View style={styles.medicalRecordsBox}>
+            <View style={styles.medicalRecordsHeader}>
+              <Ionicons name="medical" size={22} color="#ED6D4E" />
+              <Text style={styles.medicalRecordsTitle}>Medical Records</Text>
+            </View>
+
+            {/* Prescription Section */}
+            {appointment?.prescription_pdf_base64 && (
+              <View style={styles.prescriptionSection}>
+                <View style={styles.prescriptionHeaderRow}>
+                  <View style={styles.prescriptionHeader}>
+                    <Ionicons name="document-text" size={20} color="#4CAF50" />
+                    <Text style={styles.prescriptionLabel}>Prescription</Text>
                   </View>
-                  <View style={styles.detailContent}>
-                    <Text style={styles.detailLabel}>Prescription</Text>
+                  <View style={styles.documentActions}>
                     <TouchableOpacity
+                      style={styles.iconButton}
                       onPress={async () => {
                         try {
                           const { viewPDF } = await import('../../utils/documentViewer');
@@ -429,18 +459,14 @@ const getStatusStyle = (status?: string) => {
                           );
                         } catch (error) {
                           console.error('Error viewing prescription:', error);
-                          modal.showModal({
-                            type: "error",
-                            message: "Failed to open prescription. Please try again.",
-                          });
+                          modal.showError('Failed to open prescription. Please try again.');
                         }
                       }}
-                      style={styles.prescriptionButton}
                     >
-                      <Text style={styles.prescriptionButtonText}>View Prescription</Text>
-                      <Ionicons name="eye" size={16} color="#ED6D4E" />
+                      <Ionicons name="eye-outline" size={24} color="#4CAF50" />
                     </TouchableOpacity>
                     <TouchableOpacity
+                      style={styles.iconButton}
                       onPress={async () => {
                         try {
                           const { downloadPDF } = await import('../../utils/documentViewer');
@@ -450,28 +476,81 @@ const getStatusStyle = (status?: string) => {
                           );
                         } catch (error) {
                           console.error('Error downloading prescription:', error);
-                          modal.showModal({
-                            type: "error",
-                            message: "Failed to download prescription. Please try again.",
-                          });
+                          modal.showError('Failed to download prescription. Please try again.');
                         }
                       }}
-                      style={[styles.prescriptionButton, { marginTop: 8 }]}
                     >
-                      <Text style={styles.prescriptionButtonText}>Download Prescription</Text>
-                      <Ionicons name="download" size={16} color="#ED6D4E" />
+                      <Ionicons name="download-outline" size={24} color="#4CAF50" />
                     </TouchableOpacity>
                   </View>
                 </View>
-              )}
-            </View>
-          )}
+              </View>
+            )}
 
-         {/* Estimated Time Block */}
-         <View style={styles.estimatedTimeBox}>
-          <Text style={styles.estimatedHeading}>Appointment Time</Text>
-          <Text style={styles.estimatedTime}>{formatDateTime(date,time)}</Text>
-        </View>
+            {/* Case Sheet Section */}
+            {appointment?.case_sheet_pdf_base64 && (
+              <View style={styles.prescriptionSection}>
+                <View style={styles.prescriptionHeaderRow}>
+                  <View style={styles.prescriptionHeader}>
+                    <Ionicons name="clipboard" size={20} color="#2196F3" />
+                    <Text style={styles.prescriptionLabel}>Case Sheet</Text>
+                  </View>
+                  <View style={styles.documentActions}>
+                    <TouchableOpacity
+                      style={styles.iconButton}
+                      onPress={async () => {
+                        try {
+                          const { viewPDF } = await import('../../utils/documentViewer');
+                          await viewPDF(
+                            appointment.case_sheet_pdf_base64!,
+                            `case_sheet_${appointment.id}.pdf`
+                          );
+                        } catch (error) {
+                          console.error('Error viewing case sheet:', error);
+                          modal.showError('Failed to open case sheet. Please try again.');
+                        }
+                      }}
+                    >
+                      <Ionicons name="eye-outline" size={24} color="#2196F3" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.iconButton}
+                      onPress={async () => {
+                        try {
+                          const { downloadPDF } = await import('../../utils/documentViewer');
+                          await downloadPDF(
+                            appointment.case_sheet_pdf_base64!,
+                            `case_sheet_${appointment.id}.pdf`
+                          );
+                        } catch (error) {
+                          console.error('Error downloading case sheet:', error);
+                          modal.showError('Failed to download case sheet. Please try again.');
+                        }
+                      }}
+                    >
+                      <Ionicons name="download-outline" size={24} color="#2196F3" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Clinical Notes Section */}
+            {appointment?.clinical_notes && (
+              <View style={styles.clinicalNotesSection}>
+                <View style={styles.clinicalNotesHeader}>
+                  <Ionicons name="clipboard" size={20} color="#2196F3" />
+                  <Text style={styles.clinicalNotesLabel}>Clinical Notes</Text>
+                </View>
+                <View style={styles.clinicalNotesContent}>
+                  <Text style={styles.clinicalNotesText}>
+                    {appointment.clinical_notes}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Status Timeline */}
         <View style={styles.statusContainer}>
@@ -528,59 +607,6 @@ const getStatusStyle = (status?: string) => {
             })}
           </View>
         </View>
-
-        {/* Medical Records (Prescription & Clinical Notes) */}
-        {appointment?.status === 'completed' && (appointment?.prescription_file_url || appointment?.clinical_notes) && (
-          <View style={styles.medicalRecordsBox}>
-            <View style={styles.medicalRecordsHeader}>
-              <Ionicons name="medical" size={22} color="#ED6D4E" />
-              <Text style={styles.medicalRecordsTitle}>Medical Records</Text>
-            </View>
-
-            {/* Prescription Section */}
-            {appointment?.prescription_pdf_base64 && (
-              <View style={styles.prescriptionSection}>
-                <View style={styles.prescriptionHeader}>
-                  <Ionicons name="document-text" size={20} color="#4CAF50" />
-                  <Text style={styles.prescriptionLabel}>Prescription</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.viewPrescriptionBtn}
-                  onPress={async () => {
-                    try {
-                      const { viewPDF } = await import('../../utils/documentViewer');
-                      await viewPDF(
-                        appointment.prescription_pdf_base64!,
-                        `prescription_${appointment.id}.pdf`
-                      );
-                    } catch (error) {
-                      console.error('Error viewing prescription:', error);
-                      modal.showError('Failed to open prescription. Please try again.');
-                    }
-                  }}
-                >
-                  <Ionicons name="eye-outline" size={20} color="#fff" />
-                  <Text style={styles.viewPrescriptionText}>View Prescription</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Clinical Notes Section */}
-            {appointment?.clinical_notes && (
-              <View style={styles.clinicalNotesSection}>
-                <View style={styles.clinicalNotesHeader}>
-                  <Ionicons name="clipboard" size={20} color="#2196F3" />
-                  <Text style={styles.clinicalNotesLabel}>Clinical Notes</Text>
-                </View>
-                <View style={styles.clinicalNotesContent}>
-                  <Text style={styles.clinicalNotesText}>
-                    {appointment.clinical_notes}
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
-        )}
 
         {/* Cancellation Information */}
         {appointment?.status === 'cancelled' && appointment?.cancellation_reason && (
@@ -906,16 +932,28 @@ const styles = StyleSheet.create({
   prescriptionSection: {
     marginBottom: 16,
   },
+  prescriptionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   prescriptionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
   },
   prescriptionLabel: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#4CAF50",
+    color: "#333",
     marginLeft: 6,
+  },
+  documentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  iconButton: {
+    padding: 8,
   },
   viewPrescriptionBtn: {
     flexDirection: 'row',

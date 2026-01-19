@@ -206,7 +206,7 @@ export default function ServicesManagementScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/products')}>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/')}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Services</Text>
@@ -228,7 +228,7 @@ export default function ServicesManagementScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.push('/(tabs)/products')}>
+        <TouchableOpacity onPress={() => router.push('/(tabs)/')}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Services</Text>
@@ -257,11 +257,11 @@ export default function ServicesManagementScreen() {
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>{totalServices}</Text>
-            <Text style={styles.statLabel}>Total Services</Text>
+            <Text style={styles.statLabel}>Total{'\n'}Services</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>{totalCategories}</Text>
-            <Text style={styles.statLabel}>Total Categories</Text>
+            <Text style={styles.statLabel}>Total{'\n'}Categories</Text>
           </View>
         </View>
 
@@ -408,8 +408,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingTop: Platform.OS === 'android' ? 40 : 16,
+    paddingBottom: 16,
+    paddingTop: Platform.OS === 'android' ? 50 : 16,
     backgroundColor: Colors.primary,
   },
   headerTitle: {
@@ -449,20 +449,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 8,
-    padding: 20,
+    padding: 12,
+    paddingVertical: 16,
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#E0E0E0',
+    minHeight: 100,
   },
   statNumber: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
     color: Colors.primary,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   statLabel: {
     fontSize: 13,
     color: '#666',
+    textAlign: 'center',
+    lineHeight: 18,
+    flexWrap: 'wrap',
   },
   filterTabsContainer: {
     paddingHorizontal: 16,
