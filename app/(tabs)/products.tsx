@@ -52,6 +52,7 @@ export default function ProductsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'pharmacy' | 'essentials'>('all');
   const [partnerData, setPartnerData] = useState<any>(null);
+  const [categories, setCategories] = useState<any[]>([]);
   const [inventoryStats, setInventoryStats] = useState({
     totalProducts: 0,
     totalCategories: 0,
@@ -62,6 +63,7 @@ export default function ProductsScreen() {
 
   useEffect(() => {
     loadPartnerData();
+    loadCategories();
   }, []);
 
   useEffect(() => {
@@ -96,6 +98,31 @@ export default function ProductsScreen() {
     } catch (error) {
       console.error('Error loading partner data:', error);
     }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const response = await apiService.getCategoriesForProduct();
+      if (response.success && response.data) {
+        let categoriesData = [];
+        if (Array.isArray(response.data)) {
+          categoriesData = response.data;
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          categoriesData = response.data.data;
+        } else if (response.data.categories && Array.isArray(response.data.categories)) {
+          categoriesData = response.data.categories;
+        }
+        setCategories(categoriesData);
+      }
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    }
+  };
+
+  const getCategoryName = (categoryId: string | number): string => {
+    if (!categoryId) return 'Uncategorized';
+    const category = categories.find(cat => cat.id.toString() === categoryId.toString());
+    return category ? category.name : categoryId.toString();
   };
 
   const loadProducts = async () => {
@@ -203,7 +230,7 @@ export default function ProductsScreen() {
             </TouchableOpacity>
           </View>
         </View>
-        <Text style={styles.productStock}>Stock: {item.stock} units • {item.category}</Text>
+        <Text style={styles.productStock}>Stock: {item.stock} units • {getCategoryName(item.category)}</Text>
         <Text style={styles.productPrice}>₹{item.price}</Text>
       </View>
     </TouchableOpacity>

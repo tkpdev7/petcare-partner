@@ -525,7 +525,7 @@ export default function AddServiceScreen() {
         } else {
           // For create or direct edit mode, navigate to services list
           modal.showSuccess(message, {
-            onClose: () => router.push('/services')
+            onClose: () => router.push('/(tabs)/products')
           });
         }
       } else {
@@ -826,10 +826,10 @@ export default function AddServiceScreen() {
 
               {/* Action Buttons - Only show in edit/add mode, not in view mode */}
               {(!isViewMode || isEditing) && (
-                <View style={styles.editModeActions}>
+                <View style={styles.section}>
                   {isViewMode && isEditing ? (
                     // Show Update and Cancel side by side when editing in view mode
-                    <>
+                    <View style={styles.buttonRow}>
                       <TouchableOpacity
                         style={[styles.actionButton, styles.updateButton, loading && styles.submitButtonDisabled]}
                         onPress={() => handleSubmit()}
@@ -848,7 +848,7 @@ export default function AddServiceScreen() {
                       >
                         <Text style={styles.cancelButtonText}>Cancel</Text>
                       </TouchableOpacity>
-                    </>
+                    </View>
                   ) : (
                     // Show single Create/Update button when adding or in edit mode
                     <TouchableOpacity
@@ -1092,19 +1092,18 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     backgroundColor: Colors.primary,
-    marginHorizontal: 16,
-    marginTop: 24,
-    paddingVertical: 16,
-    borderRadius: 8,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.lg,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   submitButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: Typography.fontSizes.lg,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.white,
   },
   errorText: {
     color: Colors.error,
@@ -1120,16 +1119,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.md,
   },
-  editModeActions: {
+  buttonRow: {
     flexDirection: 'row',
     gap: Spacing.md,
-    marginHorizontal: 16,
-    marginTop: 24,
   },
   actionButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },

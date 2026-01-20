@@ -443,12 +443,12 @@ export default function AddProductScreen() {
         video: uploadedVideoUrl,
       };
 
-      const response = (isEditMode || isEditing)
+      const response = id
         ? await apiService.updateProduct(id as string, productData)
         : await apiService.createProduct(productData);
 
       if (!response.success) {
-        modal.showError(response.error || `Failed to ${(isEditMode || isEditing) ? 'update' : 'add'} product`);
+        modal.showError(response.error || `Failed to ${id ? 'update' : 'add'} product`);
         return;
       }
 
@@ -461,16 +461,16 @@ export default function AddProductScreen() {
       // If editing from view mode, exit edit mode and stay on page
       if (isEditing) {
         setIsEditing(false);
-        modal.showSuccess(`Product ${(isEditMode || isEditing) ? 'updated' : 'added'} successfully!`);
+        modal.showSuccess(`Product ${id ? 'updated' : 'added'} successfully!`);
       } else {
-        // For create or direct edit mode, navigate back
-        modal.showSuccess(`Product ${(isEditMode || isEditing) ? 'updated' : 'added'} successfully!`, {
-          onClose: () => router.back()
+        // For create or direct edit mode, navigate to products list
+        modal.showSuccess(`Product ${id ? 'updated' : 'added'} successfully!`, {
+          onClose: () => router.push('/(tabs)/products')
         });
       }
     } catch (error) {
-      console.error(`${(isEditMode || isEditing) ? 'Update' : 'Add'} product error:`, error);
-      modal.showError(`Failed to ${(isEditMode || isEditing) ? 'update' : 'add'} product. Please try again.`);
+      console.error(`${id ? 'Update' : 'Add'} product error:`, error);
+      modal.showError(`Failed to ${id ? 'update' : 'add'} product. Please try again.`);
     } finally {
       setSubmitting(false);
     }
@@ -842,7 +842,7 @@ export default function AddProductScreen() {
                         <ActivityIndicator color={Colors.white} />
                       ) : (
                         <Text style={styles.submitButtonText}>
-                          {isEditMode || isEditing ? 'Update Product' : 'Add Product'}
+                          {id ? 'Update Product' : 'Add Product'}
                         </Text>
                       )}
                     </TouchableOpacity>
