@@ -35,7 +35,7 @@ export default function OrdersListScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<'ready' | 'out_for_delivery' | 'delivered' | 'cancelled'>('ready');
+  const [selectedTab, setSelectedTab] = useState<'incoming' | 'ready' | 'out_delivered'>('incoming');
   const [partnerData, setPartnerData] = useState<any>(null);
 
   useEffect(() => {
@@ -71,16 +71,63 @@ export default function OrdersListScreen() {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const response = await apiService.getOrders({
-        status: selectedTab === 'ready' ? 'ready_for_pickup' : selectedTab,
-        limit: 50
-      });
 
-      if (response.success && response.data) {
-        const ordersData = response.data.data?.orders || response.data.orders || [];
-        setOrders(ordersData);
+      let response;
+      if (selectedTab === 'incoming') {
+        // Fetch both confirmed and processing orders
+        const confirmedResponse = await apiService.getOrders({
+          status: 'confirmed',
+          limit: 50
+        });
+        const processingResponse = await apiService.getOrders({
+          status: 'processing',
+          limit: 50
+        });
+
+        const confirmedOrders = confirmedResponse.success && confirmedResponse.data
+          ? (confirmedResponse.data.data?.orders || confirmedResponse.data.orders || [])
+          : [];
+        const processingOrders = processingResponse.success && processingResponse.data
+          ? (processingResponse.data.data?.orders || processingResponse.data.orders || [])
+          : [];
+
+        setOrders([...confirmedOrders, ...processingOrders].sort((a, b) =>
+          new Date(b.order_date).getTime() - new Date(a.order_date).getTime()
+        ));
+      } else if (selectedTab === 'out_delivered') {
+        // Fetch both out_for_delivery and delivered orders
+        const outResponse = await apiService.getOrders({
+          status: 'out_for_delivery',
+          limit: 50
+        });
+        const deliveredResponse = await apiService.getOrders({
+          status: 'delivered',
+          limit: 50
+        });
+
+        const outOrders = outResponse.success && outResponse.data
+          ? (outResponse.data.data?.orders || outResponse.data.orders || [])
+          : [];
+        const deliveredOrders = deliveredResponse.success && deliveredResponse.data
+          ? (deliveredResponse.data.data?.orders || deliveredResponse.data.orders || [])
+          : [];
+
+        setOrders([...outOrders, ...deliveredOrders].sort((a, b) =>
+          new Date(b.order_date).getTime() - new Date(a.order_date).getTime()
+        ));
       } else {
-        setOrders([]);
+        // For 'ready' tab
+        response = await apiService.getOrders({
+          status: 'ready_for_pickup',
+          limit: 50
+        });
+
+        if (response.success && response.data) {
+          const ordersData = response.data.data?.orders || response.data.orders || [];
+          setOrders(ordersData);
+        } else {
+          setOrders([]);
+        }
       }
     } catch (error: any) {
       console.error('Error loading orders:', error);
@@ -103,6 +150,10 @@ export default function OrdersListScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
+      case 'confirmed':
+        return '#2196F3';
+      case 'processing':
+        return '#FF9800';
       case 'ready_for_pickup':
         return '#00BCD4';
       case 'out_for_delivery':
@@ -118,10 +169,18 @@ export default function OrdersListScreen() {
 
   const getStatusLabel = (status: string) => {
     switch (status?.toLowerCase()) {
+      case 'confirmed':
+        return 'Confirmed';
+      case 'processing':
+        return 'Processing';
       case 'ready_for_pickup':
         return 'Ready for Pickup';
       case 'out_for_delivery':
         return 'Out for Delivery';
+      case 'delivered':
+        return 'Delivered';
+      case 'cancelled':
+        return 'Cancelled';
       default:
         return status?.charAt(0).toUpperCase() + status?.slice(1).toLowerCase();
     }
@@ -216,17 +275,23 @@ export default function OrdersListScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Back Button */}
+      <View style={styles.backButtonContainer}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Orders</Text>
-        <View style={{ width: 40 }} />
       </View>
 
       {/* Tabs */}
       <View style={styles.tabs}>
+        <TouchableOpacity
+          style={[styles.tab, selectedTab === 'incoming' && styles.activeTab]}
+          onPress={() => setSelectedTab('incoming')}
+        >
+          <Text style={[styles.tabText, selectedTab === 'incoming' && styles.activeTabText]}>
+            Incoming
+          </Text>
+        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, selectedTab === 'ready' && styles.activeTab]}
           onPress={() => setSelectedTab('ready')}
@@ -236,27 +301,11 @@ export default function OrdersListScreen() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, selectedTab === 'out_for_delivery' && styles.activeTab]}
-          onPress={() => setSelectedTab('out_for_delivery')}
+          style={[styles.tab, selectedTab === 'out_delivered' && styles.activeTab]}
+          onPress={() => setSelectedTab('out_delivered')}
         >
-          <Text style={[styles.tabText, selectedTab === 'out_for_delivery' && styles.activeTabText]}>
-            Out
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'delivered' && styles.activeTab]}
-          onPress={() => setSelectedTab('delivered')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'delivered' && styles.activeTabText]}>
-            Delivered
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'cancelled' && styles.activeTab]}
-          onPress={() => setSelectedTab('cancelled')}
-        >
-          <Text style={[styles.tabText, selectedTab === 'cancelled' && styles.activeTabText]}>
-            Cancelled
+          <Text style={[styles.tabText, selectedTab === 'out_delivered' && styles.activeTabText]}>
+            Out & Delivered
           </Text>
         </TouchableOpacity>
       </View>
@@ -285,10 +334,9 @@ export default function OrdersListScreen() {
               <Ionicons name="receipt-outline" size={64} color="#ccc" />
               <Text style={styles.emptyText}>No orders found</Text>
               <Text style={styles.emptySubtext}>
+                {selectedTab === 'incoming' && 'New incoming orders will appear here'}
                 {selectedTab === 'ready' && 'Orders ready for pickup will appear here'}
-                {selectedTab === 'out_for_delivery' && 'Orders out for delivery will appear here'}
-                {selectedTab === 'delivered' && 'Delivered orders will appear here'}
-                {selectedTab === 'cancelled' && 'Cancelled orders will appear here'}
+                {selectedTab === 'out_delivered' && 'Orders out for delivery and delivered will appear here'}
               </Text>
             </View>
           }
@@ -318,23 +366,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F7FB',
     paddingTop: 50,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  backButtonContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
   backButton: {
     padding: 8,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    width: 40,
   },
   tabs: {
     flexDirection: 'row',
