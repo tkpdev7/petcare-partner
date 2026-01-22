@@ -7,6 +7,8 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Linking,
+  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +16,24 @@ import CustomModal from '../../components/CustomModal';
 import { useCustomModal } from '../../hooks/useCustomModal';
 import apiService from '../../services/apiService';
 import { Colors } from '../../constants/Colors';
+
+interface DeliveryPartner {
+  id: number;
+  name: string;
+  mobile: string;
+  vehicle_type?: string;
+  vehicle_number?: string;
+}
+
+interface DeliveryAssignment {
+  id: number;
+  partner_id: number;
+  assignment_status: string;
+  pickup_otp: string;
+  delivery_otp: string;
+  assigned_at: string;
+  delivery_partner?: DeliveryPartner;
+}
 
 interface OrderDetails {
   id: string;
@@ -28,9 +48,12 @@ interface OrderDetails {
   order_items?: any[];
   delivery_address?: string;
   notes?: string;
+  delivery_assignment?: DeliveryAssignment;
 }
 
 const statusOptions = [
+  { value: 'confirmed', label: 'Confirmed', color: '#2196F3' },
+  { value: 'processing', label: 'Processing', color: '#FF9800' },
   { value: 'ready_for_pickup', label: 'Ready for Pickup', color: '#00BCD4' },
   { value: 'out_for_delivery', label: 'Out for Delivery', color: '#9C27B0' },
   { value: 'delivered', label: 'Delivered', color: '#4CAF50' },
@@ -66,6 +89,40 @@ export default function OrderDetailsScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const markReadyForPickup = async () => {
+    if (!orderDetails) return;
+
+    Alert.alert(
+      'Mark Ready for Pickup',
+      'Are you sure the order is ready for pickup? This will notify delivery partners.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark Ready',
+          onPress: async () => {
+            setUpdating(true);
+            try {
+              const response = await apiService.patch(`/partner-orders/${orderDetails.id}/ready-for-pickup`, {});
+
+              if (response.success) {
+                modal.showSuccess('Order marked as ready for pickup!', {
+                  onClose: () => loadOrderDetails(),
+                });
+              } else {
+                throw new Error(response.error || 'Failed to update status');
+              }
+            } catch (error: any) {
+              console.error('Error marking order ready:', error);
+              modal.showError(error.message || 'Failed to mark order as ready');
+            } finally {
+              setUpdating(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const updateOrderStatus = async (newStatus: string) => {
@@ -111,6 +168,20 @@ export default function OrderDetailsScreen() {
     );
   };
 
+  const handleCallDeliveryPartner = (mobile: string, name: string) => {
+    Alert.alert(
+      `Call ${name}`,
+      `Would you like to call ${mobile}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Call',
+          onPress: () => Linking.openURL(`tel:${mobile}`)
+        }
+      ]
+    );
+  };
+
 
   if (loading) {
     return (
@@ -138,6 +209,8 @@ export default function OrderDetailsScreen() {
   }
 
   const currentStatus = statusOptions.find(s => s.value === orderDetails.order_status);
+  const canMarkReady = ['confirmed', 'processing'].includes(orderDetails.order_status);
+  const canCancelOrder = orderDetails.order_status === 'ready_for_pickup';
 
   let orderItems = [];
   let productNames = '';
@@ -155,7 +228,8 @@ export default function OrderDetailsScreen() {
     }
   }
 
-  const canCancelOrder = orderDetails.order_status === 'ready_for_pickup';
+  const assignment = orderDetails.delivery_assignment;
+  const deliveryPartner = assignment?.delivery_partner;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -191,12 +265,30 @@ export default function OrderDetailsScreen() {
             </Text>
           </View>
 
+          {/* Mark Ready for Pickup Button */}
+          {canMarkReady && (
+            <TouchableOpacity
+              style={[styles.readyButton, updating && styles.readyButtonDisabled]}
+              onPress={markReadyForPickup}
+              disabled={updating}
+            >
+              {updating ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                  <Text style={styles.readyButtonText}>Mark Ready for Pickup</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
           {/* Info Box for Ready for Pickup */}
-          {orderDetails.order_status === 'ready_for_pickup' && (
+          {orderDetails.order_status === 'ready_for_pickup' && !assignment && (
             <View style={styles.infoBox}>
               <Ionicons name="checkmark-circle" size={20} color="#00BCD4" />
               <Text style={styles.infoText}>
-                Order is ready for pickup. A delivery partner will collect it soon.
+                Order is ready for pickup. Waiting for delivery partner assignment.
               </Text>
             </View>
           )}
@@ -239,6 +331,83 @@ export default function OrderDetailsScreen() {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Delivery Partner Information */}
+        {assignment && deliveryPartner && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Delivery Partner</Text>
+            <View style={styles.deliveryPartnerCard}>
+              <View style={styles.partnerHeader}>
+                <View style={styles.partnerAvatar}>
+                  <Ionicons name="person" size={24} color={Colors.primary} />
+                </View>
+                <View style={styles.partnerInfo}>
+                  <Text style={styles.partnerName}>{deliveryPartner.name}</Text>
+                  <Text style={styles.partnerMobile}>{deliveryPartner.mobile}</Text>
+                  {deliveryPartner.vehicle_type && (
+                    <View style={styles.vehicleInfo}>
+                      <Ionicons name="bicycle" size={14} color="#666" />
+                      <Text style={styles.vehicleText}>
+                        {deliveryPartner.vehicle_type}
+                        {deliveryPartner.vehicle_number && ` • ${deliveryPartner.vehicle_number}`}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={styles.callButton}
+                  onPress={() => handleCallDeliveryPartner(deliveryPartner.mobile, deliveryPartner.name)}
+                >
+                  <Ionicons name="call" size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Assignment Status */}
+              <View style={styles.assignmentStatus}>
+                <Ionicons
+                  name={
+                    assignment.assignment_status === 'delivered' ? 'checkmark-circle' :
+                    assignment.assignment_status === 'out_for_delivery' ? 'bicycle' :
+                    assignment.assignment_status === 'picked_up' ? 'cube' :
+                    'time'
+                  }
+                  size={16}
+                  color={
+                    assignment.assignment_status === 'delivered' ? '#4CAF50' :
+                    assignment.assignment_status === 'out_for_delivery' ? '#9C27B0' :
+                    assignment.assignment_status === 'picked_up' ? '#2196F3' :
+                    '#FF9800'
+                  }
+                />
+                <Text style={styles.assignmentStatusText}>
+                  {assignment.assignment_status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                </Text>
+              </View>
+
+              {/* Pickup OTP */}
+              {assignment.pickup_otp && assignment.assignment_status !== 'picked_up' && assignment.assignment_status !== 'out_for_delivery' && assignment.assignment_status !== 'delivered' && (
+                <View style={styles.otpSection}>
+                  <View style={styles.otpHeader}>
+                    <Ionicons name="lock-closed" size={18} color={Colors.primary} />
+                    <Text style={styles.otpLabel}>Pickup OTP</Text>
+                  </View>
+                  <View style={styles.otpBox}>
+                    <Text style={styles.otpCode}>{assignment.pickup_otp}</Text>
+                  </View>
+                  <Text style={styles.otpHint}>Share this OTP with the delivery partner during pickup</Text>
+                </View>
+              )}
+
+              {/* Assignment Date */}
+              <View style={styles.assignmentDate}>
+                <Ionicons name="time-outline" size={14} color="#999" />
+                <Text style={styles.assignmentDateText}>
+                  Assigned {new Date(assignment.assigned_at).toLocaleString()}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Customer Information */}
         <View style={styles.section}>
@@ -452,14 +621,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   readyButton: {
-    backgroundColor: '#00BCD4',
+    backgroundColor: Colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 14,
     borderRadius: 8,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   readyButtonDisabled: {
     opacity: 0.6,
@@ -477,7 +646,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 14,
     borderRadius: 8,
-    marginBottom: 16,
+    marginTop: 8,
   },
   cancelButtonText: {
     color: '#fff',
@@ -491,7 +660,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginBottom: 16,
   },
   infoText: {
     flex: 1,
@@ -499,26 +667,119 @@ const styles = StyleSheet.create({
     color: '#00838F',
     lineHeight: 18,
   },
-  statusUpdateTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+  deliveryPartnerCard: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  partnerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 12,
   },
-  statusButtons: {
+  partnerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  partnerInfo: {
+    flex: 1,
+  },
+  partnerName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 2,
+  },
+  partnerMobile: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  vehicleInfo: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    alignItems: 'center',
+    gap: 4,
   },
-  statusButton: {
-    paddingHorizontal: 12,
+  vehicleText: {
+    fontSize: 12,
+    color: '#888',
+  },
+  callButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  assignmentStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    marginBottom: 12,
   },
-  statusButtonText: {
+  assignmentStatusText: {
     fontSize: 14,
     fontWeight: '600',
+    color: '#333',
+  },
+  otpSection: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
+  otpHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  otpLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  otpBox: {
+    backgroundColor: Colors.primary + '10',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  otpCode: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: Colors.primary,
+    letterSpacing: 8,
+  },
+  otpHint: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  assignmentDate: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  assignmentDateText: {
+    fontSize: 12,
+    color: '#999',
   },
   infoCard: {
     gap: 12,
