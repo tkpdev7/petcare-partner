@@ -110,7 +110,19 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
   };
 
   // Check if this is a vet appointment (requires case sheet and prescription)
-  const isVetAppointment = item.provider_type?.toLowerCase() === 'specialist';
+  const isVetAppointment = ['specialist', 'vet'].includes(item.provider_type?.toLowerCase());
+
+  // Debug logging for appointment flow
+  if (otpVerified && status?.toLowerCase() !== 'completed') {
+    console.log('=== APPOINTMENT FLOW DEBUG ===');
+    console.log('Provider Type:', item.provider_type);
+    console.log('Is Vet Appointment:', isVetAppointment);
+    console.log('OTP Verified:', otpVerified);
+    console.log('Has Case Sheet:', hasCaseSheet);
+    console.log('Has Prescription:', hasPrescription);
+    console.log('Status:', status);
+    console.log('=============================');
+  }
 
   const handleCompleteAppointment = async () => {
     try {
