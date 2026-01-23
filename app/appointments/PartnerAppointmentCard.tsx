@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Colors } from "../../constants/Colors";
@@ -14,6 +14,7 @@ interface PartnerAppointmentCardProps {
   showActions?: boolean;
   otp_code?: string;
   hasCaseSheet?: boolean;
+  hasPrescription?: boolean;
   onOTPVerified?: () => void;
 }
 
@@ -26,6 +27,7 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
   showActions = true,
   otp_code,
   hasCaseSheet = false,
+  hasPrescription = false,
   onOTPVerified,
 }) => {
   const [showDetails, setShowDetails] = useState(false);
@@ -60,7 +62,9 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
   };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'N/A';
     return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -130,7 +134,6 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
         activeOpacity={0.7}
       >
         <View style={styles.topSection}>
-          {/* Left Icon */}
           <View style={styles.iconContainer}>
             <Ionicons
               name={getAppointmentTypeIcon(item.provider_type) as any}
@@ -139,64 +142,61 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
             />
           </View>
 
-          {/* Right Content */}
-          <View style={styles.cardContent}>
-            {(item.name || item.customerName) ? <Text style={styles.title}>{item.customerName || item.name}</Text> : null}
-            {item.petName ? <Text style={styles.description}>Pet: {item.petName}</Text> : null}
-            {item.service ? <Text style={styles.serviceName}>Service: {item.service}</Text> : null}
-          </View>
+           <View style={styles.cardContent}>
+             {!!(item.name || item.customerName) && (
+               <Text style={styles.title}>{item.customerName || item.name}</Text>
+             )}
+             {!!item.petName && (
+               <Text style={styles.description}>{`Pet: ${item.petName}`}</Text>
+             )}
+             {!!item.service && (
+               <Text style={styles.serviceName}>{`Service: ${item.service}`}</Text>
+             )}
+           </View>
         </View>
 
-        {/* Full-Width Info Box */}
         <View style={styles.infoContainer}>
-          <View style={styles.infoItem}>
-            <Ionicons name="calendar-outline" size={16} color="gray" />
-            <Text style={styles.infoText}>{item.appointmentDate || item.appointment_date ? formatDate(item.appointmentDate || item.appointment_date) : 'N/A'}</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Ionicons name="time-outline" size={16} color="gray" />
-            <Text style={styles.infoText}>{item.appointmentTime || item.appointment_time || 'N/A'}</Text>
-          </View>
-        </View>
+           <View style={styles.infoItem}>
+             <Ionicons name="calendar-outline" size={16} color="gray" />
+             <Text style={styles.infoText}>
+               {formatDate(item.appointmentDate || item.appointment_date)}
+             </Text>
+           </View>
+           <View style={styles.infoItem}>
+             <Ionicons name="time-outline" size={16} color="gray" />
+             <Text style={styles.infoText}>
+               {item.appointmentTime || item.appointment_time || 'N/A'}
+             </Text>
+           </View>
+         </View>
       </TouchableOpacity>
 
-      <View style={styles.viewBtnContainer}>
-        <TouchableOpacity
-          onPress={() => setShowDetails((prev) => !prev)}
-          style={styles.viewBtn}
-        >
-          <Text style={styles.viewText}>{showDetails ? "Close" : "View"}</Text>
-        </TouchableOpacity>
-      </View>
+       <View style={styles.viewBtnContainer}>
+         <TouchableOpacity
+           onPress={() => setShowDetails((prev) => !prev)}
+           style={styles.viewBtn}
+         >
+           <Text style={styles.viewText}>{showDetails ? "Close" : "View"}</Text>
+         </TouchableOpacity>
+       </View>
 
-      {showDetails && (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardAvoidingView}
-        >
-          <ScrollView
-            style={styles.viewContent}
-            contentContainerStyle={styles.viewContentContainer}
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled={true}
-          >
-          {/* Reschedule Details */}
-          {isRescheduled && item.reschedule_from_date && item.reschedule_from_time && (
-            <View style={styles.rescheduleInfoBox}>
-              <View style={styles.rescheduleHeader}>
-                <Ionicons name="time-outline" size={20} color="#9C27B0" />
-                <Text style={styles.rescheduleTitle}>Appointment Rescheduled</Text>
-              </View>
-              <Text style={styles.rescheduleText}>
-                From: {formatDate(item.reschedule_from_date)} at {item.reschedule_from_time || 'N/A'}
-              </Text>
-              <Text style={styles.rescheduleText}>
-                To: {formatDate(item.appointment_date)} at {item.appointment_time || item.start_time || 'N/A'}
-              </Text>
-            </View>
-          )}
+      {!!showDetails && (
+         <View style={styles.viewContent}>
+           {!!(isRescheduled && item.reschedule_from_date && item.reschedule_from_time) && (
+             <View style={styles.rescheduleInfoBox}>
+               <View style={styles.rescheduleHeader}>
+                 <Ionicons name="time-outline" size={20} color="#9C27B0" />
+                 <Text style={styles.rescheduleTitle}>Appointment Rescheduled</Text>
+               </View>
+               <Text style={styles.rescheduleText}>
+                 {`From: ${formatDate(item.reschedule_from_date)} at ${item.reschedule_from_time || 'N/A'}`}
+               </Text>
+               <Text style={styles.rescheduleText}>
+                 {`To: ${formatDate(item.appointment_date)} at ${item.appointment_time || item.start_time || 'N/A'}`}
+               </Text>
+             </View>
+           )}
 
-          {/* Appointment Details */}
           <TouchableOpacity onPress={onPress}>
             <View style={styles.appointmentDetailsBox}>
               <View style={styles.appointmentDetailsInfoContainer}>
@@ -207,45 +207,44 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                     color="#ED6D4E"
                   />
                 </View>
-                <View style={styles.detailsTextWrapper}>
-                  <Text style={styles.detailsTitle}>{item.customerName || item.name || 'N/A'}</Text>
-                  <Text style={styles.detailsSubtitle}>Customer</Text>
-                </View>
-              </View>
-              <View style={styles.appointmentDetailsInfoContainer}>
-                <View style={styles.iconWrapper}>
-                  <Ionicons
-                    size={24}
-                    name="paw-outline"
-                    color="#ED6D4E"
-                  />
-                </View>
-                <View style={styles.detailsTextWrapper}>
-                  <Text style={styles.detailsTitle}>{item.petName || 'N/A'}</Text>
-                  <Text style={styles.detailsSubtitle}>Pet Name</Text>
-                </View>
-              </View>
-              <View style={styles.appointmentDetailsInfoContainer}>
-                <View style={styles.iconWrapper}>
-                  <Ionicons
-                    size={24}
-                    name="time-outline"
-                    color="#ED6D4E"
-                  />
-                </View>
-                <View style={styles.detailsTextWrapper}>
-                  <Text style={styles.detailsSubtitle}>
-                    {item.appointment_date || item.appointmentDate ? formatDate(item.appointment_date || item.appointmentDate) : 'N/A'}, {item.appointment_time || item.appointmentTime || 'N/A'}
-                  </Text>
+                 <View style={styles.detailsTextWrapper}>
+                   <Text style={styles.detailsTitle}>{item.customerName || item.name || 'N/A'}</Text>
+                   <Text style={styles.detailsSubtitle}>Customer</Text>
+                 </View>
+               </View>
+               <View style={styles.appointmentDetailsInfoContainer}>
+                 <View style={styles.iconWrapper}>
+                   <Ionicons
+                     size={24}
+                     name="paw-outline"
+                     color="#ED6D4E"
+                   />
+                 </View>
+                 <View style={styles.detailsTextWrapper}>
+                   <Text style={styles.detailsTitle}>{item.petName || 'N/A'}</Text>
+                   <Text style={styles.detailsSubtitle}>Pet Name</Text>
+                 </View>
+               </View>
+               <View style={styles.appointmentDetailsInfoContainer}>
+                 <View style={styles.iconWrapper}>
+                   <Ionicons
+                     size={24}
+                     name="time-outline"
+                     color="#ED6D4E"
+                   />
+                 </View>
+                 <View style={styles.detailsTextWrapper}>
+                   <Text style={styles.detailsSubtitle}>
+                     {`${formatDate(item.appointment_date || item.appointmentDate)}, ${item.appointment_time || item.appointmentTime || 'N/A'}`}
+                   </Text>
                 </View>
               </View>
             </View>
           </TouchableOpacity>
 
-          {canShowActions && (
+          {!!canShowActions && (
             <View style={styles.btnContainer}>
-              {/* Verify OTP Button */}
-              {showOTP && !otpVerified && (
+              {!!(showOTP && !otpVerified) && (
                 <TouchableOpacity
                   onPress={() => setShowOTPVerification(true)}
                   style={styles.verifyOTPBtn}
@@ -254,11 +253,10 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                 </TouchableOpacity>
               )}
 
-              {/* FOR VET APPOINTMENTS: Case Sheet and Prescription Flow */}
-              {isVetAppointment && (
+              {!!isVetAppointment && (
                 <>
-                  {/* Fill Case Sheet Button - Only show after OTP verification and if no case sheet */}
-                  {otpVerified && status?.toLowerCase() !== 'completed' && !hasCaseSheet && (
+                  {/* Step 1: Fill Case Sheet (after OTP verification) */}
+                  {!!(otpVerified && status?.toLowerCase() !== 'completed' && !hasCaseSheet) && (
                     <TouchableOpacity
                       onPress={handleFillCaseSheet}
                       style={styles.caseSheetBtn}
@@ -268,8 +266,8 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                     </TouchableOpacity>
                   )}
 
-                  {/* Add Prescription Button - Only show after case sheet is filled */}
-                  {otpVerified && status?.toLowerCase() !== 'completed' && hasCaseSheet && (
+                  {/* Step 2: Add Prescription (after case sheet is filled) */}
+                  {!!(otpVerified && status?.toLowerCase() !== 'completed' && hasCaseSheet && !hasPrescription) && (
                     <TouchableOpacity
                       onPress={handleAddPrescription}
                       style={styles.prescriptionBtn}
@@ -278,11 +276,29 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                       <Text style={styles.prescriptionBtnText}>Add Prescription</Text>
                     </TouchableOpacity>
                   )}
+
+                  {/* Step 3: Complete Appointment (after both case sheet and prescription) */}
+                  {!!(otpVerified && status?.toLowerCase() !== 'completed' && hasCaseSheet && hasPrescription) && (
+                    <TouchableOpacity
+                      onPress={handleCompleteAppointment}
+                      style={styles.completeBtn}
+                      disabled={verifying}
+                    >
+                      {verifying ? (
+                        <ActivityIndicator color="#fff" size="small" />
+                      ) : (
+                        <>
+                          <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+                          <Text style={styles.completeBtnText}>Complete Appointment</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </>
               )}
 
-              {/* FOR GROOMING APPOINTMENTS: Complete directly after OTP */}
-              {!isVetAppointment && otpVerified && status?.toLowerCase() !== 'completed' && (
+              {/* For non-vet appointments (grooming, etc.), complete after OTP verification */}
+              {!!(!isVetAppointment && otpVerified && status?.toLowerCase() !== 'completed') && (
                 <TouchableOpacity
                   onPress={handleCompleteAppointment}
                   style={styles.completeBtn}
@@ -299,20 +315,16 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                 </TouchableOpacity>
               )}
 
-              {/* Cancel Button */}
               <TouchableOpacity onPress={onCancel} style={styles.cancelBtn}>
                 <Text style={styles.btnText}>Cancel</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {/* OTP Verification Modal */}
-          {showOTPVerification && (
+          {!!showOTPVerification && (
             <View style={styles.otpVerificationBox}>
               <Text style={styles.otpVerificationTitle}>Verify Customer OTP</Text>
-              <Text style={styles.otpVerificationSubtitle}>
-                Ask the customer for their OTP code
-              </Text>
+              <Text style={styles.otpVerificationSubtitle}>Ask the customer for their OTP code</Text>
               <TextInput
                 style={styles.otpInputField}
                 value={otpInput}
@@ -321,9 +333,9 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                 keyboardType="number-pad"
                 maxLength={6}
               />
-              {errorMessage ? (
-                <Text style={styles.errorText}>{errorMessage}</Text>
-              ) : null}
+               {!!errorMessage && (
+                 <Text style={styles.errorText}>{errorMessage}</Text>
+               )}
               <View style={styles.otpVerificationButtons}>
                 <TouchableOpacity
                   style={styles.otpCancelBtn}
@@ -349,8 +361,7 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
               </View>
             </View>
           )}
-          </ScrollView>
-        </KeyboardAvoidingView>
+        </View>
       )}
     </View>
   );
@@ -443,16 +454,10 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 16,
   },
-  keyboardAvoidingView: {
-    width: "100%",
-  },
   viewContent: {
     width: "95%",
     alignSelf: "center",
-  },
-  viewContentContainer: {
     padding: 10,
-    paddingBottom: 20,
   },
   appointmentDetailsBox: {
     backgroundColor: "#F8F7FB",

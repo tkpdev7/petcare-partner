@@ -356,6 +356,7 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
         showActions={selectedTab === "scheduled" || selectedTab === "completed"}
         otp_code={appointment.otp_code}
         hasCaseSheet={!!appointment.case_sheet_url}
+        hasPrescription={!!appointment.prescription_pdf_base64}
         onPress={() => handleAppointmentPress(appointment)}
         onCancel={() => {
           setAppointmentToCancel(appointment.id);
@@ -578,9 +579,7 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
             <View style={styles.emptyContainer}>
               <Ionicons name="calendar-outline" size={64} color="#CCCCCC" />
               <Text style={styles.emptyTitle}>No Appointments</Text>
-              <Text style={styles.emptyText}>
-                You don't have any appointments yet. Appointments from customers will appear here.
-              </Text>
+              <Text style={styles.emptyText}>You don't have any appointments yet. Appointments from customers will appear here.</Text>
             </View>
           ) : (
             // appointments.map(renderAppointmentCard)
@@ -598,7 +597,7 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Cancel Appointment</Text>
-            <Text>Please provide a reason for cancellation:</Text>
+            <Text style={styles.modalText}>Please provide a reason for cancellation:</Text>
             <TextInput
               style={styles.modalInput}
               placeholder="Enter reason"
@@ -614,7 +613,7 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
                   setShowCancelModal(false);
                 }}
               >
-                <Text>Close</Text>
+                <Text style={styles.modalBtnText}>Close</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalBtn, { backgroundColor: "#ED4F32" }]}
@@ -906,6 +905,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginHorizontal: 5,
+  },
+  modalText: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 12,
+  },
+  modalBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
   },
 });
 
