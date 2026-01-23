@@ -109,18 +109,15 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
     router.push(`/appointments/add-prescription?appointmentId=${item.id}`);
   };
 
-  // Check if this is a vet appointment (requires case sheet and prescription)
-  const isVetAppointment = ['specialist', 'vet'].includes(item.provider_type?.toLowerCase());
-
   // Debug logging for appointment flow
   if (otpVerified && status?.toLowerCase() !== 'completed') {
     console.log('=== APPOINTMENT FLOW DEBUG ===');
     console.log('Provider Type:', item.provider_type);
-    console.log('Is Vet Appointment:', isVetAppointment);
     console.log('OTP Verified:', otpVerified);
     console.log('Has Case Sheet:', hasCaseSheet);
     console.log('Has Prescription:', hasPrescription);
     console.log('Status:', status);
+    console.log('Next Step:', !hasCaseSheet ? 'Fill Case Sheet' : !hasPrescription ? 'Add Prescription' : 'Complete Appointment');
     console.log('=============================');
   }
 
@@ -265,52 +262,30 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                 </TouchableOpacity>
               )}
 
-              {!!isVetAppointment && (
-                <>
-                  {/* Step 1: Fill Case Sheet (after OTP verification) */}
-                  {!!(otpVerified && status?.toLowerCase() !== 'completed' && !hasCaseSheet) && (
-                    <TouchableOpacity
-                      onPress={handleFillCaseSheet}
-                      style={styles.caseSheetBtn}
-                    >
-                      <Ionicons name="document-text-outline" size={18} color="#fff" />
-                      <Text style={styles.caseSheetBtnText}>Fill Case Sheet</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {/* Step 2: Add Prescription (after case sheet is filled) */}
-                  {!!(otpVerified && status?.toLowerCase() !== 'completed' && hasCaseSheet && !hasPrescription) && (
-                    <TouchableOpacity
-                      onPress={handleAddPrescription}
-                      style={styles.prescriptionBtn}
-                    >
-                      <Ionicons name="medical-outline" size={18} color="#fff" />
-                      <Text style={styles.prescriptionBtnText}>Add Prescription</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {/* Step 3: Complete Appointment (after both case sheet and prescription) */}
-                  {!!(otpVerified && status?.toLowerCase() !== 'completed' && hasCaseSheet && hasPrescription) && (
-                    <TouchableOpacity
-                      onPress={handleCompleteAppointment}
-                      style={styles.completeBtn}
-                      disabled={verifying}
-                    >
-                      {verifying ? (
-                        <ActivityIndicator color="#fff" size="small" />
-                      ) : (
-                        <>
-                          <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
-                          <Text style={styles.completeBtnText}>Complete Appointment</Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </>
+              {/* Step 1: Fill Case Sheet (after OTP verification) */}
+              {!!(otpVerified && status?.toLowerCase() !== 'completed' && !hasCaseSheet) && (
+                <TouchableOpacity
+                  onPress={handleFillCaseSheet}
+                  style={styles.caseSheetBtn}
+                >
+                  <Ionicons name="document-text-outline" size={18} color="#fff" />
+                  <Text style={styles.caseSheetBtnText}>Fill Case Sheet</Text>
+                </TouchableOpacity>
               )}
 
-              {/* For non-vet appointments (grooming, etc.), complete after OTP verification */}
-              {!!(!isVetAppointment && otpVerified && status?.toLowerCase() !== 'completed') && (
+              {/* Step 2: Add Prescription (after case sheet is filled) */}
+              {!!(otpVerified && status?.toLowerCase() !== 'completed' && hasCaseSheet && !hasPrescription) && (
+                <TouchableOpacity
+                  onPress={handleAddPrescription}
+                  style={styles.prescriptionBtn}
+                >
+                  <Ionicons name="medical-outline" size={18} color="#fff" />
+                  <Text style={styles.prescriptionBtnText}>Add Prescription</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Step 3: Complete Appointment (after both case sheet and prescription) */}
+              {!!(otpVerified && status?.toLowerCase() !== 'completed' && hasCaseSheet && hasPrescription) && (
                 <TouchableOpacity
                   onPress={handleCompleteAppointment}
                   style={styles.completeBtn}
