@@ -212,15 +212,11 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
               <Ionicons name="shield-checkmark" size={24} color="#4CAF50" />
               <Text style={styles.otpTitle}>Appointment OTP</Text>
             </View>
-            <Text style={styles.otpDescription}>
-              Share this OTP with your service provider to complete the appointment
-            </Text>
+            <Text style={styles.otpDescription}>Share this OTP with your service provider to complete the appointment</Text>
             <View style={styles.otpCodeContainer}>
               <Text style={styles.otpCode}>{otp}</Text>
             </View>
-            <Text style={styles.otpNote}>
-              Keep this code secure and only share it when completing your appointment
-            </Text>
+            <Text style={styles.otpNote}>Keep this code secure and only share it when completing your appointment</Text>
           </View>
         )}
 
@@ -270,53 +266,18 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
               <Ionicons name="time-outline" size={20} color="#9C27B0" />
               <Text style={styles.rescheduleTitle}>Appointment Rescheduled</Text>
             </View>
-            <Text style={styles.rescheduleText}>
-              Appt rescheduled from time {appointment.original_time}, date {formatDate(appointment.original_date)}
-              {' '}to time {appointment.appointment_time}, date {formatDate(appointment.appointment_date)}
-            </Text>
+            <Text style={styles.rescheduleText}>{`Appt rescheduled from time ${appointment.original_time}, date ${formatDate(appointment.original_date)} to time ${appointment.appointment_time}, date ${formatDate(appointment.appointment_date)}`}</Text>
           </View>
         )}
 
-        {/* Medical Documents - Only show for completed appointments */}
-        {appointment.status?.toLowerCase() === 'completed' && (appointment.prescription_pdf_base64 || appointment.case_sheet_pdf_base64) && (
+        {/* Medical Documents - Show case sheet when available, prescription only when completed */}
+        {(appointment.case_sheet_pdf_base64 || appointment.prescription_pdf_base64) && (
           <View style={styles.documentsSection}>
             <Text style={styles.sectionTitle}>Medical Documents</Text>
             <View style={styles.documentsCard}>
-              {/* Prescription */}
-              {appointment.prescription_pdf_base64 && (
-                <View style={styles.documentSection}>
-                  <View style={styles.documentHeader}>
-                    <Ionicons name="document-text" size={24} color="#4CAF50" />
-                    <Text style={styles.documentHeaderTitle}>Prescription</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.documentButton}
-                    onPress={() => router.push({
-                      pathname: "/appointments/viewDocument",
-                      params: {
-                        url: `data:application/pdf;base64,${appointment.prescription_pdf_base64}`,
-                        name: "Prescription"
-                      }
-                    })}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="eye-outline" size={20} color="#4CAF50" />
-                    <Text style={styles.documentButtonText}>View Prescription</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.documentButton, styles.downloadButton]}
-                    onPress={() => handleDownloadDocument(appointment.prescription_pdf_base64, 'Prescription')}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="download-outline" size={20} color="#4CAF50" />
-                    <Text style={styles.documentButtonText}>Download Prescription</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Case Sheet */}
+              {/* Case Sheet - Show when available (even during in_progress status) */}
               {appointment.case_sheet_pdf_base64 && (
-                <View style={[styles.documentSection, appointment.prescription_pdf_base64 && styles.documentSectionBordered]}>
+                <View style={styles.documentSection}>
                   <View style={styles.documentHeader}>
                     <Ionicons name="clipboard" size={24} color="#2196F3" />
                     <Text style={styles.documentHeaderTitle}>Case Sheet</Text>
@@ -345,6 +306,38 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
                   </TouchableOpacity>
                 </View>
               )}
+
+              {/* Prescription - Only show when available */}
+              {appointment.prescription_pdf_base64 && (
+                <View style={[styles.documentSection, appointment.case_sheet_pdf_base64 && styles.documentSectionBordered]}>
+                  <View style={styles.documentHeader}>
+                    <Ionicons name="document-text" size={24} color="#4CAF50" />
+                    <Text style={styles.documentHeaderTitle}>Prescription</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.documentButton}
+                    onPress={() => router.push({
+                      pathname: "/appointments/viewDocument",
+                      params: {
+                        url: `data:application/pdf;base64,${appointment.prescription_pdf_base64}`,
+                        name: "Prescription"
+                      }
+                    })}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="eye-outline" size={20} color="#4CAF50" />
+                    <Text style={styles.documentButtonText}>View Prescription</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.documentButton, styles.downloadButton]}
+                    onPress={() => handleDownloadDocument(appointment.prescription_pdf_base64, 'Prescription')}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="download-outline" size={20} color="#4CAF50" />
+                    <Text style={styles.documentButtonText}>Download Prescription</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </View>
         )}
@@ -368,17 +361,13 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
                 <View style={styles.replySection}>
                   <Text style={styles.replyTitle}>Provider Response</Text>
                   <Text style={styles.replyComment}>{review.reply.comment}</Text>
-                  <Text style={styles.replyDate}>
-                    Replied on {formatDate(review.reply.created_at)}
-                  </Text>
+                  <Text style={styles.replyDate}>{`Replied on ${formatDate(review.reply.created_at)}`}</Text>
                 </View>
               )}
             </View>
           ) : canReview ? (
             <View style={styles.reviewPrompt}>
-              <Text style={styles.promptText}>
-                Share your experience with this appointment
-              </Text>
+              <Text style={styles.promptText}>Share your experience with this appointment</Text>
               <TouchableOpacity
                 style={styles.reviewButton}
                 onPress={() => setShowReviewModal(true)}
