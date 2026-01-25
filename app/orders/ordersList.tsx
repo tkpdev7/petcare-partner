@@ -59,83 +59,153 @@ export default function OrdersListScreen() {
 
   const loadPartnerData = async () => {
     try {
+      console.log('🔑 Loading partner data from AsyncStorage...');
       const data = await AsyncStorage.getItem('partnerData');
       if (data) {
-        setPartnerData(JSON.parse(data));
+        const parsedData = JSON.parse(data);
+        console.log('✅ Partner data loaded:', {
+          id: parsedData.id,
+          businessName: parsedData.businessName,
+          partnerType: parsedData.partnerType
+        });
+        setPartnerData(parsedData);
+      } else {
+        console.warn('⚠️ No partner data found in AsyncStorage');
       }
     } catch (error) {
-      console.error('Error loading partner data:', error);
+      console.error('❌ Error loading partner data:', error);
     }
   };
 
   const loadOrders = async () => {
     try {
       setLoading(true);
+      console.log(`📋 Loading orders for tab: ${selectedTab}`);
 
       let response;
       if (selectedTab === 'incoming') {
+        console.log('🔵 Fetching incoming orders (confirmed + processing)...');
+
         // Fetch both confirmed and processing orders
         const confirmedResponse = await apiService.getOrders({
           status: 'confirmed',
           limit: 50
         });
+        console.log('✅ Confirmed orders response:', JSON.stringify(confirmedResponse, null, 2));
+
         const processingResponse = await apiService.getOrders({
           status: 'processing',
           limit: 50
         });
+        console.log('✅ Processing orders response:', JSON.stringify(processingResponse, null, 2));
 
-        const confirmedOrders = confirmedResponse.success && confirmedResponse.data
-          ? (confirmedResponse.data.data?.orders || confirmedResponse.data.orders || [])
-          : [];
-        const processingOrders = processingResponse.success && processingResponse.data
-          ? (processingResponse.data.data?.orders || processingResponse.data.orders || [])
-          : [];
+        // Enhanced parsing with detailed logging
+        let confirmedOrders = [];
+        let processingOrders = [];
 
-        setOrders([...confirmedOrders, ...processingOrders].sort((a, b) =>
+        if (confirmedResponse.success && confirmedResponse.data) {
+          console.log('🔍 Confirmed response structure:', {
+            hasData: !!confirmedResponse.data,
+            hasNestedData: !!confirmedResponse.data.data,
+            hasOrders: !!confirmedResponse.data.orders,
+            hasNestedOrders: !!confirmedResponse.data.data?.orders
+          });
+
+          confirmedOrders = confirmedResponse.data.data?.orders
+            || confirmedResponse.data.orders
+            || confirmedResponse.data
+            || [];
+          console.log(`📊 Parsed ${confirmedOrders.length} confirmed orders`);
+        } else {
+          console.warn('⚠️ Confirmed response not successful or no data:', confirmedResponse);
+        }
+
+        if (processingResponse.success && processingResponse.data) {
+          console.log('🔍 Processing response structure:', {
+            hasData: !!processingResponse.data,
+            hasNestedData: !!processingResponse.data.data,
+            hasOrders: !!processingResponse.data.orders,
+            hasNestedOrders: !!processingResponse.data.data?.orders
+          });
+
+          processingOrders = processingResponse.data.data?.orders
+            || processingResponse.data.orders
+            || processingResponse.data
+            || [];
+          console.log(`📊 Parsed ${processingOrders.length} processing orders`);
+        } else {
+          console.warn('⚠️ Processing response not successful or no data:', processingResponse);
+        }
+
+        const combinedOrders = [...confirmedOrders, ...processingOrders].sort((a, b) =>
           new Date(b.order_date).getTime() - new Date(a.order_date).getTime()
-        ));
+        );
+        console.log(`🎯 Total incoming orders: ${combinedOrders.length}`);
+        setOrders(combinedOrders);
       } else if (selectedTab === 'out_delivered') {
+        console.log('🚚 Fetching out & delivered orders...');
+
         // Fetch both out_for_delivery and delivered orders
         const outResponse = await apiService.getOrders({
           status: 'out_for_delivery',
           limit: 50
         });
+        console.log('✅ Out for delivery response:', JSON.stringify(outResponse, null, 2));
+
         const deliveredResponse = await apiService.getOrders({
           status: 'delivered',
           limit: 50
         });
+        console.log('✅ Delivered response:', JSON.stringify(deliveredResponse, null, 2));
 
         const outOrders = outResponse.success && outResponse.data
-          ? (outResponse.data.data?.orders || outResponse.data.orders || [])
+          ? (outResponse.data.data?.orders || outResponse.data.orders || outResponse.data || [])
           : [];
         const deliveredOrders = deliveredResponse.success && deliveredResponse.data
-          ? (deliveredResponse.data.data?.orders || deliveredResponse.data.orders || [])
+          ? (deliveredResponse.data.data?.orders || deliveredResponse.data.orders || deliveredResponse.data || [])
           : [];
 
-        setOrders([...outOrders, ...deliveredOrders].sort((a, b) =>
+        console.log(`📊 Out for delivery: ${outOrders.length}, Delivered: ${deliveredOrders.length}`);
+
+        const combinedOrders = [...outOrders, ...deliveredOrders].sort((a, b) =>
           new Date(b.order_date).getTime() - new Date(a.order_date).getTime()
-        ));
+        );
+        setOrders(combinedOrders);
       } else {
+        console.log('📦 Fetching ready for pickup orders...');
+
         // For 'ready' tab
         response = await apiService.getOrders({
           status: 'ready_for_pickup',
           limit: 50
         });
+        console.log('✅ Ready orders response:', JSON.stringify(response, null, 2));
 
         if (response.success && response.data) {
-          const ordersData = response.data.data?.orders || response.data.orders || [];
+          const ordersData = response.data.data?.orders
+            || response.data.orders
+            || response.data
+            || [];
+          console.log(`📊 Ready orders count: ${ordersData.length}`);
           setOrders(ordersData);
         } else {
+          console.warn('⚠️ Ready orders response not successful or no data');
           setOrders([]);
         }
       }
     } catch (error: any) {
-      console.error('Error loading orders:', error);
+      console.error('❌ Error loading orders:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        response: error.response
+      });
       modal.showError('Failed to load orders');
       setOrders([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
+      console.log('🏁 Load orders completed');
     }
   };
 
@@ -275,11 +345,16 @@ export default function OrdersListScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Back Button */}
-      <View style={styles.backButtonContainer}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.headerBackButton}
+          onPress={() => router.back()}
+        >
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>Orders</Text>
+        <View style={styles.placeholder} />
       </View>
 
       {/* Tabs */}
@@ -364,15 +439,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8F7FB',
-    paddingTop: 50,
   },
-  backButtonContainer: {
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
-  backButton: {
+  headerBackButton: {
     padding: 8,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: 16,
+  },
+  placeholder: {
     width: 40,
   },
   tabs: {
