@@ -60,7 +60,7 @@ class ApiService {
   }
 
   async makeRequest<T>(
-    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
     endpoint: string,
     data?: any,
     config?: any
@@ -106,6 +106,27 @@ class ApiService {
         error: 'Unknown error occurred',
       };
     }
+  }
+
+  // Generic HTTP Methods (convenience wrappers around makeRequest)
+  async get<T = any>(endpoint: string, config?: any): Promise<ApiResponse<T>> {
+    return this.makeRequest<T>('GET', endpoint, undefined, config);
+  }
+
+  async post<T = any>(endpoint: string, data?: any, config?: any): Promise<ApiResponse<T>> {
+    return this.makeRequest<T>('POST', endpoint, data, config);
+  }
+
+  async put<T = any>(endpoint: string, data?: any, config?: any): Promise<ApiResponse<T>> {
+    return this.makeRequest<T>('PUT', endpoint, data, config);
+  }
+
+  async patch<T = any>(endpoint: string, data?: any, config?: any): Promise<ApiResponse<T>> {
+    return this.makeRequest<T>('PATCH', endpoint, data, config);
+  }
+
+  async delete<T = any>(endpoint: string, config?: any): Promise<ApiResponse<T>> {
+    return this.makeRequest<T>('DELETE', endpoint, undefined, config);
   }
 
   // Authentication APIs
