@@ -746,6 +746,33 @@ class ApiService {
   async createCaseSheet(caseSheetData: any): Promise<ApiResponse> {
     return this.makeRequest('POST', '/case-sheets', caseSheetData);
   }
+
+  // Forgot Password - Request OTP
+  async forgotPasswordRequestOTP(identifier: string): Promise<ApiResponse> {
+    return this.makeRequest('POST', '/forgot-password/request-otp', {
+      identifier,
+      userType: 'partner'
+    });
+  }
+
+  // Forgot Password - Verify OTP
+  async forgotPasswordVerifyOTP(identifier: string, otp: string): Promise<ApiResponse> {
+    return this.makeRequest('POST', '/forgot-password/verify-otp', {
+      identifier,
+      otp,
+      userType: 'partner'
+    });
+  }
+
+  // Forgot Password - Reset Password
+  async forgotPasswordReset(resetToken: string, newPassword: string, confirmPassword: string): Promise<ApiResponse> {
+    return this.makeRequest('POST', '/forgot-password/reset', {
+      resetToken,
+      newPassword,
+      confirmPassword,
+      userType: 'partner'
+    });
+  }
 }
 
 export default new ApiService();
