@@ -74,7 +74,7 @@ export default function ForgotPasswordScreen() {
       <KeyboardAwareScrollView>
         <View style={styles.content}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => router.push('/auth/login')}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
