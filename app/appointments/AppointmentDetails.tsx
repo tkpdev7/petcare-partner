@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,13 +10,15 @@ import {
   TextInput,
   Modal,
   Alert,
-  Platform
+  Platform,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import apiService from '../../services/apiService';
 import { useLocalSearchParams, router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import CustomModal from '../../components/CustomModal';
 import { useCustomModal } from '../../hooks/useCustomModal';
 
@@ -36,9 +38,11 @@ interface Review {
 
 const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => {
   const { appointmentId, appointment: appointmentString } = useLocalSearchParams();
-  const appointment = typeof appointmentString === 'string' ? JSON.parse(appointmentString) : appointmentString;
+  const initialAppointment = typeof appointmentString === 'string' ? JSON.parse(appointmentString) : appointmentString;
+
   const modal = useCustomModal();
   const [loading, setLoading] = useState(false);
+  const [appointment, setAppointment] = useState(initialAppointment);
   const [review, setReview] = useState<Review | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [rating, setRating] = useState(5);
@@ -46,6 +50,48 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
   const [canReview, setCanReview] = useState(false);
   const [otp, setOtp] = useState<string | null>(null);
   const [otpGenerated, setOtpGenerated] = useState(false);
+
+  // Fetch fresh appointment data from API
+  const fetchAppointmentDetails = async () => {
+    if (!appointmentId) return;
+
+    try {
+      setLoading(true);
+      console.log('📱 Fetching fresh appointment details for ID:', appointmentId);
+      const response = await apiService.getAppointment(appointmentId);
+
+      if (response.success && response.data) {
+        const appt = response.data.data || response.data;
+        console.log('✅ Fresh appointment data received');
+        console.log('📦 Full appointment object keys:', Object.keys(appt));
+        console.log('📄 case_sheet_pdf_base64 length:', appt.case_sheet_pdf_base64?.length || 0);
+        console.log('📄 case_sheet_pdf_base64 exists:', !!appt.case_sheet_pdf_base64);
+        console.log('📄 case_sheet_pdf_base64 first 50 chars:', appt.case_sheet_pdf_base64?.substring(0, 50));
+        console.log('💊 Has prescription:', !!appt.prescription_pdf_base64);
+        console.log('🔄 Setting appointment state...');
+        setAppointment(appt);
+        console.log('✅ Appointment state updated');
+
+        // Update OTP if present
+        if (appt.otp_code) {
+          setOtp(appt.otp_code);
+          setOtpGenerated(true);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error fetching appointment details:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reload appointment data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔄 AppointmentDetails screen focused - reloading data');
+      fetchAppointmentDetails();
+    }, [appointmentId])
+  );
 
   useEffect(() => {
     checkReviewable();
@@ -201,7 +247,9 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Appointment Details</Text>
-        <View style={styles.placeholder} />
+        <View style={styles.placeholder}>
+          {loading && <ActivityIndicator size="small" color="#ED6D4E" />}
+        </View>
       </View>
 
       <ScrollView style={styles.container}>

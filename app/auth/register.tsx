@@ -82,6 +82,7 @@ export default function RegisterScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchLoading, setSearchLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [initialLocationSet, setInitialLocationSet] = useState(false);
   const [mapRegion, setMapRegion] = useState({
     latitude: 13.0827, // Default to Chennai
     longitude: 80.2707,
@@ -109,25 +110,25 @@ export default function RegisterScreen() {
   const [dateOfIncorporation, setDateOfIncorporation] = useState<Date | null>(null);
   const [showIncorporationDatePicker, setShowIncorporationDatePicker] = useState(false);
 
-  // Update map region when store location changes (only when tapping on map or dragging)
-  // This is optimized to prevent unnecessary updates when location is set programmatically
+  // Auto-detect current location when map modal opens (only once)
   React.useEffect(() => {
-    if (storeLocation.latitude !== 0 && storeLocation.longitude !== 0) {
-      // Only update if the region is significantly different to avoid flickers
-      const latDiff = Math.abs(mapRegion.latitude - storeLocation.latitude);
-      const lngDiff = Math.abs(mapRegion.longitude - storeLocation.longitude);
-
-      if (latDiff > 0.00001 || lngDiff > 0.00001) {
-        setMapRegion(prev => ({
-          ...prev,
-          latitude: storeLocation.latitude,
-          longitude: storeLocation.longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }));
-      }
+    if (showMapModal && !initialLocationSet) {
+      // Automatically try to get user's current location when modal opens
+      const autoDetectLocation = async () => {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            await pickLocation();
+            setInitialLocationSet(true);
+          }
+        } catch (error) {
+          console.error('Auto-detect location error:', error);
+          // Silently fail - user can manually select location
+        }
+      };
+      autoDetectLocation();
     }
-  }, [storeLocation.latitude, storeLocation.longitude]);
+  }, [showMapModal]);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showOpeningTimePicker, setShowOpeningTimePicker] = useState(false);
   const [showClosingTimePicker, setShowClosingTimePicker] = useState(false);
@@ -229,7 +230,7 @@ export default function RegisterScreen() {
         });
 
         const addressData = address[0];
-        const addressString = `${addressData?.street || ''}, ${addressData?.city || ''}, ${addressData?.region || ''}`.trim();
+        const addressString = `${addressData?.street || addressData?.name || 'Unknown Location'}, ${addressData?.city || 'Unknown City'}, ${addressData?.region || 'Unknown Region'}`.trim();
 
         // Update both location and map region immediately
         setStoreLocation({
@@ -238,7 +239,7 @@ export default function RegisterScreen() {
           address: addressString || searchQuery,
         });
 
-        // Update controlled map region
+        // Update controlled map region to center on found location
         setMapRegion({
           latitude,
           longitude,
@@ -246,7 +247,23 @@ export default function RegisterScreen() {
           longitudeDelta: 0.01,
         });
 
-        modal.showSuccess('Tap "Done" to confirm this location', { title: 'Location Found' });
+        // Auto-fill form fields
+        if (formikRef.current && addressData) {
+          if (addressData.street) {
+            formikRef.current.setFieldValue('street_road', addressData.street);
+          }
+          if (addressData.city) {
+            formikRef.current.setFieldValue('city', addressData.city);
+          }
+          if (addressData.region) {
+            formikRef.current.setFieldValue('state', addressData.region);
+          }
+          if (addressData.postalCode) {
+            formikRef.current.setFieldValue('pincode', addressData.postalCode);
+          }
+        }
+
+        modal.showSuccess('Location found! Tap "Done" to confirm.', { title: 'Location Found' });
       } else {
         modal.showWarning('Could not find this location. Please try a different search term.', { title: 'Not Found' });
       }
@@ -1002,44 +1019,14 @@ export default function RegisterScreen() {
               <Text style={styles.mapModalTitle}>Pin Your Store Location</Text>
               <TouchableOpacity
                 style={styles.modalDoneButton}
-                onPress={async () => {
-                  if (storeLocation.latitude && storeLocation.longitude) {
-                    try {
-                      const address = await Location.reverseGeocodeAsync({
-                        latitude: storeLocation.latitude,
-                        longitude: storeLocation.longitude,
-                      });
-                      const addressData = address[0];
-                      const addressString = `${addressData?.street || addressData?.name || 'Unknown Location'}, ${addressData?.city || 'Unknown City'}, ${addressData?.region || 'Unknown Region'}`;
-                      setStoreLocation(prev => ({
-                        ...prev,
-                        address: addressString.trim(),
-                      }));
-
-                      // Auto-fill address fields if formik ref is available
-                      if (formikRef.current && addressData) {
-                        if (addressData.street) {
-                          formikRef.current.setFieldValue('street_road', addressData.street);
-                        }
-                        if (addressData.city) {
-                          formikRef.current.setFieldValue('city', addressData.city);
-                        }
-                        if (addressData.region) {
-                          formikRef.current.setFieldValue('state', addressData.region);
-                        }
-                        if (addressData.postalCode) {
-                          formikRef.current.setFieldValue('pincode', addressData.postalCode);
-                        }
-                      }
-
-                      setShowMapModal(false);
-                      modal.showSuccess('Location set and address fields auto-filled!', { title: 'Location Set' });
-                    } catch (error) {
-                      setShowMapModal(false);
-                      modal.showSuccess('Store location has been pinned successfully!', { title: 'Location Set' });
-                    }
+                onPress={() => {
+                  // Validate that location has been selected (not default 0,0)
+                  if (storeLocation.latitude && storeLocation.longitude &&
+                      !(storeLocation.latitude === 0 && storeLocation.longitude === 0)) {
+                    setShowMapModal(false);
+                    modal.showSuccess('Store location has been pinned successfully!', { title: 'Location Set' });
                   } else {
-                    modal.showWarning('Please tap on the map to pin your store location', { title: 'No Location Selected' });
+                    modal.showWarning('Please tap on the map to pin your store location or use "Use Current Location" button', { title: 'No Location Selected' });
                   }
                 }}
               >
@@ -1107,32 +1094,62 @@ export default function RegisterScreen() {
               style={[styles.map, (mapLoading || mapError) && styles.mapHidden]}
               region={mapRegion}
               onRegionChangeComplete={(region) => {
-                // Update coordinates when user drags the map
-                // Only update if significantly different to prevent flickers
-                const latDiff = Math.abs(region.latitude - mapRegion.latitude);
-                const lngDiff = Math.abs(region.longitude - mapRegion.longitude);
-
-                if (latDiff > 0.0001 || lngDiff > 0.0001) {
-                  setStoreLocation(prev => ({
-                    ...prev,
-                    latitude: region.latitude,
-                    longitude: region.longitude,
-                  }));
-                }
+                // Only update the map region for visual centering, NOT the coordinates
+                // This allows users to pan/explore without changing their selected location
+                setMapRegion(region);
               }}
-              onPress={(event) => {
+              onPress={async (event) => {
                 const { latitude, longitude } = event.nativeEvent.coordinate;
-                // Update both location and map region immediately
-                setStoreLocation(prev => ({
-                  ...prev,
-                  latitude,
-                  longitude,
-                }));
+
+                // Immediately update coordinates and center map
                 setMapRegion(prev => ({
                   ...prev,
                   latitude,
                   longitude,
+                  latitudeDelta: 0.01,
+                  longitudeDelta: 0.01,
                 }));
+
+                // Perform reverse geocoding immediately to get address
+                try {
+                  const address = await Location.reverseGeocodeAsync({
+                    latitude,
+                    longitude,
+                  });
+
+                  const addressData = address[0];
+                  const addressString = `${addressData?.street || addressData?.name || 'Unknown Location'}, ${addressData?.city || 'Unknown City'}, ${addressData?.region || 'Unknown Region'}`;
+
+                  setStoreLocation({
+                    latitude,
+                    longitude,
+                    address: addressString.trim(),
+                  });
+
+                  // Auto-fill form fields
+                  if (formikRef.current && addressData) {
+                    if (addressData.street) {
+                      formikRef.current.setFieldValue('street_road', addressData.street);
+                    }
+                    if (addressData.city) {
+                      formikRef.current.setFieldValue('city', addressData.city);
+                    }
+                    if (addressData.region) {
+                      formikRef.current.setFieldValue('state', addressData.region);
+                    }
+                    if (addressData.postalCode) {
+                      formikRef.current.setFieldValue('pincode', addressData.postalCode);
+                    }
+                  }
+                } catch (error) {
+                  console.error('Reverse geocoding error:', error);
+                  // If reverse geocoding fails, still save the coordinates
+                  setStoreLocation({
+                    latitude,
+                    longitude,
+                    address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+                  });
+                }
               }}
               onMapReady={() => {
                 setMapLoading(false);

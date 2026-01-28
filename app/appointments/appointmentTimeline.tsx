@@ -266,7 +266,7 @@ const route = useRoute<AppointmentTimelineRouteProp>();
               ms.icon === "🏥" ? "medkit" :
               ms.icon === "🎉" ? "checkmark-done-circle" :
               ms.icon === "🔄" ? "refresh" :
-              ms.icon === "⚠️" || "❌" ? "close-circle" : "ellipse",
+              ms.icon === "⚠️" || ms.icon === "❌" ? "close-circle" : "ellipse",
         details: ms.details // Include reschedule details if available
       }))
     : [
@@ -432,7 +432,7 @@ const getStatusStyle = (status?: string) => {
         </View>
 
         {/* Medical Records (Prescription & Clinical Notes) */}
-        {appointment?.status === 'completed' && (appointment?.prescription_pdf_base64 || appointment?.case_sheet_pdf_base64 || appointment?.clinical_notes) && (
+        {(appointment?.prescription_pdf_base64 || appointment?.case_sheet_pdf_base64 || appointment?.clinical_notes) && (
           <View style={styles.medicalRecordsBox}>
             <View style={styles.medicalRecordsHeader}>
               <Ionicons name="medical" size={22} color="#ED6D4E" />
@@ -591,13 +591,13 @@ const getStatusStyle = (status?: string) => {
                       {node.label}
                     </Text>
                     <Text style={styles.timelineSubLabel}>
-                      {enhancedStatusStates[idx]?.time || '--'}, {enhancedStatusStates[idx]?.date || '--'}
+                      {`${enhancedStatusStates[idx]?.time || '--'}, ${enhancedStatusStates[idx]?.date || '--'}`}
                     </Text>
                     {/* Show reschedule details without reason */}
                     {node.details && node.details.from_date && node.details.from_time && (
                       <View style={styles.rescheduleDetails}>
                         <Text style={styles.rescheduleText}>
-                          From: {node.details.from_date} at {node.details.from_time}
+                          {`From: ${node.details.from_date} at ${node.details.from_time}`}
                         </Text>
                       </View>
                     )}
@@ -612,13 +612,8 @@ const getStatusStyle = (status?: string) => {
         {appointment?.status === 'cancelled' && appointment?.cancellation_reason && (
           <View style={styles.cancellationBox}>
             <Text style={styles.cancellationTitle}>Cancellation Details</Text>
-            <Text style={styles.cancellationReason}>
-              Reason: {appointment.cancellation_reason}
-            </Text>
-            <Text style={styles.cancellationBy}>
-              Cancelled by {appointment.cancelled_by === 'user' ? 'You' :
-                           appointment.cancelled_by === 'provider' ? 'Service Provider' : 'System'}
-            </Text>
+            <Text style={styles.cancellationReason}>{`Reason: ${appointment.cancellation_reason}`}</Text>
+            <Text style={styles.cancellationBy}>{`Cancelled by ${appointment.cancelled_by === 'user' ? 'You' : appointment.cancelled_by === 'provider' ? 'Service Provider' : 'System'}`}</Text>
           </View>
         )}
 

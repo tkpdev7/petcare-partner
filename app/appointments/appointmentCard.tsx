@@ -91,15 +91,15 @@ const AppointmentCard: React.FC<VetCardProps> = ({ item, style, onReschedule, on
            {/* Right Content */}
            <View style={styles.cardContent}>
              {item.name && <Text style={styles.title}>{item.name}</Text>}
-             {item.description && <Text style={styles.description}>Pet : {item.description}</Text>}
+             {item.description && <Text style={styles.description}>{`Pet : ${item.description}`}</Text>}
              {item.specialization && <Text style={styles.description}>{item.specialization}</Text>}
              {/* Service Name for vet/grooming appointments */}
              {(item.provider_type === 'specialist' || item.provider_type === 'grooming') && item.service_name && (
-               <Text style={styles.serviceName}>Service: {item.service_name}</Text>
+               <Text style={styles.serviceName}>{`Service: ${item.service_name}`}</Text>
              )}
              {/* Payment Mode for vet/grooming appointments */}
              {(item.provider_type === 'specialist' || item.provider_type === 'grooming') && item.payment_method && (
-               <Text style={styles.paymentMode}>Payment: {item.payment_method}</Text>
+               <Text style={styles.paymentMode}>{`Payment: ${item.payment_method}`}</Text>
              )}
              {/* Star Rating */}
              <View style={styles.ratingContainer}>{renderStars(item.rating)}</View>
@@ -143,10 +143,10 @@ const AppointmentCard: React.FC<VetCardProps> = ({ item, style, onReschedule, on
                 <Text style={styles.rescheduleTitle}>Appointment Rescheduled</Text>
               </View>
               <Text style={styles.rescheduleText}>
-                From: {formatDate(item.reschedule_from_date)} at {item.reschedule_from_time}
+                {`From: ${formatDate(item.reschedule_from_date)} at ${item.reschedule_from_time}`}
               </Text>
               <Text style={styles.rescheduleText}>
-                To: {formatDate(item.appointment_date)} at {item.appointment_time || item.start_time}
+                {`To: ${formatDate(item.appointment_date)} at ${item.appointment_time || item.start_time}`}
               </Text>
             </View>
           )}
@@ -194,7 +194,7 @@ const AppointmentCard: React.FC<VetCardProps> = ({ item, style, onReschedule, on
               </View>
               <View style={styles.detailsTextWrapper}>
                 <Text style={styles.detailsSubtitle}>
-                  {formatDate(item.appointment_date)}, {item.appointment_time || item.start_time}
+                  {`${formatDate(item.appointment_date)}, ${item.appointment_time || item.start_time}`}
                 </Text>
               </View>
             </View>
