@@ -43,11 +43,16 @@ export const Colors = {
   textSecondary: '#6B7280',
   textTertiary: '#9CA3AF',
   textInverse: '#FFFFFF',
-  
+
   // Border colors
   border: '#E5E7EB',
   borderLight: '#F3F4F6',
   borderDark: '#D1D5DB',
+
+  // Legacy color names (for backward compatibility)
+  dark: '#1F1F1F',          // Maps to textPrimary
+  mediumGray: '#6B7280',    // Maps to textSecondary
+  lightGray: '#F5F5F5',     // Maps to gray100
 };
 
 export const Spacing = {
@@ -89,5 +94,46 @@ export const Typography = {
     tight: 1.25,
     normal: 1.5,
     relaxed: 1.75,
+  },
+  // Text style presets (for backward compatibility)
+  h1: {
+    fontSize: 30,
+    fontWeight: '700' as const,
+    lineHeight: 38,
+  },
+  h2: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    lineHeight: 32,
+  },
+  h3: {
+    fontSize: 20,
+    fontWeight: '600' as const,
+    lineHeight: 28,
+  },
+  h4: {
+    fontSize: 18,
+    fontWeight: '600' as const,
+    lineHeight: 24,
+  },
+  subtitle: {
+    fontSize: 16,
+    fontWeight: '500' as const,
+    lineHeight: 22,
+  },
+  body: {
+    fontSize: 16,
+    fontWeight: '400' as const,
+    lineHeight: 24,
+  },
+  small: {
+    fontSize: 14,
+    fontWeight: '400' as const,
+    lineHeight: 20,
+  },
+  caption: {
+    fontSize: 12,
+    fontWeight: '400' as const,
+    lineHeight: 16,
   },
 };
