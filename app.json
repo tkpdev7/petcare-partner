@@ -18,7 +18,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to let you select images for products and profile photos.",
-        "NSLocationWhenInUseUsageDescription": "This app needs access to your location to show nearby pet services and clinics."
+        "NSLocationWhenInUseUsageDescription": "This app needs access to your location to show nearby pet services and clinics.",
+        "NSCalendarsUsageDescription": "This app needs access to your calendar to sync appointments and manage your schedule more efficiently."
       },
       "config": {
         "googleMapsApiKey": "AIzaSyDmLE_PV6oEYOeN3u4PZmEFdsFAXRpxYVo"
@@ -38,7 +39,9 @@
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR"
       ],
       "config": {
         "googleMaps": {
