@@ -217,13 +217,11 @@ export default function CreateCaseSheetScreen() {
         hideSecondaryButton={modal.config.hideSecondaryButton}
       />
 
-      {/* Header */}
-      <View style={styles.header}>
+      <View style={styles.titleRow}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Fill Case Sheet</Text>
-        <View style={{ width: 24 }} />
+        <Text style={styles.title}>Fill Case Sheet</Text>
       </View>
 
       <KeyboardAvoidingView
@@ -385,24 +383,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -412,6 +392,24 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     ...Typography.body,
     color: Colors.mediumGray,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.xxl,
+    paddingBottom: Spacing.md,
+  },
+  backButton: {
+    padding: 4,
+  },
+  title: {
+    flex: 1,
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: Colors.dark,
+    textAlign: 'center',
+    marginRight: 28,
   },
   scrollView: {
     flex: 1,

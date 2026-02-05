@@ -9,7 +9,6 @@ import {
   ScrollView,
   TextInput,
   Modal,
-  Alert,
   Platform,
   ActivityIndicator
 } from 'react-native';
@@ -223,7 +222,7 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
             await FileSystem.writeAsStringAsync(uri, base64, {
               encoding: FileSystem.EncodingType.Base64,
             });
-            Alert.alert('Success', `${documentName} downloaded successfully`);
+            modal.showSuccess(`${documentName} downloaded successfully`);
           });
         }
       } else {
@@ -231,7 +230,7 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
       }
     } catch (error) {
       console.error('Error downloading document:', error);
-      Alert.alert('Error', 'Failed to download document');
+      modal.showError('Failed to download document');
     }
   };
 

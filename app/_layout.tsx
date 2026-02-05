@@ -24,6 +24,7 @@ export default function RootLayout() {
         <Stack.Screen name="slots/mySlots" options={{ headerShown: false }} />
         <Stack.Screen name="helpdesk" options={{ headerShown: false }} />
         <Stack.Screen name="profile" options={{ headerShown: false }} />
+        <Stack.Screen name="orders/ordersList" options={{ headerShown: false }} />
         <Stack.Screen name="orders/details" options={{ headerShown: false }} />
         <Stack.Screen name="revenue" options={{ headerShown: false }} />
         <Stack.Screen name="reviews" options={{ headerShown: false }} />
@@ -33,6 +34,8 @@ export default function RootLayout() {
         <Stack.Screen name="pharmacy-requests/success" options={{ headerShown: false }} />
         <Stack.Screen name="appointments" options={{ headerShown: false }} />
         <Stack.Screen name="case-sheets" options={{ headerShown: false }} />
+        <Stack.Screen name="case-sheets/create" options={{ headerShown: false }} />
+        <Stack.Screen name="case-sheets/view" options={{ headerShown: false }} />
       </Stack>
     </>
   );

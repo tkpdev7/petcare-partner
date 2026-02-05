@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -28,6 +29,7 @@ interface Order {
   total_amount: number;
   order_items?: any[];
   payment_method?: string;
+  order_type?: 'pharmacy' | 'product'; // Added: order type from backend
 }
 
 export default function OrdersListScreen() {
@@ -37,6 +39,7 @@ export default function OrdersListScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'incoming' | 'ready' | 'out_delivered'>('incoming');
   const [partnerData, setPartnerData] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadPartnerData();
@@ -141,6 +144,13 @@ export default function OrdersListScreen() {
           new Date(b.order_date).getTime() - new Date(a.order_date).getTime()
         );
         console.log(`🎯 Total incoming orders: ${combinedOrders.length}`);
+
+        // Debug: Log first order structure to see what fields are available
+        if (combinedOrders.length > 0) {
+          console.log('🔍 Sample order structure (first order):', JSON.stringify(combinedOrders[0], null, 2));
+          console.log('🔑 Available keys in order:', Object.keys(combinedOrders[0]));
+        }
+
         setOrders(combinedOrders);
       } else if (selectedTab === 'out_delivered') {
         console.log('🚚 Fetching out & delivered orders...');
@@ -215,7 +225,18 @@ export default function OrdersListScreen() {
   };
 
   const handleOrderPress = (order: Order) => {
-    router.push(`/orders/details?orderId=${order.id}`);
+    console.log('🎯 Order clicked!');
+    console.log('📦 Order object:', JSON.stringify(order, null, 2));
+    console.log('🔑 Order ID:', order.id);
+    console.log('🔑 Order ID type:', typeof order.id);
+    console.log('🔑 Order Type:', order.order_type);
+
+    // Default to 'product' if order_type is not specified
+    const orderType = order.order_type || 'product';
+    console.log('📍 Using order type:', orderType);
+    console.log('📍 Navigation URL:', `/orders/details?orderId=${order.id}&orderType=${orderType}`);
+
+    router.push(`/orders/details?orderId=${order.id}&orderType=${orderType}`);
   };
 
   const getStatusColor = (status: string) => {
@@ -341,20 +362,53 @@ export default function OrdersListScreen() {
     );
   };
 
-  const filteredOrders = orders;
+  const filteredOrders = orders.filter(order => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase().trim();
+    return order.id.toString().toLowerCase().includes(query);
+  });
+
+  const handleBackPress = () => {
+    // Always navigate to homepage
+    router.push('/(tabs)');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerBackButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Orders</Text>
-        <View style={styles.placeholder} />
+      {/* Header with Title and Search */}
+      <View style={styles.headerContainer}>
+        {/* Title Bar with Back Button */}
+        <View style={styles.titleBar}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBackPress}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={26} color="#222" />
+          </TouchableOpacity>
+          <Text style={styles.pageTitle}>Orders</Text>
+          <View style={styles.placeholder} />
+        </View>
+
+        {/* Search Bar */}
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={22} color="#666" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by Order ID..."
+            placeholderTextColor="#aaa"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            keyboardType="default"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+              <Ionicons name="close-circle" size={22} color="#666" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Tabs */}
@@ -406,12 +460,19 @@ export default function OrdersListScreen() {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="receipt-outline" size={64} color="#ccc" />
-              <Text style={styles.emptyText}>No orders found</Text>
+              <Ionicons name={searchQuery ? "search-outline" : "receipt-outline"} size={64} color="#ccc" />
+              <Text style={styles.emptyText}>
+                {searchQuery ? 'No matching orders found' : 'No orders found'}
+              </Text>
               <Text style={styles.emptySubtext}>
-                {selectedTab === 'incoming' && 'New incoming orders will appear here'}
-                {selectedTab === 'ready' && 'Orders ready for pickup will appear here'}
-                {selectedTab === 'out_delivered' && 'Orders out for delivery and delivered will appear here'}
+                {searchQuery
+                  ? `No orders found matching "${searchQuery}"`
+                  : selectedTab === 'incoming'
+                    ? 'New incoming orders will appear here'
+                    : selectedTab === 'ready'
+                      ? 'Orders ready for pickup will appear here'
+                      : 'Orders out for delivery and delivered will appear here'
+                }
               </Text>
             </View>
           }
@@ -440,29 +501,72 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F7FB',
   },
-  header: {
+  headerContainer: {
+    backgroundColor: '#FFF',
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  titleBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    marginBottom: 16,
+    paddingTop: 12,
   },
-  headerBackButton: {
-    padding: 8,
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
+  pageTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#222',
+    letterSpacing: -0.5,
     flex: 1,
     textAlign: 'center',
-    marginHorizontal: 16,
   },
   placeholder: {
     width: 40,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 52,
+    borderWidth: 2,
+    borderColor: '#E8E8E8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#222',
+    paddingVertical: 10,
+    fontWeight: '500',
+  },
+  clearButton: {
+    padding: 6,
+    marginLeft: 6,
   },
   tabs: {
     flexDirection: 'row',

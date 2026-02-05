@@ -9,7 +9,6 @@ import {
   ScrollView,
   Linking,
   Platform,
-  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -474,6 +473,7 @@ const getStatusStyle = (status?: string) => {
                             appointment.prescription_pdf_base64!,
                             `prescription_${appointment.id}.pdf`
                           );
+                          modal.showSuccess('Document downloaded successfully');
                         } catch (error) {
                           console.error('Error downloading prescription:', error);
                           modal.showError('Failed to download prescription. Please try again.');
@@ -522,6 +522,7 @@ const getStatusStyle = (status?: string) => {
                             appointment.case_sheet_pdf_base64!,
                             `case_sheet_${appointment.id}.pdf`
                           );
+                          modal.showSuccess('Document downloaded successfully');
                         } catch (error) {
                           console.error('Error downloading case sheet:', error);
                           modal.showError('Failed to download case sheet. Please try again.');
