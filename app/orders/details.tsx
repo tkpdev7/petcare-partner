@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomModal from '../../components/CustomModal';
 import { useCustomModal } from '../../hooks/useCustomModal';
 import apiService from '../../services/apiService';
@@ -37,7 +38,9 @@ interface DeliveryAssignment {
 
 interface OrderDetails {
   id: string;
-  order_date: string;
+  order_date?: string; // Optional: may not always be present
+  placed_at?: string; // Actual field from database
+  created_at?: string; // Fallback date field
   order_status: string;
   customer_name: string;
   customer_phone?: string;
@@ -49,9 +52,11 @@ interface OrderDetails {
   delivery_address?: string;
   notes?: string;
   delivery_assignment?: DeliveryAssignment;
+  order_type?: 'pharmacy' | 'product'; // Added: order type from backend
 }
 
 const statusOptions = [
+  { value: 'placed', label: 'Placed', color: '#3F51B5' },
   { value: 'confirmed', label: 'Confirmed', color: '#2196F3' },
   { value: 'processing', label: 'Processing', color: '#FF9800' },
   { value: 'ready_for_pickup', label: 'Ready for Pickup', color: '#00BCD4' },
@@ -63,65 +68,239 @@ const statusOptions = [
 export default function OrderDetailsScreen() {
   const router = useRouter();
   const modal = useCustomModal();
-  const { orderId } = useLocalSearchParams();
+  const { orderId, orderType } = useLocalSearchParams();
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [partnerData, setPartnerData] = useState<any>(null);
 
   useEffect(() => {
+    console.log('🔍 OrderDetailsScreen mounted');
+    console.log('📦 Received orderId from params:', orderId);
+    console.log('📦 orderId type:', typeof orderId);
+    console.log('📦 orderId value:', JSON.stringify(orderId));
+    console.log('📦 Received orderType from params:', orderType);
+    console.log('📦 orderType value:', JSON.stringify(orderType));
+    loadPartnerData();
     loadOrderDetails();
-  }, [orderId]);
+  }, [orderId, orderType]);
+
+  const loadPartnerData = async () => {
+    try {
+      console.log('🔑 Loading partner data from AsyncStorage...');
+      const data = await AsyncStorage.getItem('partnerData');
+      if (data) {
+        const parsedData = JSON.parse(data);
+        console.log('✅ Partner data loaded from AsyncStorage:', {
+          id: parsedData.id,
+          businessName: parsedData.businessName || parsedData.name,
+          latitude: parsedData.latitude,
+          longitude: parsedData.longitude,
+          hasCoordinates: !!(parsedData.latitude && parsedData.longitude)
+        });
+
+        // If coordinates are missing, fetch fresh data from API
+        if (!parsedData.latitude || !parsedData.longitude) {
+          console.log('📍 Coordinates missing, fetching from API...');
+          try {
+            const response = await apiService.get('/partner-auth/me');
+            if (response.success && response.data) {
+              const freshData = response.data;
+              console.log('✅ Fresh partner data from API:', {
+                latitude: freshData.latitude,
+                longitude: freshData.longitude
+              });
+
+              // Update AsyncStorage with fresh data
+              await AsyncStorage.setItem('partnerData', JSON.stringify(freshData));
+              setPartnerData(freshData);
+              return;
+            }
+          } catch (apiError) {
+            console.error('❌ Error fetching partner data from API:', apiError);
+          }
+        }
+
+        setPartnerData(parsedData);
+      } else {
+        console.warn('⚠️ No partner data found in AsyncStorage, fetching from API...');
+        // Try to fetch from API
+        try {
+          const response = await apiService.get('/partner-auth/me');
+          if (response.success && response.data) {
+            const freshData = response.data;
+            await AsyncStorage.setItem('partnerData', JSON.stringify(freshData));
+            setPartnerData(freshData);
+          }
+        } catch (apiError) {
+          console.error('❌ Error fetching partner data from API:', apiError);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error loading partner data:', error);
+    }
+  };
 
   const loadOrderDetails = async () => {
     try {
       setLoading(true);
-      // Try to get order from partner-orders endpoint
-      const response = await apiService.get(`/partner-orders/${orderId}`);
+      console.log('🌐 Starting to load order details...');
+      console.log('🔑 Order ID to fetch:', orderId);
+      console.log('🔑 Order Type to fetch:', orderType);
+
+      // Determine order type (default to 'product' if not specified)
+      const type = (orderType as string) || 'product';
+      console.log('🔑 Using order type:', type);
+
+      // Try to get order from partner-orders endpoint with order_type query param
+      const endpoint = `/partner-orders/${orderId}?order_type=${type}`;
+      console.log('📍 API Endpoint:', endpoint);
+      console.log('📍 Full URL will be:', `https://petcare-api-0svs.onrender.com${endpoint}`);
+
+      const response = await apiService.get(endpoint);
+
+      console.log('📨 API Response received:', {
+        success: response.success,
+        hasData: !!response.data,
+        dataType: typeof response.data,
+        dataKeys: response.data ? Object.keys(response.data) : 'no data'
+      });
+      console.log('📨 Full Response:', JSON.stringify(response, null, 2));
 
       if (response.success && response.data) {
-        setOrderDetails(response.data);
+        // Backend returns nested structure: { success, data: { success, message, data: { actual order } } }
+        // Extract the actual order data from the nested structure
+        const orderData = response.data.data || response.data;
+        console.log('✅ Setting order details');
+        console.log('📋 Extracted order data:', JSON.stringify(orderData, null, 2));
+        console.log('🔑 Order status:', orderData.order_status);
+        console.log('🔑 Order ID:', orderData.id);
+        setOrderDetails(orderData);
       } else {
-        throw new Error('Order not found');
+        console.error('❌ Response not successful or no data');
+        console.error('Response success:', response.success);
+        console.error('Response data:', response.data);
+        console.error('Response error:', response.error);
+        throw new Error(response.error || 'Order not found');
       }
     } catch (error: any) {
-      console.error('Error loading order details:', error);
+      console.error('❌ ERROR in loadOrderDetails:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
       modal.showError('Failed to load order details');
     } finally {
       setLoading(false);
+      console.log('🏁 loadOrderDetails completed');
     }
   };
 
-  const markReadyForPickup = async () => {
+  const markReadyForPickup = () => {
     if (!orderDetails) return;
 
-    Alert.alert(
-      'Mark Ready for Pickup',
-      'Are you sure the order is ready for pickup? This will notify delivery partners.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Mark Ready',
-          onPress: async () => {
-            setUpdating(true);
-            try {
-              const response = await apiService.patch(`/partner-orders/${orderDetails.id}/ready-for-pickup`, {});
+    // Check if partner has location coordinates
+    if (!partnerData) {
+      modal.showError('Unable to load partner information. Please try again.');
+      return;
+    }
 
-              if (response.success) {
-                modal.showSuccess('Order marked as ready for pickup!', {
-                  onClose: () => loadOrderDetails(),
-                });
-              } else {
-                throw new Error(response.error || 'Failed to update status');
-              }
-            } catch (error: any) {
-              console.error('Error marking order ready:', error);
-              modal.showError(error.message || 'Failed to mark order as ready');
-            } finally {
-              setUpdating(false);
-            }
-          }
+    if (!partnerData.latitude || !partnerData.longitude) {
+      modal.showError(
+        'Your location coordinates are not set. Please update your profile with your business address and coordinates before marking orders as ready for pickup.',
+        {
+          title: 'Location Required',
+          primaryButtonText: 'Update Profile',
+          secondaryButtonText: 'Cancel',
+          onPrimaryPress: () => {
+            modal.hideModal();
+            // Navigate to profile screen
+            router.push('/profile');
+          },
+          onSecondaryPress: modal.hideModal,
+          hideSecondaryButton: false
         }
-      ]
+      );
+      return;
+    }
+
+    modal.showWarning(
+      'Are you sure the order is ready for pickup? This will notify delivery partners.',
+      {
+        title: 'Mark Ready for Pickup',
+        primaryButtonText: 'Mark Ready',
+        secondaryButtonText: 'Cancel',
+        onPrimaryPress: async () => {
+          modal.hideModal();
+          setUpdating(true);
+          try {
+            // Determine order type from orderDetails or URL param
+            const type = orderDetails.order_type || (orderType as string) || 'product';
+            console.log('🔄 Marking order ready with type:', type);
+            console.log('🔄 Current order status:', orderDetails.order_status);
+            console.log('📍 Partner location:', {
+              latitude: partnerData.latitude,
+              longitude: partnerData.longitude
+            });
+
+            // If order is in "placed" status, first confirm it
+            if (orderDetails.order_status === 'placed') {
+              console.log('⚠️ Order is in "placed" status, confirming first...');
+
+              const confirmResponse = await apiService.patch(`/partner-orders/${orderDetails.id}/status`, {
+                order_type: type,
+                status: 'confirmed'
+              });
+
+              if (!confirmResponse.success) {
+                throw new Error(confirmResponse.error || 'Failed to confirm order');
+              }
+
+              console.log('✅ Order confirmed successfully');
+              // Update local state
+              setOrderDetails(prev => prev ? { ...prev, order_status: 'confirmed' } : null);
+            }
+
+            // Now mark as ready for pickup with location coordinates
+            console.log('🔄 Calling ready-for-pickup endpoint with coordinates...');
+            const response = await apiService.post(`/partner/orders/${orderDetails.id}/ready-for-pickup`, {
+              order_type: type,
+              partner_latitude: partnerData.latitude,
+              partner_longitude: partnerData.longitude
+            });
+
+            if (response.success) {
+              // Immediately refresh the order details
+              await loadOrderDetails();
+
+              modal.showSuccess('Order marked as ready for pickup! Delivery partner will be assigned.');
+            } else {
+              throw new Error(response.error || 'Failed to update status');
+            }
+          } catch (error: any) {
+            console.error('Error marking order ready:', error);
+            const errorMessage = error.message || error.toString();
+
+            // Check if error is about missing location
+            if (errorMessage.includes('location') || errorMessage.includes('coordinates')) {
+              modal.showError(
+                'Your location is required to mark orders as ready. Please update your profile with your business address.',
+                {
+                  title: 'Location Required',
+                  primaryButtonText: 'Update Profile',
+                  onPrimaryPress: () => {
+                    modal.hideModal();
+                    router.push('/profile');
+                  }
+                }
+              );
+            } else {
+              modal.showError(errorMessage || 'Failed to mark order as ready');
+            }
+          } finally {
+            setUpdating(false);
+          }
+        },
+        onSecondaryPress: modal.hideModal
+      }
     );
   };
 
@@ -130,7 +309,12 @@ export default function OrderDetailsScreen() {
 
     setUpdating(true);
     try {
+      // Determine order type from orderDetails or URL param
+      const type = orderDetails.order_type || (orderType as string) || 'product';
+      console.log('🔄 Updating order status with type:', type, 'to status:', newStatus);
+
       const response = await apiService.patch(`/partner-orders/${orderDetails.id}/status`, {
+        order_type: type,
         status: newStatus
       });
 
@@ -209,8 +393,22 @@ export default function OrderDetailsScreen() {
   }
 
   const currentStatus = statusOptions.find(s => s.value === orderDetails.order_status);
-  const canMarkReady = ['confirmed', 'processing'].includes(orderDetails.order_status);
-  const canCancelOrder = orderDetails.order_status === 'ready_for_pickup';
+  const canMarkReady = ['placed', 'confirmed', 'processing'].includes(orderDetails.order_status);
+  // Can cancel if order is placed, confirmed, or processing (before delivery partner pickup)
+  const canCancelOrder = ['placed', 'confirmed', 'processing'].includes(orderDetails.order_status);
+
+  console.log('📊 Order Details State:');
+  console.log('  Order ID:', orderDetails.id);
+  console.log('  Current Status:', orderDetails.order_status);
+  console.log('  Date Fields Available:');
+  console.log('    - order_date:', orderDetails.order_date);
+  console.log('    - placed_at:', orderDetails.placed_at);
+  console.log('    - created_at:', orderDetails.created_at);
+  console.log('  Using date:', orderDetails.order_date || orderDetails.placed_at || orderDetails.created_at);
+  console.log('  Customer:', orderDetails.customer_name);
+  console.log('  Total Amount:', orderDetails.total_amount);
+  console.log('  Can Mark Ready:', canMarkReady);
+  console.log('  Can Cancel:', canCancelOrder);
 
   let orderItems = [];
   let productNames = '';
@@ -256,13 +454,54 @@ export default function OrderDetailsScreen() {
 
           <View style={styles.orderDateRow}>
             <Ionicons name="calendar-outline" size={16} color="#666" />
-            <Text style={styles.orderDate}>
-              {new Date(orderDetails.order_date).toLocaleDateString('en-US', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric'
-              })}
-            </Text>
+            {(() => {
+              // Use order_date if available, otherwise fall back to placed_at or created_at
+              const dateStr = orderDetails.order_date || orderDetails.placed_at || orderDetails.created_at;
+              if (!dateStr) return <Text style={styles.orderDate}>Date not available</Text>;
+
+              try {
+                const date = new Date(dateStr);
+                console.log('📅 Date string:', dateStr);
+                console.log('📅 Date object:', date);
+                console.log('📅 Date ISO:', date.toISOString());
+
+                const dateFormatted = date.toLocaleDateString('en-US', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric'
+                });
+                console.log('📅 Date formatted:', dateFormatted);
+
+                // Manual time formatting (more reliable in React Native)
+                const rawHours = date.getHours();
+                const minutes = date.getMinutes();
+                const ampm = rawHours >= 12 ? 'PM' : 'AM';
+                let hours = rawHours % 12;
+                hours = hours ? hours : 12; // 0 should be 12
+                const minutesStr = minutes < 10 ? '0' + minutes : minutes.toString();
+
+                console.log('📅 Raw hours:', rawHours);
+                console.log('📅 Converted hours:', hours);
+                console.log('📅 Minutes:', minutes, 'Minutes string:', minutesStr);
+                console.log('📅 AM/PM:', ampm);
+
+                const timeStr = hours + ':' + minutesStr + ' ' + ampm;
+                console.log('📅 Time string:', timeStr);
+                console.log('📅 Final result:', dateFormatted + ' at ' + timeStr);
+
+                // Use View wrapper with flex to ensure text doesn't get cut off
+                return (
+                  <View style={styles.dateTextWrapper}>
+                    <Text style={styles.orderDate} numberOfLines={2}>
+                      {dateFormatted} at {hours}:{minutesStr} {ampm}
+                    </Text>
+                  </View>
+                );
+              } catch (error) {
+                console.error('Error formatting date:', error);
+                return <Text style={styles.orderDate}>Invalid date</Text>;
+              }
+            })()}
           </View>
 
           {/* Mark Ready for Pickup Button */}
@@ -277,7 +516,7 @@ export default function OrderDetailsScreen() {
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                  <Text style={styles.readyButtonText}>Mark Ready for Pickup</Text>
+                  <Text style={styles.readyButtonText}>Ready for Pickup</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -600,9 +839,19 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 16,
   },
+  dateTextWrapper: {
+    flex: 1,
+    flexShrink: 1,
+  },
   orderDate: {
     fontSize: 14,
     color: '#666',
+    flexWrap: 'wrap',
+  },
+  orderTime: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '600',
   },
   sectionTitle: {
     fontSize: 18,
