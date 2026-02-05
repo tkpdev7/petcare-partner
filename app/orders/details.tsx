@@ -393,9 +393,14 @@ export default function OrderDetailsScreen() {
   }
 
   const currentStatus = statusOptions.find(s => s.value === orderDetails.order_status);
-  const canMarkReady = ['placed', 'confirmed', 'processing'].includes(orderDetails.order_status);
+  // Can mark ready only if not already ready for pickup and no delivery assignment
+  const canMarkReady = ['placed', 'confirmed', 'processing'].includes(orderDetails.order_status) &&
+                       orderDetails.delivery_status !== 'ready_for_pickup' &&
+                       !orderDetails.delivery_assignment_id;
   // Can cancel if order is placed, confirmed, or processing (before delivery partner pickup)
-  const canCancelOrder = ['placed', 'confirmed', 'processing'].includes(orderDetails.order_status);
+  const canCancelOrder = ['placed', 'confirmed', 'processing'].includes(orderDetails.order_status) &&
+                         orderDetails.delivery_status !== 'ready_for_pickup' &&
+                         !orderDetails.delivery_assignment_id;
 
   console.log('📊 Order Details State:');
   console.log('  Order ID:', orderDetails.id);
@@ -523,7 +528,7 @@ export default function OrderDetailsScreen() {
           )}
 
           {/* Info Box for Ready for Pickup */}
-          {orderDetails.order_status === 'ready_for_pickup' && !assignment && (
+          {orderDetails.delivery_status === 'ready_for_pickup' && !assignment && (
             <View style={styles.infoBox}>
               <Ionicons name="checkmark-circle" size={20} color="#00BCD4" />
               <Text style={styles.infoText}>
