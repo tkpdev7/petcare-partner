@@ -15,10 +15,10 @@
       }
     },
     "production": {
+      "autoIncrement": true,
       "android": {
         "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease",
-        "withoutCredentials": true
+        "gradleCommand": ":app:assembleRelease"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://petcare-api-0svs.onrender.com",

@@ -63,9 +63,10 @@ export default function MySlotsScreen() {
       const formattedToday = formatDateForAPI(today);
 
       // Get upcoming available slots only (not booked)
+      // Limit increased to show ~60 days of slots (assuming 25-30 slots per day)
       const response = await apiService.getPartnerSlots({
         from_date: formattedToday,
-        limit: 100,
+        limit: 1500,
       });
 
       if (response.success) {
