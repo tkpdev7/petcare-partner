@@ -8,9 +8,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Platform,
+  Modal,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import AppHeader from '../../components/AppHeader';
 import CustomModal from '../../components/CustomModal';
 import { useCustomModal } from '../../hooks/useCustomModal';
@@ -38,6 +41,16 @@ export default function MySlotsScreen() {
   const [expandedSlot, setExpandedSlot] = useState<number | null>(null);
   const [partnerName, setPartnerName] = useState('Partner');
 
+  // Date filter states
+  const [fromDate, setFromDate] = useState<Date>(new Date());
+  const [toDate, setToDate] = useState<Date>(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 30); // Default to 30 days from today
+    return date;
+  });
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
+
   useFocusEffect(
     useCallback(() => {
       loadSlots();
@@ -59,13 +72,13 @@ export default function MySlotsScreen() {
   const loadSlots = async () => {
     try {
       setLoading(true);
-      const today = new Date();
-      const formattedToday = formatDateForAPI(today);
+      const formattedFromDate = formatDateForAPI(fromDate);
+      const formattedToDate = formatDateForAPI(toDate);
 
-      // Get upcoming available slots only (not booked)
-      // Limit increased to show ~60 days of slots (assuming 25-30 slots per day)
+      // Get slots within selected date range
       const response = await apiService.getPartnerSlots({
-        from_date: formattedToday,
+        from_date: formattedFromDate,
+        to_date: formattedToDate,
         limit: 1500,
       });
 
@@ -208,6 +221,35 @@ export default function MySlotsScreen() {
     setExpandedSlot(expandedSlot === slotId ? null : slotId);
   };
 
+  const handleFromDateChange = (event: any, selectedDate?: Date) => {
+    setShowFromPicker(Platform.OS === 'ios'); // Keep picker open on iOS
+    if (selectedDate) {
+      setFromDate(selectedDate);
+      // If from date is after to date, adjust to date
+      if (selectedDate > toDate) {
+        const newToDate = new Date(selectedDate);
+        newToDate.setDate(newToDate.getDate() + 7); // Set to 7 days later
+        setToDate(newToDate);
+      }
+    }
+  };
+
+  const handleToDateChange = (event: any, selectedDate?: Date) => {
+    setShowToPicker(Platform.OS === 'ios'); // Keep picker open on iOS
+    if (selectedDate) {
+      // Ensure to date is not before from date
+      if (selectedDate >= fromDate) {
+        setToDate(selectedDate);
+      } else {
+        modal.showWarning('To date cannot be before From date');
+      }
+    }
+  };
+
+  const applyDateFilter = () => {
+    loadSlots();
+  };
+
   const renderDateSection = ({ item }: { item: [string, Slot[]] }) => {
     const [date, dateSlots] = item;
     const firstSlot = dateSlots[0];
@@ -307,6 +349,65 @@ export default function MySlotsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <AppHeader title="My Slots" showBackButton={true} />
+
+      {/* Date Filter Section */}
+      <View style={styles.filterContainer}>
+        <View style={styles.dateRow}>
+          {/* From Date */}
+          <View style={styles.datePickerWrapper}>
+            <Text style={styles.filterLabel}>From Date</Text>
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => setShowFromPicker(true)}
+            >
+              <Ionicons name="calendar-outline" size={20} color={Colors.primary} />
+              <Text style={styles.dateText}>{formatDate(formatDateForAPI(fromDate))}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* To Date */}
+          <View style={styles.datePickerWrapper}>
+            <Text style={styles.filterLabel}>To Date</Text>
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => setShowToPicker(true)}
+            >
+              <Ionicons name="calendar-outline" size={20} color={Colors.primary} />
+              <Text style={styles.dateText}>{formatDate(formatDateForAPI(toDate))}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Apply Filter Button */}
+        <TouchableOpacity
+          style={styles.applyFilterButton}
+          onPress={applyDateFilter}
+        >
+          <Ionicons name="funnel-outline" size={18} color={Colors.white} />
+          <Text style={styles.applyFilterText}>Apply Filter</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Date Pickers */}
+      {showFromPicker && (
+        <DateTimePicker
+          value={fromDate}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleFromDateChange}
+          minimumDate={new Date()}
+        />
+      )}
+
+      {showToPicker && (
+        <DateTimePicker
+          value={toDate}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleToDateChange}
+          minimumDate={fromDate}
+        />
+      )}
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -538,5 +639,63 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSizes.base,
     fontWeight: Typography.fontWeights.bold,
     color: Colors.primary,
+  },
+  filterContainer: {
+    backgroundColor: Colors.white,
+    padding: Spacing.lg,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
+    borderRadius: BorderRadius.md,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  datePickerWrapper: {
+    flex: 1,
+  },
+  filterLabel: {
+    fontSize: Typography.fontSizes.sm,
+    fontWeight: Typography.fontWeights.medium,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.backgroundSecondary,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    gap: Spacing.sm,
+  },
+  dateText: {
+    fontSize: Typography.fontSizes.sm,
+    color: Colors.textPrimary,
+    fontWeight: Typography.fontWeights.medium,
+  },
+  applyFilterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    gap: Spacing.sm,
+  },
+  applyFilterText: {
+    fontSize: Typography.fontSizes.base,
+    fontWeight: Typography.fontWeights.bold,
+    color: Colors.white,
   },
 });

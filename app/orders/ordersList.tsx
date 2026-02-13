@@ -9,11 +9,14 @@ import {
   RefreshControl,
   ActivityIndicator,
   TextInput,
+  Platform,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import apiService from '../../services/apiService';
 import { Colors } from '../../constants/Colors';
 import CustomModal from '../../components/CustomModal';
@@ -40,6 +43,19 @@ export default function OrdersListScreen() {
   const [selectedTab, setSelectedTab] = useState<'incoming' | 'ready' | 'out_delivered'>('incoming');
   const [partnerData, setPartnerData] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Filter states
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [fromDate, setFromDate] = useState<Date>(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30); // Default to 30 days ago
+    return date;
+  });
+  const [toDate, setToDate] = useState<Date>(new Date());
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
 
   useEffect(() => {
     loadPartnerData();
@@ -363,14 +379,93 @@ export default function OrdersListScreen() {
   };
 
   const filteredOrders = orders.filter(order => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase().trim();
-    return order.id.toString().toLowerCase().includes(query);
+    // Search query filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      if (!order.id.toString().toLowerCase().includes(query)) {
+        return false;
+      }
+    }
+
+    // Status filter
+    if (statusFilter !== 'all' && order.order_status !== statusFilter) {
+      return false;
+    }
+
+    // Date range filter
+    const orderDate = new Date(order.order_date);
+    const fromDateTime = new Date(fromDate);
+    fromDateTime.setHours(0, 0, 0, 0);
+    const toDateTime = new Date(toDate);
+    toDateTime.setHours(23, 59, 59, 999);
+
+    if (orderDate < fromDateTime || orderDate > toDateTime) {
+      return false;
+    }
+
+    return true;
   });
 
   const handleBackPress = () => {
-    // Always navigate to homepage
-    router.push('/(tabs)');
+    // Navigate back or to home
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
+
+  const formatDateForAPI = (date: Date) => {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatDateDisplay = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  };
+
+  const handleFromDateChange = (event: any, selectedDate?: Date) => {
+    setShowFromPicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setFromDate(selectedDate);
+      if (selectedDate > toDate) {
+        const newToDate = new Date(selectedDate);
+        newToDate.setDate(newToDate.getDate() + 7);
+        setToDate(newToDate);
+      }
+    }
+  };
+
+  const handleToDateChange = (event: any, selectedDate?: Date) => {
+    setShowToPicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      if (selectedDate >= fromDate) {
+        setToDate(selectedDate);
+      } else {
+        modal.showWarning('To date cannot be before From date');
+      }
+    }
+  };
+
+  const applyFilters = () => {
+    setShowFilters(false);
+    loadOrders();
+  };
+
+  const resetFilters = () => {
+    setStatusFilter('all');
+    const newFromDate = new Date();
+    newFromDate.setDate(newFromDate.getDate() - 30);
+    setFromDate(newFromDate);
+    setToDate(new Date());
+    loadOrders();
   };
 
   return (
@@ -391,25 +486,147 @@ export default function OrdersListScreen() {
         </View>
 
         {/* Search Bar */}
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={22} color="#666" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by Order ID..."
-            placeholderTextColor="#aaa"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            keyboardType="default"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
-              <Ionicons name="close-circle" size={22} color="#666" />
-            </TouchableOpacity>
-          )}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={22} color="#666" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by Order ID..."
+              placeholderTextColor="#aaa"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              keyboardType="default"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+                <Ionicons name="close-circle" size={22} color="#666" />
+              </TouchableOpacity>
+            )}
+          </View>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setShowFilters(!showFilters)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="filter" size={22} color={Colors.primary} />
+          </TouchableOpacity>
         </View>
+
+        {/* Filters Section */}
+        {showFilters && (
+          <View style={styles.filtersContainer}>
+            {/* Status Filter */}
+            <View style={styles.filterRow}>
+              <Text style={styles.filterLabel}>Status:</Text>
+              <TouchableOpacity
+                style={styles.filterPickerButton}
+                onPress={() => setShowStatusPicker(!showStatusPicker)}
+              >
+                <Text style={styles.filterPickerText}>
+                  {statusFilter === 'all' ? 'All Status' : getStatusLabel(statusFilter)}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Status Picker Modal */}
+            {showStatusPicker && (
+              <View style={styles.pickerContainer}>
+                <TouchableOpacity
+                  style={styles.pickerOption}
+                  onPress={() => {
+                    setStatusFilter('all');
+                    setShowStatusPicker(false);
+                  }}
+                >
+                  <Text style={[styles.pickerOptionText, statusFilter === 'all' && styles.pickerOptionSelected]}>
+                    All Status
+                  </Text>
+                </TouchableOpacity>
+                {['confirmed', 'processing', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'cancelled'].map((status) => (
+                  <TouchableOpacity
+                    key={status}
+                    style={styles.pickerOption}
+                    onPress={() => {
+                      setStatusFilter(status);
+                      setShowStatusPicker(false);
+                    }}
+                  >
+                    <Text style={[styles.pickerOptionText, statusFilter === status && styles.pickerOptionSelected]}>
+                      {getStatusLabel(status)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {/* Date Filter */}
+            <View style={styles.dateFilterRow}>
+              <View style={styles.dateFilterItem}>
+                <Text style={styles.filterLabel}>From Date:</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowFromPicker(true)}
+                >
+                  <Ionicons name="calendar-outline" size={18} color={Colors.primary} />
+                  <Text style={styles.dateText}>{formatDateDisplay(formatDateForAPI(fromDate))}</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.dateFilterItem}>
+                <Text style={styles.filterLabel}>To Date:</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowToPicker(true)}
+                >
+                  <Ionicons name="calendar-outline" size={18} color={Colors.primary} />
+                  <Text style={styles.dateText}>{formatDateDisplay(formatDateForAPI(toDate))}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Filter Actions */}
+            <View style={styles.filterActions}>
+              <TouchableOpacity
+                style={styles.resetButton}
+                onPress={resetFilters}
+              >
+                <Text style={styles.resetButtonText}>Reset</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.applyButton}
+                onPress={applyFilters}
+              >
+                <Text style={styles.applyButtonText}>Apply Filters</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
+
+      {/* Date Pickers */}
+      {showFromPicker && (
+        <DateTimePicker
+          value={fromDate}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleFromDateChange}
+          maximumDate={toDate}
+        />
+      )}
+
+      {showToPicker && (
+        <DateTimePicker
+          value={toDate}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={handleToDateChange}
+          minimumDate={fromDate}
+          maximumDate={new Date()}
+        />
+      )}
 
       {/* Tabs */}
       <View style={styles.tabs}>
@@ -540,6 +757,7 @@ const styles = StyleSheet.create({
     width: 40,
   },
   searchBar: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFF',
@@ -688,5 +906,135 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#888',
     textAlign: 'center',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  filterButton: {
+    width: 52,
+    height: 52,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#E8E8E8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  filtersContainer: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    gap: 12,
+  },
+  filterRow: {
+    gap: 8,
+  },
+  filterLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 4,
+  },
+  filterPickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+  },
+  filterPickerText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
+  pickerContainer: {
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    overflow: 'hidden',
+  },
+  pickerOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  pickerOptionText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  pickerOptionSelected: {
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  dateFilterRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  dateFilterItem: {
+    flex: 1,
+    gap: 4,
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    gap: 8,
+  },
+  dateText: {
+    fontSize: 13,
+    color: '#333',
+    fontWeight: '500',
+    flex: 1,
+  },
+  filterActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  resetButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    alignItems: 'center',
+  },
+  resetButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  applyButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+  },
+  applyButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFF',
   },
 });

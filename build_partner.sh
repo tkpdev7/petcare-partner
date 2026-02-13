@@ -1,0 +1,11 @@
+#!/bin/bash
+echo "Building PetCare Partner App..."
+echo ""
+echo "This build requires Android keystore generation."
+echo "Please visit: https://expo.dev/accounts/kavitha612/projects/petcare-partner/credentials"
+echo ""
+echo "Or run this command manually in your terminal (not in Claude):"
+echo "  cd petcare-partner"
+echo "  npx eas build --platform android --profile preview"
+echo ""
+echo "When prompted, select 'Generate new keystore'"
