@@ -15,6 +15,18 @@ import apiService from '../../services/apiService';
 import { useCustomModal } from '../../hooks/useCustomModal';
 import CustomModal from '../../components/CustomModal';
 
+interface Medicine {
+  drug_name: string;
+  dosage?: string;
+  morning?: string;
+  afternoon?: string;
+  evening?: string;
+  night?: string;
+  intake?: string;
+  frequency?: string;
+  duration?: string;
+}
+
 interface CaseSheetData {
   id: string;
   appointment_id: string;
@@ -40,10 +52,29 @@ export default function ViewCaseSheetScreen() {
 
   const [loading, setLoading] = useState(true);
   const [caseSheet, setCaseSheet] = useState<CaseSheetData | null>(null);
+  const [prescriptions, setPrescriptions] = useState<Medicine[]>([]);
 
   useEffect(() => {
     loadCaseSheet();
+    if (appointmentId) {
+      loadPrescriptions();
+    }
   }, []);
+
+  const loadPrescriptions = async () => {
+    try {
+      const response = await apiService.getAppointment(appointmentId);
+      if (response.success && response.data) {
+        const apptData = response.data.data || response.data;
+        const data = apptData.prescription_data;
+        if (Array.isArray(data) && data.length > 0) {
+          setPrescriptions(data);
+        }
+      }
+    } catch {
+      // silently ignore — prescription data is optional
+    }
+  };
 
   const loadCaseSheet = async () => {
     try {
@@ -211,6 +242,66 @@ export default function ViewCaseSheetScreen() {
             </View>
             <View style={styles.textBlock}>
               <Text style={styles.value}>{caseSheet.clinical_notes}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Prescription Section */}
+        {prescriptions.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="medical-outline" size={20} color={Colors.primary} />
+              <Text style={styles.sectionTitle}>Prescription</Text>
+            </View>
+            <View style={styles.medicationsContainer}>
+              {prescriptions.map((med, index) => (
+                <View key={index} style={styles.medicationCard}>
+                  <View style={styles.medicationHeader}>
+                    <Ionicons name="eyedrop-outline" size={16} color={Colors.primary} />
+                    <Text style={styles.medicationName}>{med.drug_name}</Text>
+                  </View>
+                  <View style={styles.medicationDetails}>
+                    {med.dosage ? (
+                      <View style={styles.medicationDetail}>
+                        <Text style={styles.medicationDetailLabel}>Dosage:</Text>
+                        <Text style={styles.medicationDetailValue}>{med.dosage}</Text>
+                      </View>
+                    ) : null}
+                    {(med.morning || med.afternoon || med.evening || med.night) ? (
+                      <View style={styles.medicationDetail}>
+                        <Text style={styles.medicationDetailLabel}>Frequency:</Text>
+                        <Text style={styles.medicationDetailValue}>
+                          {[
+                            med.morning !== '0' && med.morning ? `M:${med.morning}` : null,
+                            med.afternoon !== '0' && med.afternoon ? `A:${med.afternoon}` : null,
+                            med.evening !== '0' && med.evening ? `E:${med.evening}` : null,
+                            med.night !== '0' && med.night ? `N:${med.night}` : null,
+                          ].filter(Boolean).join('  ') || 'As prescribed'}
+                        </Text>
+                      </View>
+                    ) : med.frequency ? (
+                      <View style={styles.medicationDetail}>
+                        <Text style={styles.medicationDetailLabel}>Frequency:</Text>
+                        <Text style={styles.medicationDetailValue}>{med.frequency}</Text>
+                      </View>
+                    ) : null}
+                    {med.intake ? (
+                      <View style={styles.medicationDetail}>
+                        <Text style={styles.medicationDetailLabel}>Intake:</Text>
+                        <Text style={styles.medicationDetailValue}>
+                          {med.intake === 'BF' ? 'Before Food' : med.intake === 'AF' ? 'After Food' : med.intake}
+                        </Text>
+                      </View>
+                    ) : null}
+                    {med.duration ? (
+                      <View style={styles.medicationDetail}>
+                        <Text style={styles.medicationDetailLabel}>Duration:</Text>
+                        <Text style={styles.medicationDetailValue}>{med.duration}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
             </View>
           </View>
         )}

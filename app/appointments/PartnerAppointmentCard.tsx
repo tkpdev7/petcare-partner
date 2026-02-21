@@ -651,6 +651,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     letterSpacing: 4,
     marginBottom: 12,
+    color: "#333",
   },
   errorText: {
     color: "#F44336",
