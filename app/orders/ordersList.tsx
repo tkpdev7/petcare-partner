@@ -103,9 +103,15 @@ export default function OrdersListScreen() {
 
       let response;
       if (selectedTab === 'incoming') {
-        console.log('🔵 Fetching incoming orders (confirmed + processing)...');
+        console.log('🔵 Fetching incoming orders (placed + confirmed + processing)...');
 
-        // Fetch both confirmed and processing orders
+        // Fetch placed, confirmed, and processing orders
+        const placedResponse = await apiService.getOrders({
+          status: 'placed',
+          limit: 50
+        });
+        console.log('✅ Placed orders response:', JSON.stringify(placedResponse, null, 2));
+
         const confirmedResponse = await apiService.getOrders({
           status: 'confirmed',
           limit: 50
@@ -119,8 +125,17 @@ export default function OrdersListScreen() {
         console.log('✅ Processing orders response:', JSON.stringify(processingResponse, null, 2));
 
         // Enhanced parsing with detailed logging
+        let placedOrders: any[] = [];
         let confirmedOrders = [];
         let processingOrders = [];
+
+        if (placedResponse.success && placedResponse.data) {
+          placedOrders = placedResponse.data.data?.orders
+            || placedResponse.data.orders
+            || placedResponse.data
+            || [];
+          console.log(`📊 Parsed ${placedOrders.length} placed orders`);
+        }
 
         if (confirmedResponse.success && confirmedResponse.data) {
           console.log('🔍 Confirmed response structure:', {
@@ -156,7 +171,7 @@ export default function OrdersListScreen() {
           console.warn('⚠️ Processing response not successful or no data:', processingResponse);
         }
 
-        const combinedOrders = [...confirmedOrders, ...processingOrders].sort((a, b) =>
+        const combinedOrders = [...placedOrders, ...confirmedOrders, ...processingOrders].sort((a, b) =>
           new Date(b.order_date).getTime() - new Date(a.order_date).getTime()
         );
         console.log(`🎯 Total incoming orders: ${combinedOrders.length}`);
@@ -257,6 +272,8 @@ export default function OrdersListScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
+      case 'placed':
+        return '#8B5CF6';
       case 'confirmed':
         return '#2196F3';
       case 'processing':
@@ -276,6 +293,8 @@ export default function OrdersListScreen() {
 
   const getStatusLabel = (status: string) => {
     switch (status?.toLowerCase()) {
+      case 'placed':
+        return 'Placed';
       case 'confirmed':
         return 'Confirmed';
       case 'processing':
@@ -545,7 +564,7 @@ export default function OrdersListScreen() {
                     All Status
                   </Text>
                 </TouchableOpacity>
-                {['confirmed', 'processing', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'cancelled'].map((status) => (
+                {['placed', 'confirmed', 'processing', 'ready_for_pickup', 'out_for_delivery', 'delivered', 'cancelled'].map((status) => (
                   <TouchableOpacity
                     key={status}
                     style={styles.pickerOption}
