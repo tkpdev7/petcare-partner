@@ -19,20 +19,10 @@ import apiService from '../../services/apiService';
 import { useCustomModal } from '../../hooks/useCustomModal';
 import CustomModal from '../../components/CustomModal';
 
-const FREQUENCY_OPTIONS = [
-  'Once daily',
-  'Twice daily',
-  'Three times daily',
-  'Four times daily',
-  'Every 6 hours',
-  'Every 8 hours',
-  'Every 12 hours',
-  'As needed',
-  'Before meals',
-  'After meals',
-  'At bedtime',
-  'Morning only',
-  'Evening only',
+const DOSE_OPTIONS = ['0', '0.5', '1'];
+const INTAKE_OPTIONS = [
+  { value: 'BF', label: 'Before Food' },
+  { value: 'AF', label: 'After Food' },
 ];
 
 const DURATION_OPTIONS = [
@@ -50,7 +40,11 @@ const DURATION_OPTIONS = [
 interface Medicine {
   drug_name: string;
   dosage: string;
-  frequency: string;
+  morning: string;
+  afternoon: string;
+  evening: string;
+  night: string;
+  intake: string;
   duration: string;
 }
 
@@ -75,11 +69,10 @@ export default function AddPrescriptionScreen() {
 
   // Prescription fields
   const [medicines, setMedicines] = useState<Medicine[]>([
-    { drug_name: '', dosage: '', frequency: '', duration: '' }
+    { drug_name: '', dosage: '', morning: '0', afternoon: '0', evening: '0', night: '0', intake: 'BF', duration: '' }
   ]);
 
   // Dropdown states
-  const [showFrequencyDropdown, setShowFrequencyDropdown] = useState(false);
   const [showDurationDropdown, setShowDurationDropdown] = useState(false);
   const [selectedMedicineIndex, setSelectedMedicineIndex] = useState<number>(0);
 
@@ -126,7 +119,7 @@ export default function AddPrescriptionScreen() {
   };
 
   const addMedicineRow = () => {
-    setMedicines([...medicines, { drug_name: '', dosage: '', frequency: '', duration: '' }]);
+    setMedicines([...medicines, { drug_name: '', dosage: '', morning: '0', afternoon: '0', evening: '0', night: '0', intake: 'BF', duration: '' }]);
   };
 
   const removeMedicineRow = (index: number) => {
@@ -140,11 +133,6 @@ export default function AddPrescriptionScreen() {
     const newMedicines = [...medicines];
     newMedicines[index][field] = value;
     setMedicines(newMedicines);
-  };
-
-  const handleFrequencySelect = (value: string) => {
-    updateMedicine(selectedMedicineIndex, 'frequency', value);
-    setShowFrequencyDropdown(false);
   };
 
   const handleDurationSelect = (value: string) => {
@@ -421,14 +409,6 @@ export default function AddPrescriptionScreen() {
 
       {/* Dropdown Modals */}
       <DropdownModal
-        visible={showFrequencyDropdown}
-        onClose={() => setShowFrequencyDropdown(false)}
-        options={FREQUENCY_OPTIONS}
-        onSelect={handleFrequencySelect}
-        title="Select Frequency"
-      />
-
-      <DropdownModal
         visible={showDurationDropdown}
         onClose={() => setShowDurationDropdown(false)}
         options={DURATION_OPTIONS}
@@ -486,19 +466,44 @@ export default function AddPrescriptionScreen() {
                   placeholder="e.g., 250mg"
                 />
 
-                <Text style={styles.label}>Frequency *</Text>
-                <TouchableOpacity
-                  style={styles.dropdownInput}
-                  onPress={() => {
-                    setSelectedMedicineIndex(index);
-                    setShowFrequencyDropdown(true);
-                  }}
-                >
-                  <Text style={[styles.dropdownInputText, !medicine.frequency && styles.placeholderText]}>
-                    {medicine.frequency || 'Select frequency'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color="#999" />
-                </TouchableOpacity>
+                <Text style={styles.label}>Frequency (doses per time of day)</Text>
+                <View style={styles.frequencyGrid}>
+                  {(['morning', 'afternoon', 'evening', 'night'] as const).map((slot) => (
+                    <View key={slot} style={styles.frequencySlot}>
+                      <Text style={styles.frequencySlotLabel}>
+                        {slot.charAt(0).toUpperCase() + slot.slice(1)}
+                      </Text>
+                      <View style={styles.doseOptions}>
+                        {DOSE_OPTIONS.map((dose) => (
+                          <TouchableOpacity
+                            key={dose}
+                            style={[styles.doseOption, medicine[slot] === dose && styles.doseOptionSelected]}
+                            onPress={() => updateMedicine(index, slot, dose)}
+                          >
+                            <Text style={[styles.doseOptionText, medicine[slot] === dose && styles.doseOptionTextSelected]}>
+                              {dose}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+
+                <Text style={styles.label}>Intake</Text>
+                <View style={styles.intakeOptions}>
+                  {INTAKE_OPTIONS.map((opt) => (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[styles.intakeOption, medicine.intake === opt.value && styles.intakeOptionSelected]}
+                      onPress={() => updateMedicine(index, 'intake', opt.value)}
+                    >
+                      <Text style={[styles.intakeOptionText, medicine.intake === opt.value && styles.intakeOptionTextSelected]}>
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
 
                 <Text style={styles.label}>Duration *</Text>
                 <TouchableOpacity
@@ -848,5 +853,74 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.dark,
     flex: 1,
+  },
+  frequencyGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 6,
+    marginTop: 4,
+  },
+  frequencySlot: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  frequencySlotLabel: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '600',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  doseOptions: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  doseOption: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  doseOptionSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  doseOptionText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#555',
+  },
+  doseOptionTextSelected: {
+    color: '#fff',
+  },
+  intakeOptions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  intakeOption: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  intakeOptionSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  intakeOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#555',
+  },
+  intakeOptionTextSelected: {
+    color: '#fff',
   },
 });

@@ -203,25 +203,6 @@ export default function OrderDetailsScreen() {
       return;
     }
 
-    if (!partnerData.latitude || !partnerData.longitude) {
-      modal.showError(
-        'Your location coordinates are not set. Please update your profile with your business address and coordinates before marking orders as ready for pickup.',
-        {
-          title: 'Location Required',
-          primaryButtonText: 'Update Profile',
-          secondaryButtonText: 'Cancel',
-          onPrimaryPress: () => {
-            modal.hideModal();
-            // Navigate to profile screen
-            router.push('/profile');
-          },
-          onSecondaryPress: modal.hideModal,
-          hideSecondaryButton: false
-        }
-      );
-      return;
-    }
-
     modal.showWarning(
       'Are you sure the order is ready for pickup? This will notify delivery partners.',
       {
@@ -263,8 +244,10 @@ export default function OrderDetailsScreen() {
             console.log('🔄 Calling ready-for-pickup endpoint with coordinates...');
             const response = await apiService.post(`/partner/orders/${orderDetails.id}/ready-for-pickup`, {
               order_type: type,
-              partner_latitude: partnerData.latitude,
-              partner_longitude: partnerData.longitude
+              ...(partnerData?.latitude && partnerData?.longitude ? {
+                partner_latitude: partnerData.latitude,
+                partner_longitude: partnerData.longitude,
+              } : {}),
             });
 
             if (response.success) {
