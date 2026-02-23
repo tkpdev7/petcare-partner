@@ -31,7 +31,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.petcare.partner",
-      "versionCode": 2,
+      "versionCode": 3,
       "minSdkVersion": 24,
       "edgeToEdgeEnabled": true,
       "permissions": [
@@ -48,10 +48,7 @@
           "apiKey": "AIzaSyDmLE_PV6oEYOeN3u4PZmEFdsFAXRpxYVo"
         }
       },
-      "jsEngine": "hermes",
-      "enableProguardInReleaseBuilds": true,
-      "enableShrinkResources": true,
-      "enableDangerousExperimentalLeanBuilds": true
+      "jsEngine": "hermes"
     },
     "web": {
       "bundler": "metro",
@@ -69,23 +66,14 @@
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
             "buildToolsVersion": "35.0.0",
-            "ndkVersion": "25.1.8937393"
+            "ndkVersion": "25.1.8937393",
+            "extraProguardRules": "-keep class com.google.android.gms.maps.** { *; }\n-keep class com.google.android.gms.common.** { *; }\n-keep class com.google.maps.** { *; }\n-dontwarn com.google.android.gms.**"
           }
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true
-    },
-    "build": {
-      "production": {
-        "android": {
-          "buildType": "apk",
-          "enableProguardInReleaseBuilds": true,
-          "enableHermes": true,
-          "enableShrinkResourcesInReleaseBuilds": true
-        }
-      }
     },
     "extra": {
       "router": {},

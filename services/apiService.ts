@@ -629,6 +629,46 @@ class ApiService {
     return this.makeRequest('GET', `appointment/getAvailableSlots?${queryString}`);
   }
 
+  // Document Upload API (for PDFs and images)
+  async uploadDocument(fileUri: string, fileName: string, mimeType: string, bucketName: string = 'partners', folderPath: string = 'documents'): Promise<ApiResponse> {
+    try {
+      const formData = new FormData();
+
+      formData.append('image', {
+        uri: fileUri,
+        name: fileName,
+        type: mimeType,
+      } as any);
+
+      formData.append('bucketName', bucketName);
+      formData.append('folderPath', folderPath);
+
+      const response = await this.api.post('/upload/single', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message,
+      };
+    } catch (error) {
+      console.error('Upload document error:', error);
+      if (error instanceof AxiosError) {
+        return {
+          success: false,
+          error: error.response?.data?.error || 'Failed to upload document',
+        };
+      }
+      return {
+        success: false,
+        error: 'Failed to upload document',
+      };
+    }
+  }
+
   // Image Upload APIs
   async uploadImage(imageUri: string, bucketName: string = 'users', folderPath: string = 'profiles'): Promise<ApiResponse> {
     try {

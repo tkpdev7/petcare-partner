@@ -358,6 +358,21 @@ export default function RegisterScreen() {
     return `${hours}:${minutes}`;
   };
 
+  const uploadDocumentToSupabase = async (doc: any, folderPath: string): Promise<string | null> => {
+    if (!doc?.uri) return null;
+    const result = await apiService.uploadDocument(
+      doc.uri,
+      doc.name || 'document',
+      doc.mimeType || 'application/octet-stream',
+      'partners',
+      folderPath
+    );
+    if (result.success && result.data?.url) {
+      return result.data.url;
+    }
+    return null;
+  };
+
   const handleRegister = async (values: any, { setSubmitting }: any) => {
     if (!validateAdditionalFields()) {
       setSubmitting(false);
@@ -365,6 +380,20 @@ export default function RegisterScreen() {
     }
 
     try {
+      // Upload documents to Supabase first
+      const docUploads = await Promise.all([
+        uploadDocumentToSupabase(document1, 'registration-documents'),
+        uploadDocumentToSupabase(document2, 'registration-documents'),
+        uploadDocumentToSupabase(document3, 'registration-documents'),
+        uploadDocumentToSupabase(document4, 'registration-documents'),
+      ]);
+
+      if (!docUploads[0] || !docUploads[1]) {
+        modal.showError('Failed to upload mandatory documents. Please try again.');
+        setSubmitting(false);
+        return;
+      }
+
       const registrationData = {
         businessName: values.businessName,
         ownerNamePrefix: values.ownerNamePrefix,
@@ -384,10 +413,10 @@ export default function RegisterScreen() {
         dateOfIncorporation: dateOfIncorporation ? dateOfIncorporation.toISOString().split('T')[0] : null,
         openingTime: formatTimeForAPI(openingTime),
         closingTime: formatTimeForAPI(closingTime),
-        document1: document1?.uri || null,
-        document2: document2?.uri || null,
-        document3: document3?.uri || null,
-        document4: document4?.uri || null,
+        document1: docUploads[0],
+        document2: docUploads[1],
+        document3: docUploads[2],
+        document4: docUploads[3],
       };
 
       const response = await apiService.register(registrationData);
@@ -1039,7 +1068,7 @@ export default function RegisterScreen() {
               <View style={styles.searchInputContainer}>
                 <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
                 <TextInput
-                  style={styles.searchInput}
+                  style={styles.searchTextInput}
                   placeholder="Search for a location..."
                   placeholderTextColor="#999"
                   value={searchQuery}
