@@ -364,7 +364,7 @@ export default function RegisterScreen() {
       doc.uri,
       doc.name || 'document',
       doc.mimeType || 'application/octet-stream',
-      'partners',
+      'users',
       folderPath
     );
     if (result.success && result.data?.url) {
