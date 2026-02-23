@@ -160,6 +160,14 @@ class ApiService {
     return this.makeRequest('POST', '/partner-auth/resend-otp', { email });
   }
 
+  async sendPhoneOtp(phone: string): Promise<ApiResponse> {
+    return this.makeRequest('POST', '/partner-auth/send-phone-otp', { phone });
+  }
+
+  async verifyPhoneOtp(phone: string, otp: string): Promise<ApiResponse> {
+    return this.makeRequest('POST', '/partner-auth/verify-phone-otp', { phone, otp });
+  }
+
   async logout(): Promise<ApiResponse> {
     return this.makeRequest('POST', '/partner-auth/logout');
   }

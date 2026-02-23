@@ -426,26 +426,19 @@ export default function RegisterScreen() {
         return;
       }
 
-      // Registration successful
-      if (response.bypass) {
-        // Email verification bypassed - account is auto-verified
-        modal.showSuccess(
-          'Your account has been created and verified! You can now sign in.',
-          {
-            title: 'Registration Successful',
-            onClose: () => router.push('/auth/login')
-          }
-        );
-      } else {
-        // Normal flow - redirect to verification
-        modal.showSuccess(
-          'Your account has been created successfully! Please check your email for the verification code.',
-          {
-            title: 'Registration Successful',
-            onClose: () => router.push(`/auth/verify?email=${encodeURIComponent(values.email)}`)
-          }
-        );
-      }
+      // Registration successful — always go to phone OTP verification
+      const fullPhone = `${countryCode}${values.phone}`;
+      modal.showSuccess(
+        'Account created! We\'ve sent a verification code to your mobile number.',
+        {
+          title: 'Registration Successful',
+          primaryButtonText: 'Verify Now',
+          onPrimaryPress: () => {
+            modal.hideModal();
+            router.push(`/auth/verify-phone?phone=${encodeURIComponent(fullPhone)}`);
+          },
+        }
+      );
     } catch (error) {
       console.error('Registration error:', error);
       modal.showError('Registration failed. Please try again.');
