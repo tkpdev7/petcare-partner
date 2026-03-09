@@ -40,6 +40,7 @@ interface Appointment {
   provider_name?: string;
   service_name?: string;
   pet_name?: string;
+  pet_image_url?: string;
   created_at: string;
   start_time: string;
   provider_address: string;
@@ -340,6 +341,7 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
           provider_type: appointment.provider_type,
           customerName: appointment.provider_name,
           petName: appointment.pet_name,
+          pet_image: appointment.pet_image_url || null,
           service: appointment.service_name,
           appointment_date: appointment.appointment_date,
           appointment_time: appointment.appointment_time,

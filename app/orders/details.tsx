@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Linking,
   Alert,
+  Image,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -240,9 +241,9 @@ export default function OrderDetailsScreen() {
               setOrderDetails(prev => prev ? { ...prev, order_status: 'confirmed' } : null);
             }
 
-            // Now mark as ready for pickup with location coordinates
-            console.log('🔄 Calling ready-for-pickup endpoint with coordinates...');
-            const response = await apiService.post(`/partner/orders/${orderDetails.id}/ready-for-pickup`, {
+            // Now mark as ready for pickup
+            console.log('🔄 Calling ready-for-pickup endpoint...');
+            let response = await apiService.post(`/partner/orders/${orderDetails.id}/ready-for-pickup`, {
               order_type: type,
               ...(partnerData?.latitude && partnerData?.longitude ? {
                 partner_latitude: partnerData.latitude,
@@ -250,13 +251,22 @@ export default function OrderDetailsScreen() {
               } : {}),
             });
 
+            // Fallback: use the standard status update endpoint if special endpoint fails
+            if (!response.success) {
+              console.log('⚠️ Special endpoint failed, falling back to standard status update...');
+              response = await apiService.patch(`/partner-orders/${orderDetails.id}/status`, {
+                order_type: type,
+                status: 'ready_for_pickup',
+              });
+            }
+
             if (response.success) {
               // Immediately refresh the order details
               await loadOrderDetails();
 
               modal.showSuccess('Order marked as ready for pickup! Delivery partner will be assigned.');
             } else {
-              throw new Error(response.error || 'Failed to update status');
+              throw new Error(response.error || response.message || 'Failed to update status');
             }
           } catch (error: any) {
             console.error('Error marking order ready:', error);
@@ -672,6 +682,13 @@ export default function OrderDetailsScreen() {
             {orderItems.length > 0 ? (
               orderItems.map((item: any, index: number) => (
                 <View key={index} style={styles.orderItemRow}>
+                  {item.image_url ? (
+                    <Image source={{ uri: item.image_url }} style={styles.orderItemImage} />
+                  ) : (
+                    <View style={[styles.orderItemImage, styles.orderItemImagePlaceholder]}>
+                      <Ionicons name="bag-outline" size={22} color="#ccc" />
+                    </View>
+                  )}
                   <View style={styles.orderItemInfo}>
                     <Text style={styles.orderItemName}>
                       {item.product_name || item.name}
@@ -1033,11 +1050,21 @@ const styles = StyleSheet.create({
   },
   orderItemRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
+    gap: 12,
+  },
+  orderItemImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  orderItemImagePlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   orderItemInfo: {
     flex: 1,

@@ -11,6 +11,7 @@ import {
   TextInput,
   Platform,
   Modal,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -294,7 +295,7 @@ export default function OrdersListScreen() {
   const getStatusLabel = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'placed':
-        return 'Placed';
+        return 'Placed (Order Placed)';
       case 'confirmed':
         return 'Confirmed';
       case 'processing':
@@ -315,6 +316,7 @@ export default function OrdersListScreen() {
   const renderOrderCard = ({ item }: { item: Order }) => {
     let orderItems = [];
     let productNames = '';
+    let firstItemImage: string | null = null;
 
     if (item.order_items) {
       try {
@@ -325,6 +327,7 @@ export default function OrdersListScreen() {
           .map((orderItem: any) => orderItem.product_name || orderItem.name)
           .filter(Boolean)
           .join(', ');
+        firstItemImage = orderItems[0]?.image_url || null;
       } catch (e) {
         console.error('Error parsing order_items:', e);
       }
@@ -337,6 +340,13 @@ export default function OrdersListScreen() {
         activeOpacity={0.7}
       >
         <View style={styles.orderHeader}>
+          {firstItemImage ? (
+            <Image source={{ uri: firstItemImage }} style={styles.productThumb} />
+          ) : (
+            <View style={[styles.productThumb, styles.productThumbPlaceholder]}>
+              <Ionicons name="bag-outline" size={20} color="#ccc" />
+            </View>
+          )}
           <View style={styles.orderIdContainer}>
             <Ionicons name="receipt-outline" size={20} color={Colors.primary} />
             <Text style={styles.orderId}>Order #{item.id}</Text>
@@ -858,9 +868,19 @@ const styles = StyleSheet.create({
   },
   orderHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+    gap: 10,
+  },
+  productThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+  },
+  productThumbPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   orderIdContainer: {
     flexDirection: 'row',
