@@ -334,7 +334,7 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
               {!!(otpVerified && status?.toLowerCase() !== 'completed' && hasCaseSheet && !hasPrescription && showSkipOptions) && (
                 <>
                   <TouchableOpacity
-                    onPress={handleAddPrescription}
+                    onPress={() => router.push(`/appointments/add-prescription?appointmentId=${item.id}&followUpOnly=true`)}
                     style={styles.prescriptionBtn}
                   >
                     <Ionicons name="calendar-outline" size={18} color="#fff" />

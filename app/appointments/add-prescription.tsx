@@ -63,6 +63,7 @@ export default function AddPrescriptionScreen() {
   const modal = useCustomModal();
   const params = useLocalSearchParams();
   const appointmentId = params.appointmentId as string;
+  const isFollowUpOnly = params.followUpOnly === 'true';
 
   const [loading, setLoading] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -74,10 +75,13 @@ export default function AddPrescriptionScreen() {
 
   // Dropdown states
   const [showDurationDropdown, setShowDurationDropdown] = useState(false);
+  const [showFrequencyDropdown, setShowFrequencyDropdown] = useState(false);
+  const [showIntakeDropdown, setShowIntakeDropdown] = useState(false);
+  const [selectedFrequencySlot, setSelectedFrequencySlot] = useState<'morning' | 'afternoon' | 'evening' | 'night'>('morning');
   const [selectedMedicineIndex, setSelectedMedicineIndex] = useState<number>(0);
 
-  // Follow-up appointment fields
-  const [enableFollowUp, setEnableFollowUp] = useState(false);
+  // Follow-up appointment fields — auto-enable if followUpOnly mode
+  const [enableFollowUp, setEnableFollowUp] = useState(isFollowUpOnly);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [availableSlots, setAvailableSlots] = useState<Slot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
@@ -100,8 +104,22 @@ export default function AddPrescriptionScreen() {
           ? response.data
           : (response.data?.data || []);
 
-        // Filter available slots only
-        const available = slotsData.filter((slot: Slot) => slot.is_available && !slot.is_booked);
+        // Filter available slots; if today is selected, only show future slots
+        const now = new Date();
+        const todayStr = formatDateForAPI(now);
+        const selectedStr = formatDateForAPI(selectedDate);
+        const isToday = selectedStr === todayStr;
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+        const available = slotsData.filter((slot: Slot) => {
+          if (!slot.is_available || slot.is_booked) return false;
+          if (isToday && slot.start_time) {
+            const [h, m] = slot.start_time.split(':').map(Number);
+            const slotMinutes = h * 60 + (m || 0);
+            return slotMinutes > currentMinutes;
+          }
+          return true;
+        });
         setAvailableSlots(available);
 
         if (available.length === 0) {
@@ -140,15 +158,28 @@ export default function AddPrescriptionScreen() {
     setShowDurationDropdown(false);
   };
 
-  const validateForm = () => {
-    // Check if at least one medicine has been filled
-    const hasValidMedicine = medicines.some(
-      med => med.drug_name.trim() !== ''
-    );
+  const handleFrequencySelect = (value: string) => {
+    updateMedicine(selectedMedicineIndex, selectedFrequencySlot, value);
+    setShowFrequencyDropdown(false);
+  };
 
-    if (!hasValidMedicine) {
-      modal.showError('Please add at least one medicine');
-      return false;
+  const handleIntakeSelect = (label: string) => {
+    const opt = INTAKE_OPTIONS.find(o => o.label === label);
+    if (opt) updateMedicine(selectedMedicineIndex, 'intake', opt.value);
+    setShowIntakeDropdown(false);
+  };
+
+  const validateForm = () => {
+    // In follow-up only mode, skip prescription validation
+    if (!isFollowUpOnly) {
+      const hasValidMedicine = medicines.some(
+        med => med.drug_name.trim() !== ''
+      );
+
+      if (!hasValidMedicine) {
+        modal.showError('Please add at least one medicine');
+        return false;
+      }
     }
 
     // If follow-up is enabled, validate slot selection
@@ -183,14 +214,15 @@ export default function AddPrescriptionScreen() {
     try {
       setLoading(true);
 
-      // Filter out empty medicines
-      const validMedicines = medicines.filter(
-        med => med.drug_name.trim() !== ''
-      );
+      const data: any = {};
 
-      const data: any = {
-        prescription_data: validMedicines,
-      };
+      // Only include prescription data if not in follow-up only mode
+      if (!isFollowUpOnly) {
+        const validMedicines = medicines.filter(
+          med => med.drug_name.trim() !== ''
+        );
+        data.prescription_data = validMedicines;
+      }
 
       // Add follow-up details if enabled
       if (enableFollowUp && selectedSlot) {
@@ -415,13 +447,27 @@ export default function AddPrescriptionScreen() {
         onSelect={handleDurationSelect}
         title="Select Duration"
       />
+      <DropdownModal
+        visible={showFrequencyDropdown}
+        onClose={() => setShowFrequencyDropdown(false)}
+        options={DOSE_OPTIONS}
+        onSelect={handleFrequencySelect}
+        title={`Frequency – ${selectedFrequencySlot.charAt(0).toUpperCase() + selectedFrequencySlot.slice(1)}`}
+      />
+      <DropdownModal
+        visible={showIntakeDropdown}
+        onClose={() => setShowIntakeDropdown(false)}
+        options={INTAKE_OPTIONS.map(o => o.label)}
+        onSelect={handleIntakeSelect}
+        title="Select Intake"
+      />
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add Prescription</Text>
+        <Text style={styles.headerTitle}>{isFollowUpOnly ? 'Schedule Follow-up' : 'Add Prescription'}</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -434,114 +480,119 @@ export default function AddPrescriptionScreen() {
         removeClippedSubviews={Platform.OS === 'android'}
         scrollEventThrottle={16}
       >
-          {/* Medicines Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Prescription Medicines</Text>
-            <Text style={styles.sectionSubtitle}>Add medicines prescribed to the pet</Text>
+          {/* Medicines Section - hidden in follow-up only mode */}
+          {!isFollowUpOnly && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Prescription Medicines</Text>
+              <Text style={styles.sectionSubtitle}>Add medicines prescribed to the pet</Text>
 
-            {medicines.map((medicine, index) => (
-              <View key={index} style={styles.medicineCard}>
-                <View style={styles.medicineHeader}>
-                  <Text style={styles.medicineNumber}>Medicine {index + 1}</Text>
-                  {medicines.length > 1 && (
-                    <TouchableOpacity onPress={() => removeMedicineRow(index)}>
-                      <Ionicons name="trash-outline" size={20} color="#F44336" />
-                    </TouchableOpacity>
-                  )}
-                </View>
+              {medicines.map((medicine, index) => (
+                <View key={index} style={styles.medicineCard}>
+                  <View style={styles.medicineHeader}>
+                    <Text style={styles.medicineNumber}>Medicine {index + 1}</Text>
+                    {medicines.length > 1 && (
+                      <TouchableOpacity onPress={() => removeMedicineRow(index)}>
+                        <Ionicons name="trash-outline" size={20} color="#F44336" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
 
-                <Text style={styles.label}>Drug Name *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={medicine.drug_name}
-                  onChangeText={(value) => updateMedicine(index, 'drug_name', value)}
-                  placeholder="e.g., Amoxicillin"
-                />
+                  <Text style={styles.label}>Drug Name *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={medicine.drug_name}
+                    onChangeText={(value) => updateMedicine(index, 'drug_name', value)}
+                    placeholder="e.g., Amoxicillin"
+                  />
 
-                <Text style={styles.label}>Dosage *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={medicine.dosage}
-                  onChangeText={(value) => updateMedicine(index, 'dosage', value)}
-                  placeholder="e.g., 250mg"
-                />
+                  <Text style={styles.label}>Dosage *</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={medicine.dosage}
+                    onChangeText={(value) => updateMedicine(index, 'dosage', value)}
+                    placeholder="e.g., 250mg"
+                  />
 
-                <Text style={styles.label}>Frequency (doses per time of day)</Text>
-                <View style={styles.frequencyGrid}>
-                  {(['morning', 'afternoon', 'evening', 'night'] as const).map((slot) => (
-                    <View key={slot} style={styles.frequencySlot}>
-                      <Text style={styles.frequencySlotLabel}>
-                        {slot.charAt(0).toUpperCase() + slot.slice(1)}
-                      </Text>
-                      <View style={styles.doseOptions}>
-                        {DOSE_OPTIONS.map((dose) => (
-                          <TouchableOpacity
-                            key={dose}
-                            style={[styles.doseOption, medicine[slot] === dose && styles.doseOptionSelected]}
-                            onPress={() => updateMedicine(index, slot, dose)}
-                          >
-                            <Text style={[styles.doseOptionText, medicine[slot] === dose && styles.doseOptionTextSelected]}>
-                              {dose}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
+                  <Text style={styles.label}>Frequency (doses per time of day)</Text>
+                  <View style={styles.frequencyGrid}>
+                    {(['morning', 'afternoon', 'evening', 'night'] as const).map((slot) => (
+                      <View key={slot} style={styles.frequencySlot}>
+                        <Text style={styles.frequencySlotLabel}>
+                          {slot.charAt(0).toUpperCase() + slot.slice(1)}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.frequencyDropdown}
+                          onPress={() => {
+                            setSelectedMedicineIndex(index);
+                            setSelectedFrequencySlot(slot);
+                            setShowFrequencyDropdown(true);
+                          }}
+                        >
+                          <Text style={styles.frequencyDropdownText}>{medicine[slot]}</Text>
+                          <Ionicons name="chevron-down" size={12} color="#999" />
+                        </TouchableOpacity>
                       </View>
-                    </View>
-                  ))}
+                    ))}
+                  </View>
+
+                  <Text style={styles.label}>Intake</Text>
+                  <TouchableOpacity
+                    style={styles.dropdownInput}
+                    onPress={() => {
+                      setSelectedMedicineIndex(index);
+                      setShowIntakeDropdown(true);
+                    }}
+                  >
+                    <Text style={styles.dropdownInputText}>
+                      {INTAKE_OPTIONS.find(o => o.value === medicine.intake)?.label || 'Select intake'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color="#999" />
+                  </TouchableOpacity>
+
+                  <Text style={styles.label}>Duration *</Text>
+                  <TouchableOpacity
+                    style={styles.dropdownInput}
+                    onPress={() => {
+                      setSelectedMedicineIndex(index);
+                      setShowDurationDropdown(true);
+                    }}
+                  >
+                    <Text style={[styles.dropdownInputText, !medicine.duration && styles.placeholderText]}>
+                      {medicine.duration || 'Select duration'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={20} color="#999" />
+                  </TouchableOpacity>
                 </View>
+              ))}
 
-                <Text style={styles.label}>Intake</Text>
-                <View style={styles.intakeOptions}>
-                  {INTAKE_OPTIONS.map((opt) => (
-                    <TouchableOpacity
-                      key={opt.value}
-                      style={[styles.intakeOption, medicine.intake === opt.value && styles.intakeOptionSelected]}
-                      onPress={() => updateMedicine(index, 'intake', opt.value)}
-                    >
-                      <Text style={[styles.intakeOptionText, medicine.intake === opt.value && styles.intakeOptionTextSelected]}>
-                        {opt.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <Text style={styles.label}>Duration *</Text>
-                <TouchableOpacity
-                  style={styles.dropdownInput}
-                  onPress={() => {
-                    setSelectedMedicineIndex(index);
-                    setShowDurationDropdown(true);
-                  }}
-                >
-                  <Text style={[styles.dropdownInputText, !medicine.duration && styles.placeholderText]}>
-                    {medicine.duration || 'Select duration'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color="#999" />
-                </TouchableOpacity>
-              </View>
-            ))}
-
-            <TouchableOpacity style={styles.addMedicineButton} onPress={addMedicineRow}>
-              <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
-              <Text style={styles.addMedicineText}>Add Another Medicine</Text>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity style={styles.addMedicineButton} onPress={addMedicineRow}>
+                <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
+                <Text style={styles.addMedicineText}>Add Another Medicine</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Follow-up Appointment Section */}
           <View style={styles.section}>
-            <View style={styles.followUpHeader}>
-              <Text style={styles.sectionTitle}>Book Follow-up Appointment</Text>
-              <TouchableOpacity
-                style={styles.toggleButton}
-                onPress={() => setEnableFollowUp(!enableFollowUp)}
-              >
-                <Ionicons
-                  name={enableFollowUp ? "checkbox" : "square-outline"}
-                  size={24}
-                  color={enableFollowUp ? Colors.primary : "#999"}
-                />
-              </TouchableOpacity>
-            </View>
+            {/* Hide checkbox in follow-up only mode — always enabled */}
+            {!isFollowUpOnly && (
+              <View style={styles.followUpHeader}>
+                <Text style={styles.sectionTitle}>Book Follow-up Appointment</Text>
+                <TouchableOpacity
+                  style={styles.toggleButton}
+                  onPress={() => setEnableFollowUp(!enableFollowUp)}
+                >
+                  <Ionicons
+                    name={enableFollowUp ? "checkbox" : "square-outline"}
+                    size={24}
+                    color={enableFollowUp ? Colors.primary : "#999"}
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
+            {isFollowUpOnly && (
+              <Text style={styles.sectionTitle}>Select Follow-up Slot</Text>
+            )}
 
             {enableFollowUp && (
               <>
@@ -563,7 +614,7 @@ export default function AddPrescriptionScreen() {
               <>
                 <Ionicons name="checkmark-circle" size={24} color="#FFF" />
                 <Text style={styles.submitButtonText}>
-                  {enableFollowUp ? 'Submit & Schedule Follow-up' : 'Complete Appointment'}
+                  {isFollowUpOnly ? 'Schedule Follow-up & Complete' : enableFollowUp ? 'Submit & Schedule Follow-up' : 'Complete Appointment'}
                 </Text>
               </>
             )}
@@ -871,56 +922,21 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     textAlign: 'center',
   },
-  doseOptions: {
+  frequencyDropdown: {
     flexDirection: 'row',
-    gap: 4,
-  },
-  doseOption: {
-    width: 28,
-    height: 28,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: Colors.border,
     borderRadius: 6,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 8,
     backgroundColor: '#fff',
+    width: '100%',
   },
-  doseOptionSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  doseOptionText: {
-    fontSize: 11,
+  frequencyDropdownText: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#555',
-  },
-  doseOptionTextSelected: {
-    color: '#fff',
-  },
-  intakeOptions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
-  },
-  intakeOption: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  intakeOptionSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  intakeOptionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#555',
-  },
-  intakeOptionTextSelected: {
-    color: '#fff',
+    color: Colors.dark,
   },
 });

@@ -49,6 +49,11 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
   const [canReview, setCanReview] = useState(false);
   const [otp, setOtp] = useState<string | null>(null);
   const [otpGenerated, setOtpGenerated] = useState(false);
+  const [petRecords, setPetRecords] = useState<any[]>([]);
+  const [petRecordsExpanded, setPetRecordsExpanded] = useState(false);
+  const [loadingRecords, setLoadingRecords] = useState(false);
+  const [showEndOptions, setShowEndOptions] = useState(false);
+  const [endingAppointment, setEndingAppointment] = useState(false);
 
   // Fetch fresh appointment data from API
   const fetchAppointmentDetails = async () => {
@@ -120,6 +125,45 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
     // Partner app doesn't submit reviews - partners receive reviews from customers
     // This functionality is disabled for partner app
     modal.showError('Review submission is not available in Partner App');
+  };
+
+  const fetchPetRecords = async () => {
+    const petId = appointment?.petid || appointment?.pet_id;
+    if (!petId) return;
+    try {
+      setLoadingRecords(true);
+      const response = await apiService.makeRequest('GET', `pet-records/pet/${petId}`);
+      if (response.success && Array.isArray(response.data)) {
+        setPetRecords(response.data);
+      } else if (response.success && Array.isArray(response.data?.data)) {
+        setPetRecords(response.data.data);
+      }
+    } catch (e) {
+      console.error('Error fetching pet records:', e);
+    } finally {
+      setLoadingRecords(false);
+    }
+  };
+
+  const handleTogglePetRecords = () => {
+    if (!petRecordsExpanded && petRecords.length === 0) {
+      fetchPetRecords();
+    }
+    setPetRecordsExpanded(prev => !prev);
+  };
+
+  const handleEndAppointment = async () => {
+    try {
+      setEndingAppointment(true);
+      await apiService.completeAppointmentWithFollowup(String(appointmentId), {});
+      modal.showSuccess('Appointment completed successfully.');
+      fetchAppointmentDetails();
+      setShowEndOptions(false);
+    } catch (err: any) {
+      modal.showError(err?.message || 'Failed to end appointment.');
+    } finally {
+      setEndingAppointment(false);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -386,6 +430,88 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
                 </View>
               )}
             </View>
+          </View>
+        )}
+
+        {/* Pet Records Section */}
+        {(appointment?.petid || appointment?.pet_id) && (
+          <View style={styles.petRecordsSection}>
+            <TouchableOpacity style={styles.petRecordsHeader} onPress={handleTogglePetRecords}>
+              <View style={styles.petRecordsHeaderLeft}>
+                <Ionicons name="folder-open-outline" size={22} color="#ED6D4E" />
+                <Text style={styles.petRecordsTitle}>Pet's Previous Records</Text>
+              </View>
+              <Ionicons name={petRecordsExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#999" />
+            </TouchableOpacity>
+            {petRecordsExpanded && (
+              <View style={styles.petRecordsBody}>
+                {loadingRecords ? (
+                  <ActivityIndicator color="#ED6D4E" style={{ padding: 16 }} />
+                ) : petRecords.length === 0 ? (
+                  <Text style={styles.noRecordsText}>No previous records found for this pet.</Text>
+                ) : (
+                  petRecords.map((record: any, i: number) => (
+                    <View key={record.id || i} style={styles.recordItem}>
+                      <Ionicons
+                        name={record.record_type === 'prescription' ? 'document-text' : 'clipboard'}
+                        size={18}
+                        color="#ED6D4E"
+                      />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.recordType}>{record.record_type?.replace(/_/g, ' ')?.toUpperCase() || 'Record'}</Text>
+                        <Text style={styles.recordDate}>
+                          {record.created_at ? new Date(record.created_at).toLocaleDateString('en-IN') : ''}
+                        </Text>
+                        {record.notes && <Text style={styles.recordNotes} numberOfLines={2}>{record.notes}</Text>}
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* End Appointment Action (for in_progress) */}
+        {appointment?.status?.toLowerCase() === 'in_progress' && !appointment?.prescription_pdf_base64 && (
+          <View style={styles.endApptSection}>
+            {!showEndOptions ? (
+              <>
+                <TouchableOpacity
+                  style={styles.addPrescriptionBtn}
+                  onPress={() => router.push({ pathname: '/appointments/add-prescription', params: { appointmentId: String(appointmentId) } })}
+                >
+                  <Text style={styles.addPrescriptionBtnText}>Add Prescription</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.skipBtn}
+                  onPress={() => setShowEndOptions(true)}
+                >
+                  <Text style={styles.skipBtnText}>Skip</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.endApptLabel}>How would you like to proceed?</Text>
+                <TouchableOpacity
+                  style={styles.addPrescriptionBtn}
+                  onPress={() => router.push({ pathname: '/appointments/add-prescription', params: { appointmentId: String(appointmentId), followUpOnly: 'true' } })}
+                >
+                  <Text style={styles.addPrescriptionBtnText}>Follow Up</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.skipBtn, endingAppointment && { opacity: 0.5 }]}
+                  onPress={handleEndAppointment}
+                  disabled={endingAppointment}
+                >
+                  {endingAppointment ? (
+                    <ActivityIndicator color="#ED6D4E" />
+                  ) : (
+                    <Text style={styles.skipBtnText}>End Appointment</Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         )}
 
@@ -873,6 +999,69 @@ const styles = StyleSheet.create({
     color: '#2196F3',
     marginLeft: 8,
   },
+  // Pet Records
+  petRecordsSection: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  petRecordsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  petRecordsHeaderLeft: { flexDirection: 'row', alignItems: 'center' },
+  petRecordsTitle: { fontSize: 15, fontWeight: '600', color: '#333', marginLeft: 8 },
+  petRecordsBody: { padding: 12 },
+  noRecordsText: { fontSize: 13, color: '#888', padding: 8, textAlign: 'center' },
+  recordItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  recordType: { fontSize: 13, fontWeight: '700', color: '#333' },
+  recordDate: { fontSize: 11, color: '#999', marginTop: 2 },
+  recordNotes: { fontSize: 12, color: '#555', marginTop: 4, lineHeight: 18 },
+  // End Appointment
+  endApptSection: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  endApptLabel: { fontSize: 14, color: '#555', marginBottom: 12, textAlign: 'center' },
+  addPrescriptionBtn: {
+    backgroundColor: '#ED6D4E',
+    borderRadius: 10,
+    paddingVertical: 13,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  addPrescriptionBtnText: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
+  skipBtn: {
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#ED6D4E',
+  },
+  skipBtnText: { color: '#ED6D4E', fontSize: 15, fontWeight: '600' },
 });
 
 export default AppointmentDetailsScreen;
