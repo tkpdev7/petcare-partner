@@ -306,6 +306,17 @@ export default function ViewCaseSheetScreen() {
           </View>
         )}
 
+        {/* Doctor's Signature */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="create-outline" size={20} color={Colors.primary} />
+            <Text style={styles.sectionTitle}>Doctor's Signature</Text>
+          </View>
+          <View style={styles.signatureBox}>
+            <Text style={styles.signaturePlaceholder}>Digitally signed by attending veterinarian</Text>
+          </View>
+        </View>
+
         {/* Created Date */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
@@ -483,5 +494,17 @@ const styles = StyleSheet.create({
   footerText: {
     ...Typography.small,
     color: Colors.mediumGray,
+  },
+  signatureBox: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    marginTop: Spacing.lg,
+    paddingTop: Spacing.md,
+    alignItems: 'flex-start',
+  },
+  signaturePlaceholder: {
+    ...Typography.small,
+    color: Colors.mediumGray,
+    fontStyle: 'italic',
   },
 });

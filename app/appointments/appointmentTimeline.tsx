@@ -9,6 +9,7 @@ import {
   ScrollView,
   Linking,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -59,6 +60,8 @@ type Appointment = {
   case_sheet_url?: string;
   clinical_notes?: string;
   otp_code?: string;
+  pet_id?: number;
+  petid?: number;
   provider_name?: string;
   provider_type?: string;
   service_name?: string;
@@ -83,6 +86,10 @@ const route = useRoute<AppointmentTimelineRouteProp>();
   const [otp, setOtp] = useState<string | null>(null);
   const [otpGenerated, setOtpGenerated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [petRecords, setPetRecords] = useState<any[]>([]);
+  const [petRecordsExpanded, setPetRecordsExpanded] = useState(false);
+  const [loadingRecords, setLoadingRecords] = useState(false);
+  const [openingRecord, setOpeningRecord] = useState(false);
 
 
 
@@ -158,6 +165,36 @@ const route = useRoute<AppointmentTimelineRouteProp>();
       setOtpGenerated(true);
     }
   }, [appointment]);
+
+  const fetchPetRecords = async () => {
+    const petId = appointment?.petid || appointment?.pet_id;
+    console.log('🔍 Pet Records - pet_id:', petId);
+    if (!petId) {
+      setPetRecords([]);
+      return;
+    }
+    try {
+      setLoadingRecords(true);
+      const response = await apiService.makeRequest('GET', `/pet-records/pet/${petId}`);
+      console.log('📋 Pet Records response:', JSON.stringify(response).substring(0, 500));
+      if (response.success) {
+        const records = response.data?.data?.records || response.data?.records || (Array.isArray(response.data?.data) ? response.data.data : (Array.isArray(response.data) ? response.data : []));
+        console.log('📋 Parsed records count:', records?.length, 'Records:', JSON.stringify(records?.map((r: any) => ({ id: r.id, type: r.record_type, title: r.title }))));
+        setPetRecords(records);
+      }
+    } catch (e) {
+      console.error('Error fetching pet records:', e);
+    } finally {
+      setLoadingRecords(false);
+    }
+  };
+
+  const handleTogglePetRecords = () => {
+    if (!petRecordsExpanded && petRecords.length === 0) {
+      fetchPetRecords();
+    }
+    setPetRecordsExpanded(prev => !prev);
+  };
 
 
    const statusStates = milestones.map(ms => ({
@@ -539,6 +576,86 @@ const getStatusStyle = (status?: string) => {
             <Text style={styles.cancellationTitle}>Cancellation Details</Text>
             <Text style={styles.cancellationReason}>{`Reason: ${appointment.cancellation_reason}`}</Text>
             <Text style={styles.cancellationBy}>{`Cancelled by ${appointment.cancelled_by === 'user' ? 'You' : appointment.cancelled_by === 'provider' ? 'Service Provider' : 'System'}`}</Text>
+          </View>
+        )}
+
+        {/* Pet's Previous Records */}
+        {appointment && (
+          <View style={styles.petRecordsSection}>
+            <TouchableOpacity style={styles.petRecordsHeader} onPress={handleTogglePetRecords}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="folder-open-outline" size={22} color="#ED6D4E" />
+                <Text style={styles.petRecordsTitle}>Pet's Previous Records</Text>
+              </View>
+              <Ionicons name={petRecordsExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#999" />
+            </TouchableOpacity>
+            {petRecordsExpanded && (
+              <View style={styles.petRecordsBody}>
+                {loadingRecords ? (
+                  <ActivityIndicator color="#ED6D4E" style={{ padding: 16 }} />
+                ) : petRecords.length === 0 ? (
+                  <Text style={styles.noRecordsText}>No previous records found for this pet.</Text>
+                ) : (
+                  petRecords.map((record: any, i: number) => (
+                    <TouchableOpacity
+                      key={record.id || i}
+                      style={styles.recordItem}
+                      onPress={async () => {
+                        if (openingRecord) return;
+                        if (record.file_url) {
+                          try {
+                            setOpeningRecord(true);
+                            const isPdf = record.file_url.toLowerCase().endsWith('.pdf') || record.file_name?.toLowerCase().endsWith('.pdf');
+                            if (isPdf) {
+                              try {
+                                const { viewPDF } = await import('../../utils/documentViewer');
+                                const pdfResponse = await fetch(record.file_url);
+                                const blob = await pdfResponse.blob();
+                                const base64 = await new Promise<string>((resolve, reject) => {
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+                                  reader.onerror = reject;
+                                  reader.readAsDataURL(blob);
+                                });
+                                await viewPDF(base64, record.file_name || record.title || 'record.pdf');
+                              } catch (viewError) {
+                                console.log('PDF viewer fallback to browser:', viewError);
+                                await Linking.openURL(record.file_url);
+                              }
+                            } else {
+                              await Linking.openURL(record.file_url);
+                            }
+                          } catch (error) {
+                            console.error('Error opening record:', error);
+                            modal.showError('Unable to open this record. Please try again.');
+                          } finally {
+                            setOpeningRecord(false);
+                          }
+                        } else {
+                          modal.showInfo('No file attached to this record.');
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={record.record_type === 'prescription' ? 'document-text' : 'clipboard'}
+                        size={18}
+                        color="#ED6D4E"
+                      />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.recordType}>{record.record_type?.replace(/_/g, ' ')?.toUpperCase() || 'Record'}</Text>
+                        <Text style={styles.recordTitle} numberOfLines={1}>{record.title || record.file_name || ''}</Text>
+                        <Text style={styles.recordDate}>
+                          {record.created_at ? new Date(record.created_at).toLocaleDateString('en-IN') : ''}
+                        </Text>
+                        {record.description && <Text style={styles.recordNotes} numberOfLines={2}>{record.description}</Text>}
+                      </View>
+                      <Ionicons name="open-outline" size={18} color="#999" />
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
+            )}
           </View>
         )}
 
@@ -969,6 +1086,68 @@ const styles = StyleSheet.create({
     color: '#ED6D4E',
     fontWeight: '600',
     flex: 1,
+  },
+  petRecordsSection: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    marginBottom: 16,
+    elevation: 3,
+    shadowColor: '#c9c9c9',
+    shadowOpacity: 0.03,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    overflow: 'hidden',
+  },
+  petRecordsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  petRecordsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#222',
+    marginLeft: 8,
+  },
+  petRecordsBody: {
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  noRecordsText: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    padding: 16,
+  },
+  recordItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  recordType: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#333',
+  },
+  recordTitle: {
+    fontSize: 12,
+    color: '#555',
+    marginTop: 2,
+  },
+  recordDate: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+  },
+  recordNotes: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
   },
 });
 

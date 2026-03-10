@@ -41,6 +41,7 @@ interface Appointment {
   service_name?: string;
   pet_name?: string;
   pet_image_url?: string;
+  petPhotoUrl?: string;
   created_at: string;
   start_time: string;
   provider_address: string;
@@ -333,7 +334,14 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
   //   }
   // };
 
-  const renderAppointmentCard = (appointment: Appointment) => (
+  const renderAppointmentCard = (appointment: Appointment) => {
+    const petImageUrl = appointment.petPhotoUrl || appointment.pet_image_url || null;
+    console.log(`🐾 [Appointment ${appointment.id}] pet image fields:`, {
+      petPhotoUrl: appointment.petPhotoUrl,
+      pet_image_url: appointment.pet_image_url,
+      resolved: petImageUrl,
+    });
+    return (
     <View key={appointment.id} style={styles.appointmentCard}>
       <PartnerAppointmentCard
         item={{
@@ -341,7 +349,7 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
           provider_type: appointment.provider_type,
           customerName: appointment.provider_name,
           petName: appointment.pet_name,
-          pet_image: appointment.pet_image_url || null,
+          pet_image: petImageUrl,
           service: appointment.service_name,
           appointment_date: appointment.appointment_date,
           appointment_time: appointment.appointment_time,
@@ -416,6 +424,7 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
     //   </View>
     // </TouchableOpacity>
   );
+  };
 
   const filteredAppointments = appointments.filter((appointment) => {
     if (!appointment.status) {
