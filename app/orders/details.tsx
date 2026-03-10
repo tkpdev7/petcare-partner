@@ -39,21 +39,28 @@ interface DeliveryAssignment {
 
 interface OrderDetails {
   id: string;
-  order_date?: string; // Optional: may not always be present
-  placed_at?: string; // Actual field from database
-  created_at?: string; // Fallback date field
+  order_number?: string;
+  order_date?: string;
+  placed_at?: string;
+  created_at?: string;
   order_status: string;
+  delivery_status?: string;
   customer_name: string;
   customer_phone?: string;
   customer_email?: string;
   pet_name?: string;
   total_amount: number;
+  subtotal?: number;
+  tax_amount?: number;
+  shipping_fee?: number;
+  platform_fee?: number;
+  discount_amount?: number;
   payment_method?: string;
   order_items?: any[];
   delivery_address?: string;
   notes?: string;
   delivery_assignment?: DeliveryAssignment;
-  order_type?: 'pharmacy' | 'product'; // Added: order type from backend
+  order_type?: 'pharmacy' | 'product';
 }
 
 const statusOptions = [
@@ -74,6 +81,8 @@ export default function OrderDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [partnerData, setPartnerData] = useState<any>(null);
+  const [returnRequest, setReturnRequest] = useState<any>(null);
+  const [returnLoading, setReturnLoading] = useState(false);
 
   useEffect(() => {
     console.log('🔍 OrderDetailsScreen mounted');
@@ -84,6 +93,7 @@ export default function OrderDetailsScreen() {
     console.log('📦 orderType value:', JSON.stringify(orderType));
     loadPartnerData();
     loadOrderDetails();
+    loadReturnRequest();
   }, [orderId, orderType]);
 
   const loadPartnerData = async () => {
@@ -195,6 +205,110 @@ export default function OrderDetailsScreen() {
     }
   };
 
+  const loadReturnRequest = async () => {
+    try {
+      console.log('🔄 Loading return request for order:', orderId);
+      const response = await apiService.get(`/returns/partner/order/${orderId}`);
+      console.log('📦 Return request response:', JSON.stringify(response, null, 2));
+      if (response.success && response.data) {
+        const returnData = response.data.data || response.data;
+        console.log('✅ Return request loaded:', JSON.stringify(returnData, null, 2));
+        console.log('📋 Return status:', returnData?.status, '| Type:', returnData?.type);
+        console.log('🖼️ Return images:', returnData?.images);
+        setReturnRequest(returnData);
+      } else {
+        console.log('ℹ️ No return request data in response');
+      }
+    } catch (error) {
+      console.log('No return request found for this order');
+    }
+  };
+
+  const handleReviewReturn = async (action: 'approve' | 'reject', reason?: string) => {
+    if (!returnRequest) return;
+    setReturnLoading(true);
+    try {
+      const response = await apiService.patch(`/returns/${returnRequest.id}/review`, {
+        action,
+        rejection_reason: reason
+      });
+      if (response.success) {
+        modal.showSuccess(action === 'approve' ? 'Return request approved' : 'Return request rejected');
+        loadReturnRequest();
+      } else throw new Error(response.error || 'Failed');
+    } catch (error: any) {
+      modal.showError(error.message || 'Failed to review return request');
+    } finally {
+      setReturnLoading(false);
+    }
+  };
+
+  const handleReadyForReversePickup = async () => {
+    if (!returnRequest) return;
+    setReturnLoading(true);
+    try {
+      const response = await apiService.post(`/returns/${returnRequest.id}/ready-for-pickup`);
+      if (response.success) {
+        modal.showSuccess('Reverse pickup initiated. Delivery partner will collect from customer.');
+        loadReturnRequest();
+      } else throw new Error(response.error || 'Failed');
+    } catch (error: any) {
+      modal.showError(error.message || 'Failed to initiate reverse pickup');
+    } finally {
+      setReturnLoading(false);
+    }
+  };
+
+  const handleConfirmReturnReceived = async () => {
+    if (!returnRequest) return;
+    setReturnLoading(true);
+    try {
+      const response = await apiService.post(`/returns/${returnRequest.id}/confirm-received`);
+      if (response.success) {
+        modal.showSuccess('Return received confirmed');
+        loadReturnRequest();
+      } else throw new Error(response.error || 'Failed');
+    } catch (error: any) {
+      modal.showError(error.message || 'Failed to confirm return received');
+    } finally {
+      setReturnLoading(false);
+    }
+  };
+
+  const handleDispatchReplacement = async () => {
+    if (!returnRequest) return;
+    setReturnLoading(true);
+    try {
+      const response = await apiService.post(`/returns/${returnRequest.id}/dispatch-replacement`);
+      if (response.success) {
+        modal.showSuccess('Replacement dispatched. Delivery partner assigned.');
+        loadReturnRequest();
+      } else throw new Error(response.error || 'Failed');
+    } catch (error: any) {
+      modal.showError(error.message || 'Failed to dispatch replacement');
+    } finally {
+      setReturnLoading(false);
+    }
+  };
+
+  const handleProcessRefund = async () => {
+    if (!returnRequest) return;
+    setReturnLoading(true);
+    try {
+      const response = await apiService.post(`/returns/${returnRequest.id}/complete-refund`, {
+        refund_amount: orderDetails?.total_amount
+      });
+      if (response.success) {
+        modal.showSuccess('Refund processed successfully');
+        loadReturnRequest();
+      } else throw new Error(response.error || 'Failed');
+    } catch (error: any) {
+      modal.showError(error.message || 'Failed to process refund');
+    } finally {
+      setReturnLoading(false);
+    }
+  };
+
   const markReadyForPickup = () => {
     if (!orderDetails) return;
 
@@ -243,7 +357,7 @@ export default function OrderDetailsScreen() {
 
             // Now mark as ready for pickup
             console.log('🔄 Calling ready-for-pickup endpoint...');
-            let response = await apiService.post(`/partner/orders/${orderDetails.id}/ready-for-pickup`, {
+            const response = await apiService.post(`/partner/orders/${orderDetails.id}/ready-for-pickup`, {
               order_type: type,
               ...(partnerData?.latitude && partnerData?.longitude ? {
                 partner_latitude: partnerData.latitude,
@@ -251,20 +365,19 @@ export default function OrderDetailsScreen() {
               } : {}),
             });
 
-            // Fallback: use the standard status update endpoint if special endpoint fails
-            if (!response.success) {
-              console.log('⚠️ Special endpoint failed, falling back to standard status update...');
-              response = await apiService.patch(`/partner-orders/${orderDetails.id}/status`, {
-                order_type: type,
-                status: 'ready_for_pickup',
-              });
-            }
-
             if (response.success) {
               // Immediately refresh the order details
               await loadOrderDetails();
 
-              modal.showSuccess('Order marked as ready for pickup! Delivery partner will be assigned.');
+              const noPartner = response.data?.data?.no_partner_available;
+              if (noPartner) {
+                modal.showSuccess(
+                  'Order is ready for pickup. No delivery partners are available right now — one will be assigned when available.',
+                  { title: 'Ready for Pickup' }
+                );
+              } else {
+                modal.showSuccess('Order marked as ready for pickup! Delivery partner assigned.');
+              }
             } else {
               throw new Error(response.error || response.message || 'Failed to update status');
             }
@@ -444,7 +557,12 @@ export default function OrderDetailsScreen() {
         {/* Order ID & Status Section */}
         <View style={styles.statusSection}>
           <View style={styles.orderIdRow}>
-            <Text style={styles.orderId}>Order #{orderDetails.id}</Text>
+            <View style={styles.orderNumberBadge}>
+              <Text style={styles.orderNumberLabel}>ORDER</Text>
+              <Text style={styles.orderId}>
+                {orderDetails.order_number || `#${orderDetails.id?.slice(-8).toUpperCase()}`}
+              </Text>
+            </View>
             <View style={[styles.currentStatus, { backgroundColor: currentStatus?.color || '#666' }]}>
               <Text style={styles.currentStatusText}>{currentStatus?.label || orderDetails.order_status}</Text>
             </View>
@@ -705,18 +823,63 @@ export default function OrderDetailsScreen() {
             )}
           </View>
 
-          {/* Total */}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total Amount</Text>
-            <Text style={styles.totalAmount}>₹{orderDetails.total_amount}</Text>
-          </View>
+          {/* Price Breakup */}
+          <View style={styles.priceBreakup}>
+            <Text style={styles.priceBreakupTitle}>Price Breakup</Text>
 
-          {orderDetails.payment_method && (
-            <View style={styles.paymentRow}>
-              <Ionicons name="card-outline" size={18} color="#666" />
-              <Text style={styles.paymentText}>Payment: {orderDetails.payment_method}</Text>
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Item Subtotal</Text>
+              <Text style={styles.priceValue}>
+                ₹{orderDetails.subtotal ?? orderItems.reduce((sum: number, item: any) => sum + (item.price || item.unit_price || 0) * (item.quantity || 1), 0)}
+              </Text>
             </View>
-          )}
+
+            {!!orderDetails.shipping_fee && orderDetails.shipping_fee > 0 && (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>Delivery Charge</Text>
+                <Text style={styles.priceValue}>₹{orderDetails.shipping_fee}</Text>
+              </View>
+            )}
+
+            {!!orderDetails.tax_amount && orderDetails.tax_amount > 0 && (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>Tax</Text>
+                <Text style={styles.priceValue}>₹{orderDetails.tax_amount}</Text>
+              </View>
+            )}
+
+            {!!orderDetails.platform_fee && orderDetails.platform_fee > 0 && (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>Platform Fee</Text>
+                <Text style={styles.priceValue}>₹{orderDetails.platform_fee}</Text>
+              </View>
+            )}
+
+            {!!orderDetails.discount_amount && orderDetails.discount_amount > 0 && (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>Discount</Text>
+                <Text style={[styles.priceValue, styles.discountValue]}>-₹{orderDetails.discount_amount}</Text>
+              </View>
+            )}
+
+            <View style={styles.grandTotalRow}>
+              <Text style={styles.grandTotalLabel}>Grand Total</Text>
+              <Text style={styles.grandTotalAmount}>₹{orderDetails.total_amount}</Text>
+            </View>
+
+            {orderDetails.payment_method && (
+              <View style={styles.paymentRow}>
+                <Ionicons name="card-outline" size={16} color="#666" />
+                <Text style={styles.paymentText}>
+                  {orderDetails.payment_method === 'COD' || orderDetails.payment_method === 'cod'
+                    ? 'Cash on Delivery'
+                    : orderDetails.payment_method === 'ONLINE' || orderDetails.payment_method === 'online'
+                    ? 'Paid Online'
+                    : orderDetails.payment_method}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Special Notes */}
@@ -725,6 +888,231 @@ export default function OrderDetailsScreen() {
             <Text style={styles.sectionTitle}>Special Notes</Text>
             <View style={styles.notesBox}>
               <Text style={styles.notesText}>{orderDetails.notes}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Return Request Section */}
+        {returnRequest && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Return Request</Text>
+            <View style={styles.returnRequestCard}>
+              {/* Return Type Badge */}
+              <View style={styles.returnTypeRow}>
+                <View style={[styles.returnTypeBadge, {
+                  backgroundColor: returnRequest.type === 'replace' ? '#E3F2FD' : '#FFF3E0'
+                }]}>
+                  <Ionicons
+                    name={returnRequest.type === 'replace' ? 'swap-horizontal' : 'cash-outline'}
+                    size={16}
+                    color={returnRequest.type === 'replace' ? '#1565C0' : '#E65100'}
+                  />
+                  <Text style={[styles.returnTypeBadgeText, {
+                    color: returnRequest.type === 'replace' ? '#1565C0' : '#E65100'
+                  }]}>
+                    {returnRequest.type === 'replace' ? 'Replacement' : 'Refund'}
+                  </Text>
+                </View>
+                <View style={[styles.returnStatusBadge, {
+                  backgroundColor:
+                    returnRequest.status?.includes('pending') ? '#FFF3E0' :
+                    returnRequest.status?.includes('approved') ? '#E8F5E9' :
+                    returnRequest.status?.includes('rejected') ? '#FEECEB' :
+                    returnRequest.status?.includes('delivered') || returnRequest.status?.includes('completed') ? '#E8F5E9' :
+                    '#F3E5F5'
+                }]}>
+                  <Text style={[styles.returnStatusText, {
+                    color:
+                      returnRequest.status?.includes('pending') ? '#E65100' :
+                      returnRequest.status?.includes('approved') ? '#2E7D32' :
+                      returnRequest.status?.includes('rejected') ? '#C62828' :
+                      returnRequest.status?.includes('delivered') || returnRequest.status?.includes('completed') ? '#2E7D32' :
+                      '#6A1B9A'
+                  }]}>
+                    {returnRequest.status?.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Reason */}
+              <View style={styles.returnDetailRow}>
+                <Text style={styles.returnDetailLabel}>Reason:</Text>
+                <Text style={styles.returnDetailValue}>{returnRequest.reason}</Text>
+              </View>
+              {returnRequest.sub_reason && (
+                <View style={styles.returnDetailRow}>
+                  <Text style={styles.returnDetailLabel}>Sub-reason:</Text>
+                  <Text style={styles.returnDetailValue}>{returnRequest.sub_reason}</Text>
+                </View>
+              )}
+              {returnRequest.comments && (
+                <View style={styles.returnDetailRow}>
+                  <Text style={styles.returnDetailLabel}>Comments:</Text>
+                  <Text style={styles.returnDetailValue}>{returnRequest.comments}</Text>
+                </View>
+              )}
+
+              {/* Customer Uploaded Images */}
+              {returnRequest.images && (() => {
+                let imgs = returnRequest.images;
+                if (typeof imgs === 'string') {
+                  try { imgs = JSON.parse(imgs); } catch { imgs = []; }
+                }
+                if (!Array.isArray(imgs)) imgs = [];
+                return imgs.length > 0 ? (
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={styles.returnDetailLabel}>Supporting Images:</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+                      {imgs.map((uri: string, idx: number) => (
+                        <Image
+                          key={idx}
+                          source={{ uri }}
+                          style={{ width: 100, height: 100, borderRadius: 8, marginRight: 8, backgroundColor: '#f0f0f0' }}
+                          resizeMode="cover"
+                        />
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : null;
+              })()}
+
+              {/* Return Delivery OTP - shown when pickup is scheduled/in progress */}
+              {returnRequest.return_delivery_otp && !['pending', 'approved', 'rejected', 'returned_to_vendor', 'return_received', 'replacement_delivered', 'refund_completed'].includes(returnRequest.status) && (
+                <View style={{
+                  marginTop: 14,
+                  backgroundColor: '#FFF8E1',
+                  borderRadius: 10,
+                  padding: 14,
+                  borderWidth: 1,
+                  borderColor: '#FFD54F',
+                  alignItems: 'center',
+                }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                    <Ionicons name="key-outline" size={18} color="#F57F17" />
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: '#F57F17', marginLeft: 6 }}>
+                      Return Delivery OTP
+                    </Text>
+                  </View>
+                  <Text style={{
+                    fontSize: 28,
+                    fontWeight: '800',
+                    color: '#E65100',
+                    letterSpacing: 6,
+                  }}>
+                    {returnRequest.return_delivery_otp}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#888', marginTop: 4, textAlign: 'center' }}>
+                    Share this OTP with the delivery partner when they arrive with the returned product
+                  </Text>
+                </View>
+              )}
+
+              {/* Action Buttons based on status */}
+              {(returnRequest.status === 'pending' || returnRequest.status === 'replacement_pending' || returnRequest.status === 'refund_pending') && (
+                <View style={styles.returnActions}>
+                  <TouchableOpacity
+                    style={[styles.returnActionBtn, { backgroundColor: '#4CAF50' }]}
+                    onPress={() => handleReviewReturn('approve')}
+                    disabled={returnLoading}
+                  >
+                    {returnLoading ? <ActivityIndicator size="small" color="#fff" /> : (
+                      <>
+                        <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                        <Text style={styles.returnActionBtnText}>Approve</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.returnActionBtn, { backgroundColor: '#F44336' }]}
+                    onPress={() => {
+                      Alert.prompt ? Alert.prompt(
+                        'Reject Return',
+                        'Please provide a reason for rejection',
+                        (text) => handleReviewReturn('reject', text),
+                        'plain-text'
+                      ) : handleReviewReturn('reject', 'Not eligible for return');
+                    }}
+                    disabled={returnLoading}
+                  >
+                    <Ionicons name="close-circle" size={18} color="#fff" />
+                    <Text style={styles.returnActionBtnText}>Reject</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {(returnRequest.status === 'approved' || returnRequest.status === 'replacement_approved' || returnRequest.status === 'refund_approved') && (
+                <TouchableOpacity
+                  style={[styles.returnActionBtn, { backgroundColor: Colors.primary, width: '100%', marginTop: 12 }]}
+                  onPress={handleReadyForReversePickup}
+                  disabled={returnLoading}
+                >
+                  {returnLoading ? <ActivityIndicator size="small" color="#fff" /> : (
+                    <>
+                      <Ionicons name="bicycle" size={18} color="#fff" />
+                      <Text style={styles.returnActionBtnText}>Initiate Reverse Pickup</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              {returnRequest.status === 'returned_to_vendor' && returnRequest.type === 'replace' && (
+                <TouchableOpacity
+                  style={[styles.returnActionBtn, { backgroundColor: '#2196F3', width: '100%', marginTop: 12 }]}
+                  onPress={handleDispatchReplacement}
+                  disabled={returnLoading}
+                >
+                  {returnLoading ? <ActivityIndicator size="small" color="#fff" /> : (
+                    <>
+                      <Ionicons name="send" size={18} color="#fff" />
+                      <Text style={styles.returnActionBtnText}>Dispatch Replacement</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              {returnRequest.status === 'returned_to_vendor' && returnRequest.type === 'refund' && (
+                <View style={styles.returnActions}>
+                  <TouchableOpacity
+                    style={[styles.returnActionBtn, { backgroundColor: Colors.primary, flex: 1 }]}
+                    onPress={handleConfirmReturnReceived}
+                    disabled={returnLoading}
+                  >
+                    {returnLoading ? <ActivityIndicator size="small" color="#fff" /> : (
+                      <>
+                        <Ionicons name="checkmark" size={18} color="#fff" />
+                        <Text style={styles.returnActionBtnText}>Confirm Received</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.returnActionBtn, { backgroundColor: '#4CAF50', flex: 1 }]}
+                    onPress={handleProcessRefund}
+                    disabled={returnLoading}
+                  >
+                    {returnLoading ? <ActivityIndicator size="small" color="#fff" /> : (
+                      <>
+                        <Ionicons name="cash" size={18} color="#fff" />
+                        <Text style={styles.returnActionBtnText}>Process Refund</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {(returnRequest.status === 'return_received' || returnRequest.status === 'refund_initiated') && returnRequest.type === 'refund' && (
+                <TouchableOpacity
+                  style={[styles.returnActionBtn, { backgroundColor: '#4CAF50', width: '100%', marginTop: 12 }]}
+                  onPress={handleProcessRefund}
+                  disabled={returnLoading}
+                >
+                  {returnLoading ? <ActivityIndicator size="small" color="#fff" /> : (
+                    <>
+                      <Ionicons name="cash" size={18} color="#fff" />
+                      <Text style={styles.returnActionBtnText}>Process Refund</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         )}
@@ -833,10 +1221,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  orderNumberBadge: {
+    flex: 1,
+    marginRight: 8,
+  },
+  orderNumberLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#999',
+    letterSpacing: 1.2,
+    marginBottom: 2,
+  },
   orderId: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: '#333',
+    letterSpacing: 0.3,
   },
   orderDateRow: {
     flexDirection: 'row',
@@ -1090,32 +1490,70 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 20,
   },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  priceBreakup: {
     marginTop: 16,
     paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  priceBreakupTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 12,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  priceLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: '#666',
+  },
+  priceValue: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+    textAlign: 'right',
+  },
+  discountValue: {
+    color: '#4CAF50',
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+  grandTotalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingTop: 12,
     borderTopWidth: 2,
     borderTopColor: '#e0e0e0',
   },
-  totalLabel: {
+  grandTotalLabel: {
+    flex: 1,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#333',
   },
-  totalAmount: {
+  grandTotalAmount: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.primary,
+    textAlign: 'right',
   },
   paymentRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
   },
   paymentText: {
+    flex: 1,
     fontSize: 14,
     color: '#666',
   },
@@ -1130,5 +1568,74 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#92400E',
     lineHeight: 20,
+  },
+  returnRequestCard: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  returnTypeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  returnTypeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  returnTypeBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  returnStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  returnStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  returnDetailRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  returnDetailLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+    width: 90,
+  },
+  returnDetailValue: {
+    fontSize: 13,
+    color: '#333',
+    flex: 1,
+  },
+  returnActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  returnActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    flex: 1,
+  },
+  returnActionBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

@@ -9,8 +9,9 @@ import {
   RefreshControl,
   ActivityIndicator,
   TextInput,
-  Platform,
   Modal,
+  Pressable,
+  Platform,
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,7 +34,12 @@ interface Order {
   total_amount: number;
   order_items?: any[];
   payment_method?: string;
-  order_type?: 'pharmacy' | 'product'; // Added: order type from backend
+  order_type?: 'pharmacy' | 'product';
+  return_request?: {
+    id: string;
+    type: 'replace' | 'refund';
+    status: string;
+  } | null;
 }
 
 export default function OrdersListScreen() {
@@ -44,19 +50,30 @@ export default function OrdersListScreen() {
   const [selectedTab, setSelectedTab] = useState<'incoming' | 'ready' | 'out_delivered'>('incoming');
   const [partnerData, setPartnerData] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeReturnCount, setActiveReturnCount] = useState(0);
 
   // Filter states
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
-  const [fromDate, setFromDate] = useState<Date>(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 30); // Default to 30 days ago
-    return date;
-  });
-  const [toDate, setToDate] = useState<Date>(new Date());
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
+  const [showDateFilterModal, setShowDateFilterModal] = useState(false);
+  const [activeDateFilter, setActiveDateFilter] = useState<{ label: string; key: string; days: number }>(
+    { label: 'All Time', key: 'all', days: 0 }
+  );
+  // Custom date range
+  const [fromDate, setFromDate] = useState<Date | null>(null);
+  const [toDate, setToDate] = useState<Date | null>(null);
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
-  const [showStatusPicker, setShowStatusPicker] = useState(false);
+
+  const DATE_PRESETS = [
+    { label: 'All Time', key: 'all', days: 0 },
+    { label: 'Last 7 Days', key: '7d', days: 7 },
+    { label: 'Last 15 Days', key: '15d', days: 15 },
+    { label: 'Last 30 Days', key: '30d', days: 30 },
+    { label: 'Last 3 Months', key: '3m', days: 90 },
+    { label: 'Custom Range', key: 'custom', days: -1 },
+  ];
 
   useEffect(() => {
     loadPartnerData();
@@ -65,6 +82,8 @@ export default function OrdersListScreen() {
   useEffect(() => {
     if (partnerData) {
       loadOrders();
+      // Always fetch delivered orders count for return badge
+      fetchReturnRequestCount();
     }
   }, [partnerData, selectedTab]);
 
@@ -94,6 +113,21 @@ export default function OrdersListScreen() {
       }
     } catch (error) {
       console.error('❌ Error loading partner data:', error);
+    }
+  };
+
+  const fetchReturnRequestCount = async () => {
+    try {
+      const deliveredResp = await apiService.getOrders({ status: 'delivered', limit: 50 });
+      if (deliveredResp.success && deliveredResp.data) {
+        const deliveredOrders = deliveredResp.data.data?.orders || deliveredResp.data.orders || deliveredResp.data || [];
+        const count = deliveredOrders.filter((o: any) =>
+          o.return_request && !['rejected', 'replacement_delivered', 'refund_completed'].includes(o.return_request.status)
+        ).length;
+        setActiveReturnCount(count);
+      }
+    } catch (e) {
+      // Silently fail - badge just won't show
     }
   };
 
@@ -172,10 +206,17 @@ export default function OrdersListScreen() {
           console.warn('⚠️ Processing response not successful or no data:', processingResponse);
         }
 
-        const combinedOrders = [...placedOrders, ...confirmedOrders, ...processingOrders].sort((a, b) =>
-          new Date(b.order_date).getTime() - new Date(a.order_date).getTime()
-        );
-        console.log(`🎯 Total incoming orders: ${combinedOrders.length}`);
+        // Deduplicate by ID (confirmed filter includes placed, causing duplicates)
+        const seenIds = new Set();
+        const combinedOrders = [...placedOrders, ...confirmedOrders, ...processingOrders]
+          .filter(order => {
+            const key = `${order.order_type || 'product'}_${order.id}`;
+            if (seenIds.has(key)) return false;
+            seenIds.add(key);
+            return true;
+          })
+          .sort((a, b) => new Date(b.order_date).getTime() - new Date(a.order_date).getTime());
+        console.log(`🎯 Total incoming orders (deduplicated): ${combinedOrders.length}`);
 
         // Debug: Log first order structure to see what fields are available
         if (combinedOrders.length > 0) {
@@ -213,6 +254,11 @@ export default function OrdersListScreen() {
           new Date(b.order_date).getTime() - new Date(a.order_date).getTime()
         );
         setOrders(combinedOrders);
+        // Track active return requests count
+        const activeReturns = combinedOrders.filter((o: any) =>
+          o.return_request && !['rejected', 'replacement_delivered', 'refund_completed'].includes(o.return_request.status)
+        ).length;
+        setActiveReturnCount(activeReturns);
       } else {
         console.log('📦 Fetching ready for pickup orders...');
 
@@ -271,6 +317,31 @@ export default function OrdersListScreen() {
     router.push(`/orders/details?orderId=${order.id}&orderType=${orderType}`);
   };
 
+  // Derive display info considering return requests
+  const getReturnDisplayInfo = (returnReq: Order['return_request']): { color: string; label: string } | null => {
+    if (!returnReq) return null;
+    const map: Record<string, { color: string; label: string }> = {
+      'pending': { color: '#F59E0B', label: returnReq.type === 'replace' ? 'Replacement Pending' : 'Refund Pending' },
+      'approved': { color: '#E65100', label: returnReq.type === 'replace' ? 'Replacement Approved' : 'Refund Approved' },
+      'replacement_pending': { color: '#F55536', label: 'Replacement Pending' },
+      'replacement_approved': { color: '#E65100', label: 'Replacement Approved' },
+      'refund_pending': { color: '#F59E0B', label: 'Refund Pending' },
+      'refund_approved': { color: '#E65100', label: 'Refund Approved' },
+      'pickup_scheduled': { color: '#7C3AED', label: 'Pickup Scheduled' },
+      'picked_up_from_customer': { color: '#9C27B0', label: 'Return Pickup Done' },
+      'returned_to_vendor': { color: '#7B1FA2', label: 'Returned to You' },
+      'return_received': { color: '#4527A0', label: 'Return Received' },
+      'refund_initiated': { color: '#2196F3', label: 'Refund In Progress' },
+      'replacement_delivered': { color: '#4CAF50', label: 'Replacement Delivered' },
+      'refund_completed': { color: '#4CAF50', label: 'Refund Completed' },
+      'rejected': { color: '#EF4444', label: 'Return Rejected' },
+    };
+    return map[returnReq.status] || {
+      color: '#9C27B0',
+      label: returnReq.status?.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) || 'Return',
+    };
+  };
+
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'placed':
@@ -323,11 +394,34 @@ export default function OrdersListScreen() {
         orderItems = typeof item.order_items === 'string'
           ? JSON.parse(item.order_items)
           : item.order_items;
+
+        console.log(`🛒 [Order ${item.id}] order_items count: ${orderItems.length}`);
+        if (orderItems.length > 0) {
+          const firstItem = orderItems[0];
+          console.log(`🛒 [Order ${item.id}] first item keys:`, Object.keys(firstItem));
+          console.log(`🛒 [Order ${item.id}] first item image fields:`, {
+            image_url: firstItem.image_url,
+            imageUrl: firstItem.imageUrl,
+            image: firstItem.image,
+            photo: firstItem.photo,
+            thumbnail: firstItem.thumbnail,
+            thumbnail_url: firstItem.thumbnail_url,
+          });
+        }
+
         productNames = orderItems
           .map((orderItem: any) => orderItem.product_name || orderItem.name)
           .filter(Boolean)
           .join(', ');
-        firstItemImage = orderItems[0]?.image_url || null;
+        firstItemImage = orderItems[0]?.image_url
+          || orderItems[0]?.imageUrl
+          || orderItems[0]?.image
+          || orderItems[0]?.thumbnail_url
+          || orderItems[0]?.thumbnail
+          || (item as any).order_image
+          || null;
+
+        console.log(`🛒 [Order ${item.id}] resolved image: ${firstItemImage}`);
       } catch (e) {
         console.error('Error parsing order_items:', e);
       }
@@ -357,6 +451,25 @@ export default function OrdersListScreen() {
             </Text>
           </View>
         </View>
+
+        {/* Return Request Badge */}
+        {item.return_request && (
+          <View style={[styles.returnBadgeRow, {
+            backgroundColor: (getReturnDisplayInfo(item.return_request)?.color || '#9C27B0') + '12',
+            borderColor: (getReturnDisplayInfo(item.return_request)?.color || '#9C27B0') + '40',
+          }]}>
+            <Ionicons
+              name={item.return_request.type === 'replace' ? 'swap-horizontal' : 'cash-outline'}
+              size={15}
+              color={getReturnDisplayInfo(item.return_request)?.color || '#9C27B0'}
+            />
+            <Text style={[styles.returnBadgeText, {
+              color: getReturnDisplayInfo(item.return_request)?.color || '#9C27B0',
+            }]}>
+              {getReturnDisplayInfo(item.return_request)?.label}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.orderBody}>
           <View style={styles.orderRow}>
@@ -421,15 +534,22 @@ export default function OrdersListScreen() {
       return false;
     }
 
-    // Date range filter
+    // Date filter
     const orderDate = new Date(order.order_date);
-    const fromDateTime = new Date(fromDate);
-    fromDateTime.setHours(0, 0, 0, 0);
-    const toDateTime = new Date(toDate);
-    toDateTime.setHours(23, 59, 59, 999);
-
-    if (orderDate < fromDateTime || orderDate > toDateTime) {
-      return false;
+    if (activeDateFilter.key === 'custom') {
+      if (fromDate) {
+        const from = new Date(fromDate); from.setHours(0, 0, 0, 0);
+        if (orderDate < from) return false;
+      }
+      if (toDate) {
+        const to = new Date(toDate); to.setHours(23, 59, 59, 999);
+        if (orderDate > to) return false;
+      }
+    } else if (activeDateFilter.days > 0) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - activeDateFilter.days);
+      cutoff.setHours(0, 0, 0, 0);
+      if (orderDate < cutoff) return false;
     }
 
     return true;
@@ -444,58 +564,19 @@ export default function OrdersListScreen() {
     }
   };
 
-  const formatDateForAPI = (date: Date) => {
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  const formatDateDisplay = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-  };
-
-  const handleFromDateChange = (event: any, selectedDate?: Date) => {
-    setShowFromPicker(Platform.OS === 'ios');
-    if (selectedDate) {
-      setFromDate(selectedDate);
-      if (selectedDate > toDate) {
-        const newToDate = new Date(selectedDate);
-        newToDate.setDate(newToDate.getDate() + 7);
-        setToDate(newToDate);
-      }
-    }
-  };
-
-  const handleToDateChange = (event: any, selectedDate?: Date) => {
-    setShowToPicker(Platform.OS === 'ios');
-    if (selectedDate) {
-      if (selectedDate >= fromDate) {
-        setToDate(selectedDate);
-      } else {
-        modal.showWarning('To date cannot be before From date');
-      }
-    }
-  };
-
   const applyFilters = () => {
     setShowFilters(false);
-    loadOrders();
   };
 
   const resetFilters = () => {
     setStatusFilter('all');
-    const newFromDate = new Date();
-    newFromDate.setDate(newFromDate.getDate() - 30);
-    setFromDate(newFromDate);
-    setToDate(new Date());
-    loadOrders();
+    setActiveDateFilter({ label: 'All Time', key: 'all', days: 0 });
+    setFromDate(null);
+    setToDate(null);
   };
+
+  const formatDateDisplay = (date: Date) =>
+    date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -591,30 +672,41 @@ export default function OrdersListScreen() {
               </View>
             )}
 
-            {/* Date Filter */}
-            <View style={styles.dateFilterRow}>
-              <View style={styles.dateFilterItem}>
-                <Text style={styles.filterLabel}>From Date:</Text>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => setShowFromPicker(true)}
-                >
-                  <Ionicons name="calendar-outline" size={18} color={Colors.primary} />
-                  <Text style={styles.dateText}>{formatDateDisplay(formatDateForAPI(fromDate))}</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.dateFilterItem}>
-                <Text style={styles.filterLabel}>To Date:</Text>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => setShowToPicker(true)}
-                >
-                  <Ionicons name="calendar-outline" size={18} color={Colors.primary} />
-                  <Text style={styles.dateText}>{formatDateDisplay(formatDateForAPI(toDate))}</Text>
-                </TouchableOpacity>
-              </View>
+            {/* Date Range Filter */}
+            <View style={styles.filterRow}>
+              <Text style={styles.filterLabel}>Date Range:</Text>
+              <TouchableOpacity
+                style={styles.filterPickerButton}
+                onPress={() => setShowDateFilterModal(true)}
+              >
+                <Text style={styles.filterPickerText} numberOfLines={1}>{activeDateFilter.label}</Text>
+                <Ionicons name="chevron-down" size={18} color="#666" />
+              </TouchableOpacity>
             </View>
+
+            {/* Custom date pickers — shown only when Custom Range is selected */}
+            {activeDateFilter.key === 'custom' && (
+              <View style={styles.customDateRow}>
+                <View style={styles.customDateItem}>
+                  <Text style={styles.filterLabel}>From:</Text>
+                  <TouchableOpacity style={styles.dateButton} onPress={() => setShowFromPicker(true)}>
+                    <Ionicons name="calendar-outline" size={16} color={Colors.primary} />
+                    <Text style={styles.dateText}>
+                      {fromDate ? formatDateDisplay(fromDate) : 'Select'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.customDateItem}>
+                  <Text style={styles.filterLabel}>To:</Text>
+                  <TouchableOpacity style={styles.dateButton} onPress={() => setShowToPicker(true)}>
+                    <Ionicons name="calendar-outline" size={16} color={Colors.primary} />
+                    <Text style={styles.dateText}>
+                      {toDate ? formatDateDisplay(toDate) : 'Select'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
             {/* Filter Actions */}
             <View style={styles.filterActions}>
@@ -638,22 +730,27 @@ export default function OrdersListScreen() {
       {/* Date Pickers */}
       {showFromPicker && (
         <DateTimePicker
-          value={fromDate}
+          value={fromDate || new Date()}
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleFromDateChange}
-          maximumDate={toDate}
+          maximumDate={toDate || new Date()}
+          onChange={(_, date) => {
+            setShowFromPicker(Platform.OS === 'ios');
+            if (date) setFromDate(date);
+          }}
         />
       )}
-
       {showToPicker && (
         <DateTimePicker
-          value={toDate}
+          value={toDate || new Date()}
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleToDateChange}
-          minimumDate={fromDate}
+          minimumDate={fromDate || undefined}
           maximumDate={new Date()}
+          onChange={(_, date) => {
+            setShowToPicker(Platform.OS === 'ios');
+            if (date) setToDate(date);
+          }}
         />
       )}
 
@@ -679,9 +776,16 @@ export default function OrdersListScreen() {
           style={[styles.tab, selectedTab === 'out_delivered' && styles.activeTab]}
           onPress={() => setSelectedTab('out_delivered')}
         >
-          <Text style={[styles.tabText, selectedTab === 'out_delivered' && styles.activeTabText]}>
-            Out & Delivered
-          </Text>
+          <View style={styles.tabInner}>
+            <Text style={[styles.tabText, selectedTab === 'out_delivered' && styles.activeTabText]}>
+              Out & Delivered
+            </Text>
+            {activeReturnCount > 0 && (
+              <View style={styles.tabBadge}>
+                <Text style={styles.tabBadgeText}>{activeReturnCount}</Text>
+              </View>
+            )}
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -724,6 +828,35 @@ export default function OrdersListScreen() {
           }
         />
       )}
+
+      {/* Date Filter Modal */}
+      <Modal visible={showDateFilterModal} transparent animationType="slide" onRequestClose={() => setShowDateFilterModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowDateFilterModal(false)}>
+          <View style={styles.dateFilterSheet}>
+            <View style={styles.dateFilterSheetHeader}>
+              <Text style={styles.dateFilterSheetTitle}>Filter by Date</Text>
+              <TouchableOpacity onPress={() => setShowDateFilterModal(false)}>
+                <Ionicons name="close" size={22} color="#333" />
+              </TouchableOpacity>
+            </View>
+            {DATE_PRESETS.map((preset) => (
+              <TouchableOpacity
+                key={preset.key}
+                style={[styles.datePresetOption, activeDateFilter.key === preset.key && styles.datePresetOptionActive]}
+                onPress={() => {
+                  setActiveDateFilter(preset);
+                  setShowDateFilterModal(false);
+                }}
+              >
+                <Text style={[styles.datePresetText, activeDateFilter.key === preset.key && styles.datePresetTextActive]}>
+                  {preset.label}
+                </Text>
+                {activeDateFilter.key === preset.key && <Ionicons name="checkmark" size={18} color={Colors.primary} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
 
       <CustomModal
         visible={modal.visible}
@@ -896,10 +1029,47 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
+    flexShrink: 1,
+    maxWidth: 130,
   },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  returnBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  returnBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    flex: 1,
+  },
+  tabInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tabBadge: {
+    backgroundColor: '#F55536',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  tabBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
   orderBody: {
     gap: 8,
@@ -997,6 +1167,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     fontWeight: '500',
+    flex: 1,
+  },
+  customDateRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  customDateItem: {
+    flex: 1,
+    gap: 4,
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    gap: 6,
+  },
+  dateText: {
+    fontSize: 13,
+    color: '#333',
+    fontWeight: '500',
+    flex: 1,
   },
   pickerContainer: {
     backgroundColor: '#FFF',
@@ -1019,31 +1215,6 @@ const styles = StyleSheet.create({
   pickerOptionSelected: {
     color: Colors.primary,
     fontWeight: '600',
-  },
-  dateFilterRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  dateFilterItem: {
-    flex: 1,
-    gap: 4,
-  },
-  dateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
-    gap: 8,
-  },
-  dateText: {
-    fontSize: 13,
-    color: '#333',
-    fontWeight: '500',
-    flex: 1,
   },
   filterActions: {
     flexDirection: 'row',
@@ -1075,5 +1246,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#FFF',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  dateFilterSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 30,
+  },
+  dateFilterSheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  dateFilterSheetTitle: {
+    fontSize: 17,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  datePresetOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f7f7f7',
+  },
+  datePresetOptionActive: {
+    backgroundColor: Colors.primary + '10',
+  },
+  datePresetText: {
+    fontSize: 15,
+    color: '#333',
+    flex: 1,
+  },
+  datePresetTextActive: {
+    color: Colors.primary,
+    fontWeight: '600',
   },
 });
