@@ -190,16 +190,9 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
            </View>
         </View>
 
-        <View style={styles.infoContainer}>
-           <Ionicons name="calendar-outline" size={14} color="gray" />
-           <Text style={styles.infoText}>
-             {formatDate(item.appointmentDate || item.appointment_date)}
-           </Text>
-           <Ionicons name="time-outline" size={14} color="gray" style={{ marginLeft: 8 }} />
-           <Text style={styles.infoText}>
-             {item.appointmentTime || item.appointment_time || 'N/A'}
-           </Text>
-         </View>
+        <Text style={styles.infoText} numberOfLines={1} adjustsFontSizeToFit>
+          {`📅 ${formatDate(item.appointmentDate || item.appointment_date)}   🕐 ${item.appointmentTime || item.appointment_time || 'N/A'}`}
+        </Text>
       </TouchableOpacity>
 
        <View style={styles.viewBtnContainer}>
@@ -470,15 +463,10 @@ const styles = StyleSheet.create({
     color: "#ED6D4E",
     marginTop: 2,
   },
-  infoContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-    gap: 4,
-  },
   infoText: {
     fontSize: 13,
     color: "#444",
+    marginTop: 8,
   },
   viewBtnContainer: {
     alignItems: "center",
