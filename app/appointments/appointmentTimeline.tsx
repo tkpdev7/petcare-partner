@@ -42,6 +42,10 @@ type Appointment = {
   appointmentTime?: string;
   created_at?: string;
   createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
+  completed_at?: string;
+  otp_verified_at?: string;
   cancellation_reason?: string;
   cancelled_by?: string;
   cancelled_at?: string;
@@ -84,80 +88,6 @@ const route = useRoute<AppointmentTimelineRouteProp>();
 
   console.log("Timeline : ", id, date, time);
 
-  // Generate timeline milestones based on appointment status
-  const generateMilestones = (apt: Appointment): AppointmentMilestone[] => {
-    const milestones: AppointmentMilestone[] = [
-      {
-        status: 'accepted',
-        title: 'Appointment Request Accepted',
-        completed: true,
-        timestamp: apt.createdAt || apt.created_at,
-        icon: '📅',
-      },
-    ];
-
-    const status = apt.status?.toLowerCase();
-
-    // If rescheduled, add reschedule milestone
-    if (status === 'rescheduled') {
-      milestones.push({
-        status: 'rescheduled',
-        title: 'Appointment Rescheduled',
-        completed: true,
-        timestamp: apt.rescheduled_at || apt.rescheduledAt || new Date().toISOString(),
-        icon: '🔄',
-      });
-    }
-
-    // Add in_progress if status is in_progress or completed
-    if (status === 'in_progress' || status === 'completed') {
-      milestones.push({
-        status: 'in_progress',
-        title: 'Appointment On-going',
-        completed: true,
-        timestamp: apt.appointmentDate || apt.appointment_date,
-        icon: '🏥',
-      });
-    } else {
-      milestones.push({
-        status: 'in_progress',
-        title: 'Appointment On-going',
-        completed: false,
-        timestamp: null,
-        icon: '🏥',
-      });
-    }
-
-    // Add completed milestone
-    if (status === 'completed') {
-      milestones.push({
-        status: 'completed',
-        title: 'Appointment Completed',
-        completed: true,
-        timestamp: apt.appointmentDate || apt.appointment_date,
-        icon: '🎉',
-      });
-    } else if (status === 'cancelled' || status === 'no_show') {
-      milestones.push({
-        status: status,
-        title: status === 'cancelled' ? 'Appointment Cancelled' : 'No Show',
-        completed: true,
-        timestamp: apt.cancelled_at || apt.cancelledAt || new Date().toISOString(),
-        icon: '❌',
-      });
-    } else {
-      milestones.push({
-        status: 'completed',
-        title: 'Appointment Completed',
-        completed: false,
-        timestamp: null,
-        icon: '🎉',
-      });
-    }
-
-    return milestones;
-  };
-
   useEffect(() => {
     const fetchToken = async () => {
       try {
@@ -178,51 +108,36 @@ const route = useRoute<AppointmentTimelineRouteProp>();
     const fetchAppointmentData = async () => {
       try {
         setLoading(true);
-        // Fetch appointment details using apiService
-        const response = await apiService.getAppointment(id);
 
+        // Fetch timeline milestones from server (same as customer app)
+        const timelineResponse = await apiService.getAppointmentTimeline(id);
+        console.log('=== TIMELINE API RESPONSE ===');
+        console.log('Full Response:', JSON.stringify(timelineResponse, null, 2));
+        console.log('============================');
+
+        if (timelineResponse.success && timelineResponse.data) {
+          const timelineData = timelineResponse.data.data || timelineResponse.data;
+          if (timelineData.timeline?.milestones) {
+            setMilestones(timelineData.timeline.milestones);
+          }
+        }
+
+        // Fetch full appointment details
+        const response = await apiService.getAppointment(id);
         console.log('=== APPOINTMENT API RESPONSE ===');
         console.log('Full Response:', JSON.stringify(response, null, 2));
         console.log('============================');
 
         if (response.success && response.data) {
-          // Handle double-nested data structure: response.data.data
           const appointmentData = response.data.data || response.data;
-
-          console.log('Key Fields Check:');
-          console.log('- provider_name:', appointmentData?.provider_name);
-          console.log('- service_name:', appointmentData?.service_name);
-          console.log('- service_type:', appointmentData?.service_type);
-          console.log('- pet_name:', appointmentData?.pet_name);
-          console.log('- price:', appointmentData?.price);
-          console.log('- totalAmount:', appointmentData?.totalAmount);
-          console.log('- payment_method:', appointmentData?.payment_method);
-          console.log('- otp_code:', appointmentData?.otp_code);
-          console.log('- prescription_pdf_base64:', appointmentData?.prescription_pdf_base64 ? 'present' : 'not present');
-          console.log('- case_sheet_pdf_base64:', appointmentData?.case_sheet_pdf_base64 ? 'present' : 'not present');
-          console.log('============================');
-
           setAppointment(appointmentData);
-
-          // Generate timeline milestones from appointment status
-          const generatedMilestones = generateMilestones(appointmentData);
-          console.log('Generated milestones:', generatedMilestones.length, 'items');
-          console.log('Milestones with timestamps:', generatedMilestones);
-          setMilestones(generatedMilestones);
-        } else {
-          // Set default milestones even if no data
-          setMilestones([
-            { status: 'accepted', title: 'Appointment Request Accepted', completed: false, timestamp: null, icon: '📅' },
-            { status: 'in_progress', title: 'Appointment On-going', completed: false, timestamp: null, icon: '🏥' },
-            { status: 'completed', title: 'Appointment Completed', completed: false, timestamp: null, icon: '🎉' }
-          ]);
         }
       } catch (error) {
         console.error('Error fetching appointment:', error);
         // Set default milestones on error
         setMilestones([
-          { status: 'accepted', title: 'Appointment Request Accepted', completed: false, timestamp: null, icon: '📅' },
-          { status: 'in_progress', title: 'Appointment On-going', completed: false, timestamp: null, icon: '🏥' },
+          { status: 'scheduled', title: 'Appointment Scheduled', completed: false, timestamp: null, icon: '📅' },
+          { status: 'in_progress', title: 'Appointment In Progress', completed: false, timestamp: null, icon: '🏥' },
           { status: 'completed', title: 'Appointment Completed', completed: false, timestamp: null, icon: '🎉' }
         ]);
       } finally {
@@ -265,22 +180,23 @@ const route = useRoute<AppointmentTimelineRouteProp>();
               ms.icon === "🏥" ? "medkit" :
               ms.icon === "🎉" ? "checkmark-done-circle" :
               ms.icon === "🔄" ? "refresh" :
-              ms.icon === "⚠️" || ms.icon === "❌" ? "close-circle" : "ellipse",
+              (ms.icon === "⚠️" || ms.icon === "❌") ? "close-circle" : "ellipse",
         details: ms.details // Include reschedule details if available
       }))
     : [
-        { key: "accepted", label: "Appointment Request Accepted", icon: "checkmark-circle" },
-        { key: "ongoing", label: "Appointment On-going", icon: "hourglass" },
+        { key: "scheduled", label: "Appointment Scheduled", icon: "calendar" },
+        { key: "in_progress", label: "Appointment In Progress", icon: "medkit" },
         { key: "completed", label: "Appointment Completed", icon: "checkmark-done-circle" },
       ];
 
   const lastCompleted = statusStates.findLastIndex(s => s.completed);
 
-  // If appointment is completed, mark all milestones as completed
+  // For completed appointments all past milestones should be shown as done
+  // For cancelled appointments we keep exact state (only Booked + Cancelled shown)
   const isAppointmentCompleted = appointment?.status?.toLowerCase() === 'completed';
-  const enhancedStatusStates = statusStates.map((state, idx) => ({
+  const enhancedStatusStates = statusStates.map((state) => ({
     ...state,
-    completed: isAppointmentCompleted ? true : state.completed
+    completed: isAppointmentCompleted ? true : state.completed,
   }));
 
 const formatDateTime = (dateString?: string, timeString?: string) => {
@@ -591,15 +507,23 @@ const getStatusStyle = (status?: string) => {
                     ]}>
                       {node.label}
                     </Text>
-                    <Text style={styles.timelineSubLabel}>
-                      {`${enhancedStatusStates[idx]?.time || '--'}, ${enhancedStatusStates[idx]?.date || '--'}`}
-                    </Text>
-                    {/* Show reschedule details without reason */}
-                    {node.details && node.details.from_date && node.details.from_time && (
+                    {/* Only show timestamp if not a reschedule event */}
+                    {!node.details && (
+                      <Text style={styles.timelineSubLabel}>
+                        {enhancedStatusStates[idx]?.time}, {enhancedStatusStates[idx]?.date}
+                      </Text>
+                    )}
+                    {/* Show reschedule details with both From and To times */}
+                    {node.details && (
                       <View style={styles.rescheduleDetails}>
-                        <Text style={styles.rescheduleText}>
-                          {`From: ${node.details.from_date} at ${node.details.from_time}`}
+                        <Text style={styles.timelineSubLabel}>
+                          From: {formatDateTime(node.details.from_date, node.details.from_time)}
                         </Text>
+                        {date && time && (
+                          <Text style={styles.timelineSubLabel}>
+                            To: {formatDateTime(date, time)}
+                          </Text>
+                        )}
                       </View>
                     )}
                   </View>
@@ -743,9 +667,9 @@ const styles = StyleSheet.create({
   },
   timelineTextCol: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
     paddingLeft: 12,
-    marginTop:-33
+    paddingTop: 4,
   },
   timelineLabel: {
     color: "#999",

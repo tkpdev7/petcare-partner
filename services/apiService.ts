@@ -272,6 +272,10 @@ class ApiService {
     return this.makeRequest('GET', `/partner-appointments/${id}`);
   }
 
+  async getAppointmentTimeline(id: string): Promise<ApiResponse> {
+    return this.makeRequest('GET', `/partner-appointments/${id}/timeline`);
+  }
+
   async updateAppointmentStatus(id: string, status: string, notes?: string): Promise<ApiResponse> {
     return this.makeRequest('PUT', `/partner-appointments/${id}/status`, { status, notes });
   }
