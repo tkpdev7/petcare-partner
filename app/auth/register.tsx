@@ -290,31 +290,52 @@ export default function RegisterScreen() {
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({});
-      const address = await Location.reverseGeocodeAsync({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
+      // Try last known position first (instant), fall back to fresh GPS with timeout
+      let location = await Location.getLastKnownPositionAsync({});
+      if (!location) {
+        location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+      }
 
-      const addressData = address[0];
-      const addressString = `${addressData?.street || 'Unnamed Road'}, ${addressData?.city || 'Unknown City'}, ${addressData?.region || 'Unknown Region'}`;
-
-      // Update both location and map region immediately in a single batch
       const newLat = location.coords.latitude;
       const newLng = location.coords.longitude;
 
+      // Drop pin and center map immediately
       setStoreLocation({
         latitude: newLat,
         longitude: newLng,
-        address: addressString.trim(),
+        address: '',
       });
 
-      // Update map region immediately to center on the pinned location
       setMapRegion({
         latitude: newLat,
         longitude: newLng,
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
+      });
+
+      // Animate map to the location
+      mapRef.current?.animateToRegion({
+        latitude: newLat,
+        longitude: newLng,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 500);
+
+      // Reverse geocode in parallel (don't block the pin)
+      const address = await Location.reverseGeocodeAsync({
+        latitude: newLat,
+        longitude: newLng,
+      });
+
+      const addressData = address[0];
+      const addressString = `${addressData?.street || 'Unnamed Road'}, ${addressData?.city || 'Unknown City'}, ${addressData?.region || 'Unknown Region'}`;
+
+      setStoreLocation({
+        latitude: newLat,
+        longitude: newLng,
+        address: addressString.trim(),
       });
 
       // Auto-fill address fields if formik ref is available
