@@ -474,19 +474,22 @@ const styles = StyleSheet.create({
   },
   infoContainer: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "flex-start",
     alignItems: "center",
     marginTop: 8,
-    gap: 16,
+    gap: 12,
   },
   infoItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    flexShrink: 0,
   },
   infoText: {
     fontSize: 12,
     color: "#444",
+    flexShrink: 0,
   },
   viewBtnContainer: {
     alignItems: "center",
