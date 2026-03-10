@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Colors } from "../../constants/Colors";
@@ -31,10 +31,11 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
   onOTPVerified,
 }) => {
   const [showDetails, setShowDetails] = useState(false);
-  const [showOTPVerification, setShowOTPVerification] = useState(false);
   const [otpInput, setOtpInput] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [showSkipOptions, setShowSkipOptions] = useState(false);
+  const [endingAppointment, setEndingAppointment] = useState(false);
 
   // Determine if actions should be shown based on status
   const canShowActions = showActions && status && ['scheduled', 'confirmed', 'pending', 'rescheduled', 'in_progress'].includes(status.toLowerCase());
@@ -85,7 +86,6 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
       const response = await apiService.verifyOTP(item.id, otpInput);
 
       if (response.success) {
-        setShowOTPVerification(false);
         setOtpInput('');
         // Call the success callback which will reload appointments and update status
         if (onOTPVerified) {
@@ -135,6 +135,29 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
     }
   };
 
+  const handleEndSession = async () => {
+    try {
+      setEndingAppointment(true);
+      await apiService.completeAppointmentWithFollowup(String(item.id), {});
+      if (onOTPVerified) {
+        onOTPVerified();
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Failed to end appointment');
+    } finally {
+      setEndingAppointment(false);
+    }
+  };
+
+  const resolvedPetImage = item.pet_image || item.petImage || item.pet_photo || item.petPhotoUrl || null;
+  console.log(`🖼️ [PartnerAppointmentCard ${item.id}] pet image:`, {
+    pet_image: item.pet_image,
+    petImage: item.petImage,
+    pet_photo: item.pet_photo,
+    petPhotoUrl: item.petPhotoUrl,
+    resolved: resolvedPetImage,
+  });
+
   return (
     <View style={styles.cardContainer}>
       <TouchableOpacity
@@ -144,10 +167,13 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
       >
         <View style={styles.topSection}>
           <View style={styles.iconContainer}>
-            <Ionicons
-              name={getAppointmentTypeIcon(item.provider_type) as any}
-              size={32}
-              color={Colors.primary}
+            <Image
+              source={
+                resolvedPetImage
+                  ? { uri: resolvedPetImage }
+                  : require('../../assets/images/gogol-icon.png')
+              }
+              style={styles.petImage}
             />
           </View>
 
@@ -251,16 +277,39 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
             </View>
           </TouchableOpacity>
 
+          {/* OTP Verification Box — shown directly when OTP is needed */}
+          {!!(showOTP && !otpVerified && canShowActions) && (
+            <View style={styles.otpVerificationBox}>
+              <Text style={styles.otpVerificationTitle}>Verify Customer OTP</Text>
+              <Text style={styles.otpVerificationSubtitle}>Ask the customer for their OTP code</Text>
+              <TextInput
+                style={styles.otpInputField}
+                value={otpInput}
+                onChangeText={setOtpInput}
+                placeholder="Enter OTP"
+                placeholderTextColor="#aaa"
+                keyboardType="number-pad"
+                maxLength={6}
+              />
+              {!!errorMessage && (
+                <Text style={styles.errorText}>{errorMessage}</Text>
+              )}
+              <TouchableOpacity
+                style={[styles.otpVerifyBtn, verifying && styles.otpVerifyBtnDisabled]}
+                onPress={handleVerifyOTP}
+                disabled={verifying}
+              >
+                {verifying ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.otpVerifyBtnText}>Verify OTP</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
           {!!canShowActions && (
             <View style={styles.btnContainer}>
-              {!!(showOTP && !otpVerified) && (
-                <TouchableOpacity
-                  onPress={() => setShowOTPVerification(true)}
-                  style={styles.verifyOTPBtn}
-                >
-                  <Text style={styles.btnText}>Verify OTP</Text>
-                </TouchableOpacity>
-              )}
 
               {/* Step 1: Fill Case Sheet (after OTP verification) */}
               {!!(otpVerified && status?.toLowerCase() !== 'completed' && !hasCaseSheet) && (
@@ -273,18 +322,50 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                 </TouchableOpacity>
               )}
 
-              {/* Step 2: Add Prescription (after case sheet is filled) */}
-              {!!(otpVerified && status?.toLowerCase() !== 'completed' && hasCaseSheet && !hasPrescription) && (
-                <TouchableOpacity
-                  onPress={handleAddPrescription}
-                  style={styles.prescriptionBtn}
-                >
-                  <Ionicons name="medical-outline" size={18} color="#fff" />
-                  <Text style={styles.prescriptionBtnText}>Add Prescription</Text>
-                </TouchableOpacity>
+              {/* Step 2: After case sheet - Add Prescription (Primary) / Skip (Secondary) */}
+              {!!(otpVerified && status?.toLowerCase() !== 'completed' && hasCaseSheet && !hasPrescription && !showSkipOptions) && (
+                <>
+                  <TouchableOpacity
+                    onPress={handleAddPrescription}
+                    style={styles.prescriptionBtn}
+                  >
+                    <Ionicons name="medical-outline" size={18} color="#fff" />
+                    <Text style={styles.prescriptionBtnText}>Add Prescription</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setShowSkipOptions(true)}
+                    style={styles.skipActionBtn}
+                  >
+                    <Text style={styles.skipActionBtnText}>Skip</Text>
+                  </TouchableOpacity>
+                </>
               )}
 
-              {/* Step 3: Complete Appointment (after both case sheet and prescription) */}
+              {/* Step 3: After Skip - Follow Up (Primary) / End Appointment (Secondary) */}
+              {!!(otpVerified && status?.toLowerCase() !== 'completed' && hasCaseSheet && !hasPrescription && showSkipOptions) && (
+                <>
+                  <TouchableOpacity
+                    onPress={handleAddPrescription}
+                    style={styles.prescriptionBtn}
+                  >
+                    <Ionicons name="calendar-outline" size={18} color="#fff" />
+                    <Text style={styles.prescriptionBtnText}>Follow Up</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleEndSession}
+                    style={[styles.endSessionBtn, endingAppointment && { opacity: 0.5 }]}
+                    disabled={endingAppointment}
+                  >
+                    {endingAppointment ? (
+                      <ActivityIndicator color="#ED6D4E" size="small" />
+                    ) : (
+                      <Text style={styles.endSessionBtnText}>End Appointment</Text>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {/* After prescription added - complete */}
               {!!(otpVerified && status?.toLowerCase() !== 'completed' && hasCaseSheet && hasPrescription) && (
                 <TouchableOpacity
                   onPress={handleCompleteAppointment}
@@ -302,52 +383,29 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                 </TouchableOpacity>
               )}
 
-              <TouchableOpacity onPress={onCancel} style={styles.cancelBtn}>
-                <Text style={styles.btnText}>Cancel</Text>
-              </TouchableOpacity>
+              {/* Cancel for non-in_progress statuses */}
+              {status?.toLowerCase() !== 'in_progress' && (
+                <TouchableOpacity onPress={onCancel} style={styles.cancelBtn}>
+                  <Text style={styles.btnText}>Cancel</Text>
+                </TouchableOpacity>
+              )}
+              {/* End Session for in_progress: only when case sheet not filled yet or prescription already added */}
+              {!!(status?.toLowerCase() === 'in_progress' && (!hasCaseSheet || hasPrescription)) && (
+                <TouchableOpacity
+                  onPress={handleEndSession}
+                  style={styles.endSessionBtn}
+                  disabled={endingAppointment}
+                >
+                  {endingAppointment ? (
+                    <ActivityIndicator color="#ED6D4E" size="small" />
+                  ) : (
+                    <Text style={styles.endSessionBtnText}>End Session</Text>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
-          {!!showOTPVerification && (
-            <View style={styles.otpVerificationBox}>
-              <Text style={styles.otpVerificationTitle}>Verify Customer OTP</Text>
-              <Text style={styles.otpVerificationSubtitle}>Ask the customer for their OTP code</Text>
-              <TextInput
-                style={styles.otpInputField}
-                value={otpInput}
-                onChangeText={setOtpInput}
-                placeholder="Enter OTP"
-                keyboardType="number-pad"
-                maxLength={6}
-              />
-               {!!errorMessage && (
-                 <Text style={styles.errorText}>{errorMessage}</Text>
-               )}
-              <View style={styles.otpVerificationButtons}>
-                <TouchableOpacity
-                  style={styles.otpCancelBtn}
-                  onPress={() => {
-                    setShowOTPVerification(false);
-                    setOtpInput('');
-                    setErrorMessage('');
-                  }}
-                >
-                  <Text style={styles.otpCancelBtnText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.otpVerifyBtn, verifying && styles.otpVerifyBtnDisabled]}
-                  onPress={handleVerifyOTP}
-                  disabled={verifying}
-                >
-                  {verifying ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text style={styles.otpVerifyBtnText}>Verify</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
         </View>
       )}
     </View>
@@ -389,6 +447,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    overflow: 'hidden',
+  },
+  petImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
   },
   cardContent: {
     flex: 1,
@@ -557,6 +621,30 @@ const styles = StyleSheet.create({
     color: "#000",
     fontWeight: "bold",
   },
+  endSessionBtn: {
+    borderWidth: 1.5,
+    borderColor: "#ED6D4E",
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+  },
+  endSessionBtnText: {
+    color: "#ED6D4E",
+    fontWeight: "bold",
+  },
+  skipActionBtn: {
+    borderWidth: 1.5,
+    borderColor: "#ED6D4E",
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+  },
+  skipActionBtnText: {
+    color: "#ED6D4E",
+    fontWeight: "bold",
+  },
   otpBox: {
     backgroundColor: "#E8F5E8",
     padding: 16,
@@ -657,23 +745,6 @@ const styles = StyleSheet.create({
     color: "#F44336",
     fontSize: 13,
     marginBottom: 12,
-  },
-  otpVerificationButtons: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  otpCancelBtn: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-    alignItems: "center",
-  },
-  otpCancelBtnText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#666",
   },
   otpVerifyBtn: {
     flex: 1,
