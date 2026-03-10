@@ -428,12 +428,14 @@ const styles = StyleSheet.create({
     width: "100%",
     backgroundColor: "#fff",
     padding: 12,
+    paddingBottom: 14,
     marginBottom: 10,
     borderRadius: 8,
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    overflow: "visible",
   },
   topSection: {
     flexDirection: "row",
@@ -484,12 +486,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    flexShrink: 0,
   },
   infoText: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#444",
-    flexShrink: 0,
   },
   viewBtnContainer: {
     alignItems: "center",
