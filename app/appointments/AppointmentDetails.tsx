@@ -129,10 +129,15 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
 
   const fetchPetRecords = async () => {
     const petId = appointment?.petid || appointment?.pet_id;
-    if (!petId) return;
+    console.log('🔍 Pet Records - petid:', appointment?.petid, 'pet_id:', appointment?.pet_id, 'resolved:', petId);
+    if (!petId) {
+      setPetRecords([]);
+      return;
+    }
     try {
       setLoadingRecords(true);
       const response = await apiService.makeRequest('GET', `pet-records/pet/${petId}`);
+      console.log('📋 Pet Records response:', JSON.stringify(response).substring(0, 200));
       if (response.success && Array.isArray(response.data)) {
         setPetRecords(response.data);
       } else if (response.success && Array.isArray(response.data?.data)) {
@@ -433,8 +438,8 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
           </View>
         )}
 
-        {/* Pet Records Section */}
-        {(appointment?.petid || appointment?.pet_id) && (
+        {/* Pet Records Section - show for all appointments */}
+        {appointment && (
           <View style={styles.petRecordsSection}>
             <TouchableOpacity style={styles.petRecordsHeader} onPress={handleTogglePetRecords}>
               <View style={styles.petRecordsHeaderLeft}>
