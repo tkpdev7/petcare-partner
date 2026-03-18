@@ -472,6 +472,26 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
     console.log(`  -> Completed tab: status="${status}", selectedTab="${selectedTab}", matches=${matches}`);
     return matches;
   });
+  // Sort filtered appointments
+  if (selectedTab === "scheduled") {
+    // Upcoming: nearest date first (ascending)
+    filteredAppointments.sort((a, b) => {
+      const dateA = a.appointment_date.split("T")[0];
+      const dateB = b.appointment_date.split("T")[0];
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      const timeA = a.appointment_time || a.start_time || "00:00";
+      const timeB = b.appointment_time || b.start_time || "00:00";
+      return timeA.localeCompare(timeB);
+    });
+  } else {
+    // Completed/Cancelled: most recent first (descending)
+    filteredAppointments.sort((a, b) => {
+      const dateA = a.appointment_date.split("T")[0];
+      const dateB = b.appointment_date.split("T")[0];
+      return dateB.localeCompare(dateA);
+    });
+  }
+
   console.log(
     `Selected tab: ${selectedTab}, Total appointments: ${appointments.length}, Filtered: ${filteredAppointments.length}`
   );

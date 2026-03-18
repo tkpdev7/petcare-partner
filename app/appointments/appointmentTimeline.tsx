@@ -579,8 +579,8 @@ const getStatusStyle = (status?: string) => {
           </View>
         )}
 
-        {/* Pet's Previous Records */}
-        {appointment && (
+        {/* Pet's Previous Records - only accessible during the appointment */}
+        {appointment && appointment.status?.toLowerCase() === 'in_progress' && (
           <View style={styles.petRecordsSection}>
             <TouchableOpacity style={styles.petRecordsHeader} onPress={handleTogglePetRecords}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
