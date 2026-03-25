@@ -9,6 +9,7 @@ interface PartnerAppointmentCardProps {
   item: { [key: string]: any };
   style?: any;
   onCancel?: () => void;
+  onReschedule?: () => void;
   onPress?: () => void;
   status?: string;
   showActions?: boolean;
@@ -22,6 +23,7 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
   item,
   style,
   onCancel,
+  onReschedule,
   onPress,
   status,
   showActions = true,
@@ -372,6 +374,13 @@ const PartnerAppointmentCard: React.FC<PartnerAppointmentCardProps> = ({
                 </TouchableOpacity>
               )}
 
+              {/* Reschedule for non-in_progress statuses */}
+              {status?.toLowerCase() !== 'in_progress' && onReschedule && (
+                <TouchableOpacity onPress={onReschedule} style={styles.rescheduleBtn}>
+                  <Ionicons name="calendar-outline" size={16} color="#9C27B0" />
+                  <Text style={styles.rescheduleBtnText}>Reschedule</Text>
+                </TouchableOpacity>
+              )}
               {/* Cancel for non-in_progress statuses */}
               {status?.toLowerCase() !== 'in_progress' && (
                 <TouchableOpacity onPress={onCancel} style={styles.cancelBtn}>
@@ -587,6 +596,23 @@ const styles = StyleSheet.create({
   completeBtnText: {
     color: "#fff",
     fontWeight: "bold",
+  },
+  rescheduleBtn: {
+    backgroundColor: "#F3E5F5",
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  rescheduleBtnText: {
+    color: "#9C27B0",
+    fontWeight: "bold",
+    fontSize: 13,
   },
   cancelBtn: {
     backgroundColor: "#F0F0F8",

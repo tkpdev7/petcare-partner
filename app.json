@@ -31,7 +31,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.petcare.partner",
-      "versionCode": 5,
+      "versionCode": 6,
       "minSdkVersion": 24,
       "edgeToEdgeEnabled": true,
       "permissions": [

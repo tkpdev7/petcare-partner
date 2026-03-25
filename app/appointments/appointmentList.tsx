@@ -368,6 +368,13 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
         hasCaseSheet={!!appointment.case_sheet_url}
         hasPrescription={!!appointment.prescription_pdf_base64}
         onPress={() => handleAppointmentPress(appointment)}
+        onReschedule={() => {
+          handleRescheduleRequest(
+            appointment.id,
+            appointment.provider_id,
+            appointment.provider_type
+          );
+        }}
         onCancel={() => {
           setAppointmentToCancel(appointment.id);
           setShowCancelModal(true);
@@ -920,10 +927,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,
+    paddingVertical: 10,
     height: 80,
     marginTop: 8,
     marginBottom: 16,
     textAlignVertical: "top",
+    color: "#333",
+    fontSize: 15,
   },
   modalButtons: {
     flexDirection: "row",
