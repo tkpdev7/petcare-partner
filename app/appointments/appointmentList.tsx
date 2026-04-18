@@ -639,6 +639,7 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
             <TextInput
               style={styles.modalInput}
               placeholder="Enter reason"
+              placeholderTextColor="#999"
               multiline
               value={cancelReason}
               onChangeText={setCancelReason}
@@ -933,6 +934,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlignVertical: "top",
     color: "#333",
+    backgroundColor: "#fff",
     fontSize: 15,
   },
   modalButtons: {

@@ -106,18 +106,20 @@ const RescheduleModal = ({
 
     try {
       const newDate = selectedDate.toISOString().split("T")[0]; // yyyy-mm-dd
-      const newTime = slot.start_time;
+      const newStartTime = slot.start_time;
+      const newEndTime = slot.end_time;
 
       const payload = {
         newDate,
-        newTime,
-        reason: " ", // reason field required in your API
+        newStartTime,
+        newEndTime,
+        reason: "Rescheduled by partner",
       };
 
       console.log("Reschedule Request →", payload);
 
       const response = await fetch(
-        `${API_BASE_URL}/appointment/appointments/${appointmentId}/reschedule`,
+        `${API_BASE_URL}/partner-appointments/${appointmentId}/reschedule`,
         {
           method: "PUT",
           headers: {
