@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppHeader from '../../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
@@ -40,9 +40,13 @@ export default function HomeScreen() {
   const [partnerData, setPartnerData] = useState<any>(null);
   const [greetingName, setGreetingName] = useState('Partner');
 
-  useEffect(() => {
-    loadPartnerData();
-  }, []);
+  // Reload partner data every time the home tab is focused so the correct
+  // service-type-specific cards render after returning from other screens.
+  useFocusEffect(
+    React.useCallback(() => {
+      loadPartnerData();
+    }, [])
+  );
 
   // Prevent going back to auth screens - only on home tab
   useEffect(() => {
@@ -80,9 +84,11 @@ export default function HomeScreen() {
     }
   };
 
-  // Service items that vary based on partner type
+  // Service items that vary based on partner type.
+  // While partner data is still loading, only show the partner-type-agnostic
+  // common services — never default to the veterinary cards.
   const getServiceItems = (): ServiceItem[] => {
-    const partnerType = partnerData?.serviceType || 'veterinary';
+    const partnerType = partnerData?.serviceType;
 
     const commonServices = [
       {
@@ -164,7 +170,7 @@ export default function HomeScreen() {
   const serviceItems = getServiceItems();
 
   const getStatsItems = (): StatsItem[] => {
-    const partnerType = partnerData?.serviceType || 'veterinary';
+    const partnerType = partnerData?.serviceType;
 
     const commonStats = [
       {
