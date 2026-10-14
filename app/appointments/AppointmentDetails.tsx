@@ -20,8 +20,6 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import CustomModal from '../../components/CustomModal';
 import { useCustomModal } from '../../hooks/useCustomModal';
-import { isSampleAppointment, getSampleAppointment } from '../../services/sampleAppointment';
-import AppointmentTreatmentPlan from '../../components/AppointmentTreatmentPlan';
 
 interface AppointmentDetailsScreenProps { }
 
@@ -60,10 +58,6 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
   // Fetch fresh appointment data from API
   const fetchAppointmentDetails = async () => {
     if (!appointmentId) return;
-    if (isSampleAppointment(appointmentId)) {
-      setAppointment(getSampleAppointment());
-      return;
-    }
 
     try {
       setLoading(true);
@@ -443,9 +437,6 @@ const AppointmentDetailsScreen: React.FC<AppointmentDetailsScreenProps> = () => 
             </View>
           </View>
         )}
-
-        {/* Treatment plan — veterinary partners pick a saved plan or create one */}
-        {appointment && <AppointmentTreatmentPlan appointment={appointment} appointmentId={String(appointmentId || appointment?.id || '')} style={styles.petRecordsSection} />}
 
         {/* Pet Records Section - show for all appointments */}
         {appointment && (
