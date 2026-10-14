@@ -26,6 +26,7 @@ import { useCustomModal } from '../../hooks/useCustomModal';
 import { viewPDF } from '../../utils/documentViewer';
 import apiService from '../../services/apiService';
 import SpinningLoader from '../../components/SpinningLoader';
+import { getSampleAppointment, SAMPLE_APPOINTMENT_ID } from '../../services/sampleAppointment';
 
 interface AppointmentsScreenProps {
   navigation?: any;
@@ -80,6 +81,19 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
   >(null);
   const [isVet, setIsVet] = useState<boolean | null>(null);
 
+  // Frontend-only sample appointment (veterinary partners) so the treatment
+  // plan flow can be tried without a real booking.
+  const setAppointmentsWithSample = async (list: Appointment[]) => {
+    let vet = false;
+    try {
+      const raw = await AsyncStorage.getItem("partnerData");
+      vet = raw ? JSON.parse(raw).serviceType === "veterinary" : false;
+    } catch {}
+    const base = Array.isArray(list) ? list : [];
+    const hasSample = base.some((a) => String(a.id) === SAMPLE_APPOINTMENT_ID);
+    setAppointments(vet && !hasSample ? [...base, getSampleAppointment() as any] : base);
+  };
+
   const loadAppointments = async () => {
     try {
       const response = await apiService.getAppointments();
@@ -88,16 +102,16 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
       // API response structure: response.data.data.appointments
       if (response.data && response.data.data && response.data.data.appointments) {
         console.log("Found appointments array:", response.data.data.appointments);
-        setAppointments(response.data.data.appointments);
+        setAppointmentsWithSample(response.data.data.appointments);
       } else if (response.data && response.data.appointments) {
         console.log("Found appointments at data.appointments:", response.data.appointments);
-        setAppointments(response.data.appointments);
+        setAppointmentsWithSample(response.data.appointments);
       } else if (response.data && Array.isArray(response.data)) {
         console.log("Response data is direct array:", response.data);
-        setAppointments(response.data);
+        setAppointmentsWithSample(response.data);
       } else {
         console.log("No appointments found in response");
-        setAppointments([]);
+        setAppointmentsWithSample([]);
       }
     } catch (error: any) {
       console.error("Error loading appointments:", error);
@@ -119,7 +133,7 @@ const AppointmentsScreen: React.FC<AppointmentsScreenProps> = ({
       } else {
         modal.showError("Failed to load appointments");
       }
-      setAppointments([]);
+      setAppointmentsWithSample([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
