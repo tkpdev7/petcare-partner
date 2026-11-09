@@ -240,3 +240,29 @@ export async function issuePlan(plan: Omit<PartnerTreatmentPlan, 'id' | 'created
 export async function removeIssuedPlan(id: string) {
   await call(apiService.delete(BASE + '/' + encodeURIComponent(id)));
 }
+
+// ---- Treatment requests (customer picked one of this hospital's plans) ----
+
+export interface TreatmentRequest extends PlanBody {
+  id: string;
+  ownerName: string;
+  pet: string;
+  species: PlanSpecies;
+  petInfo: string;
+  hospital: string;
+  createdAt: string;
+  status: 'requested' | 'rejected';
+  prescriptionUrl?: string | null;
+  rejectReason?: string | null;
+}
+
+export const getTreatmentRequests = () => call<TreatmentRequest[]>(apiService.get(BASE + '/requests'));
+
+/** Approve: plan is issued to the customer, who is notified and can avail a loan. */
+export async function approveTreatmentRequest(id: string) {
+  await call(apiService.post(BASE + '/' + encodeURIComponent(id) + '/approve', {}));
+}
+
+export async function rejectTreatmentRequest(id: string, reason?: string) {
+  await call(apiService.post(BASE + '/' + encodeURIComponent(id) + '/reject', { reason: reason || '' }));
+}

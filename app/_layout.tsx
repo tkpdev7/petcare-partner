@@ -36,6 +36,7 @@ export default function RootLayout() {
         <Stack.Screen name="treatment-plans/index" options={{ headerShown: false }} />
         <Stack.Screen name="treatment-plans/create" options={{ headerShown: false }} />
         <Stack.Screen name="treatment-plans/attach" options={{ headerShown: false }} />
+        <Stack.Screen name="treatment-requests" options={{ headerShown: false }} />
       </Stack>
     </>
   );

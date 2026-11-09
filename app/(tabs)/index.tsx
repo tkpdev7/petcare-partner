@@ -128,6 +128,13 @@ export default function HomeScreen() {
                 color: '#8B5CF6',
                 route: '/treatment-plans',
               },
+              {
+                id: '5',
+                title: 'Treatment Requests',
+                icon: 'mail-unread',
+                color: '#F59E0B',
+                route: '/treatment-requests',
+              },
             ]
           : []),
       ];
