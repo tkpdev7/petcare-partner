@@ -118,6 +118,18 @@ export default function HomeScreen() {
           color: '#10B981',
           route: '/(tabs)/history',
         },
+        // Treatment plans are created by veterinary partners only
+        ...(partnerType === 'veterinary'
+          ? [
+              {
+                id: '4',
+                title: 'Treatment Plans',
+                icon: 'document-text',
+                color: '#8B5CF6',
+                route: '/treatment-plans',
+              },
+            ]
+          : []),
       ];
     }
 
@@ -220,7 +232,7 @@ export default function HomeScreen() {
         {item.image ? (
           <Image source={item.image} style={styles.cardImage} resizeMode="contain" />
         ) : (
-          <Ionicons name={item.icon as any} size={24} color={item.color} />
+          <Ionicons name={item.icon as any} size={30} color={item.color} />
         )}
       </View>
       <Text style={styles.cardTitle}>{item.title}</Text>
@@ -237,7 +249,7 @@ export default function HomeScreen() {
         {item.image ? (
           <Image source={item.image} style={styles.cardImage} resizeMode="contain" />
         ) : (
-          <Ionicons name={item.icon as any} size={24} color={item.color} />
+          <Ionicons name={item.icon as any} size={30} color={item.color} />
         )}
       </View>
       <Text style={styles.cardTitle}>{item.title}</Text>
@@ -257,7 +269,7 @@ export default function HomeScreen() {
 
         {/* Cards Grid */}
         <View style={styles.cardsContainer}>
-          <View style={styles.cardsGrid}>
+          <View style={[styles.cardsGrid, partnerData?.serviceType === 'veterinary' && { justifyContent: 'space-between' }]}>
             {statsItems.map(renderStatsCard)}
             {serviceItems.map(renderServiceCard)}
           </View>
@@ -294,12 +306,13 @@ const styles = StyleSheet.create({
   cardsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: Spacing.md,
+    justifyContent: 'flex-start',
   },
   individualCard: {
     backgroundColor: Colors.white,
-    width: '30%',
+    // 3 cards per row on every screen width: 3 x (31% + 2 x 1% margin) = 99%
+    width: '31%',
+    marginHorizontal: '1%',
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.lg,
     alignItems: 'center',

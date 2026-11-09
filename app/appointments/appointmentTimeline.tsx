@@ -14,6 +14,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { RouteProp, useRoute } from "@react-navigation/native";
+import AppointmentTreatmentPlan from '../../components/AppointmentTreatmentPlan';
+import { isSampleAppointment, getSampleAppointment } from '../../services/sampleAppointment';
 import apiService from "../../services/apiService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CustomModal from "../../components/CustomModal";
@@ -113,6 +115,17 @@ const route = useRoute<AppointmentTimelineRouteProp>();
     if (!id) return;
 
     const fetchAppointmentData = async () => {
+      if (isSampleAppointment(id)) {
+        // Frontend-only sample appointment — no API call
+        setAppointment(getSampleAppointment() as any);
+        setMilestones([
+          { status: 'scheduled', title: 'Appointment Scheduled', completed: true, timestamp: null, icon: '📅' },
+          { status: 'in_progress', title: 'Appointment In Progress', completed: true, timestamp: null, icon: '🏥' },
+          { status: 'completed', title: 'Appointment Completed', completed: false, timestamp: null, icon: '🎉' },
+        ] as any);
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
 
@@ -578,6 +591,9 @@ const getStatusStyle = (status?: string) => {
             <Text style={styles.cancellationBy}>{`Cancelled by ${appointment.cancelled_by === 'user' ? 'You' : appointment.cancelled_by === 'provider' ? 'Service Provider' : 'System'}`}</Text>
           </View>
         )}
+
+        {/* Treatment plan — veterinary partners pick a saved plan or create one */}
+        {appointment && <AppointmentTreatmentPlan appointment={appointment} appointmentId={String(id)} style={styles.petRecordsSection} />}
 
         {/* Pet's Previous Records - only accessible during the appointment */}
         {appointment && appointment.status?.toLowerCase() === 'in_progress' && (

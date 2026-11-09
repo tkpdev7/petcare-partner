@@ -33,6 +33,9 @@ export default function RootLayout() {
         <Stack.Screen name="case-sheets" options={{ headerShown: false }} />
         <Stack.Screen name="case-sheets/create" options={{ headerShown: false }} />
         <Stack.Screen name="case-sheets/view" options={{ headerShown: false }} />
+        <Stack.Screen name="treatment-plans/index" options={{ headerShown: false }} />
+        <Stack.Screen name="treatment-plans/create" options={{ headerShown: false }} />
+        <Stack.Screen name="treatment-plans/attach" options={{ headerShown: false }} />
       </Stack>
     </>
   );
