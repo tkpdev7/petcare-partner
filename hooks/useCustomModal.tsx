@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react';
-import { notify } from "../utils/notifications";
 import { ModalType } from '../components/CustomModal';
 
 interface ModalConfig {
@@ -31,10 +30,12 @@ export const useCustomModal = () => {
   }, []);
 
   const showSuccess = useCallback((message: string, options?: Partial<ModalConfig>) => {
-    // Success confirmations are notifications only (no popup box). If the user turned
-    // notifications off nothing is shown; the flow still continues.
-    notify(options?.title || "GoGol Partner", message).finally(() => options?.onPrimaryPress?.());
-  }, []);
+    showModal({
+      type: 'success',
+      message,
+      ...options,
+    });
+  }, [showModal]);
 
   const showError = useCallback((message: string, options?: Partial<ModalConfig>) => {
     showModal({
