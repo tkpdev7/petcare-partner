@@ -1,9 +1,11 @@
 import { Stack } from 'expo-router';
+import NotificationPrompt from "../components/NotificationPrompt";
 import { StatusBar } from 'expo-status-bar';
 
 export default function RootLayout() {
   return (
     <>
+      <NotificationPrompt />
       <StatusBar style="auto" />
       <Stack initialRouteName="index">
         <Stack.Screen name="index" options={{ headerShown: false }} />

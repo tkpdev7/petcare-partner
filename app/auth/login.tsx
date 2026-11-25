@@ -19,6 +19,7 @@ import apiService from '../../services/apiService';
 import CustomModal from '../../components/CustomModal';
 import { useCustomModal } from '../../hooks/useCustomModal';
 import KeyboardAwareScrollView from '../../components/KeyboardAwareScrollView';
+import { syncPushToken } from '../../utils/notifications';
 
 // Validation schema
 const loginValidationSchema = Yup.object().shape({
@@ -48,6 +49,7 @@ export default function LoginScreen() {
 
       if (token && typeof token === 'string') {
         await AsyncStorage.setItem('partnerToken', token);
+        syncPushToken();
         if (partner) {
           await AsyncStorage.setItem('partnerData', JSON.stringify(partner));
         }

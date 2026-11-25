@@ -22,6 +22,7 @@ import apiService from '../services/apiService';
 import CustomModal from '../components/CustomModal';
 import KeyboardAwareScrollView from '../components/KeyboardAwareScrollView';
 import { useCustomModal } from '../hooks/useCustomModal';
+import { clearPushToken } from '../utils/notifications';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
 
 interface PartnerData {
@@ -256,6 +257,7 @@ export default function ProfileScreen() {
       {
         title: 'Logout',
         onClose: async () => {
+          await clearPushToken();
           await AsyncStorage.multiRemove(['partnerToken', 'partnerData']);
           router.replace('/auth/login');
         }

@@ -18,6 +18,7 @@ import AppHeader from '../../components/AppHeader';
 import { Colors, Typography, Spacing, BorderRadius } from '../../constants/Colors';
 import CustomModal from '../../components/CustomModal';
 import { useCustomModal } from '../../hooks/useCustomModal';
+import { clearPushToken } from '../../utils/notifications';
 import KeyboardAwareScrollView from '../../components/KeyboardAwareScrollView';
 
 interface PartnerData {
@@ -246,6 +247,7 @@ export default function AccountScreen() {
         hideSecondaryButton: false,
         onPrimaryPress: async () => {
           modal.hideModal();
+          await clearPushToken();
           await AsyncStorage.multiRemove(['partnerToken', 'partnerData']);
           router.replace('/auth/login');
         },
